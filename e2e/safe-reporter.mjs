@@ -11,6 +11,7 @@ export default class SafeReporter {
     this.results.push({ check: test.title, status: result.status,
       durationMs: result.duration,
       lastStage: result.annotations.filter(a => a.type === 'stage').at(-1)?.description,
+      guardReason: result.annotations.filter(a => a.type === 'guard').at(-1)?.description,
       assertions: result.annotations
         .filter(a => a.type === 'verified').map(a => a.description) });
     process.stdout.write(`ModsTest: ${result.status}\n`);

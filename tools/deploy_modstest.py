@@ -149,6 +149,8 @@ def main():
             raise Blocked('skipped', 'administrator-has-not-enabled-deployment')
         if not config['other_worlds_disabled_reviewed']:
             raise Blocked('blocked', 'other-world-disablement-review-required')
+        if (Path(config['test_state_dir']) / 'created-fixtures.json').exists():
+            raise Blocked('blocked', 'temporary-fixtures-need-tests-only-recovery')
         archive = b''
         digest = ''
         if not args.recover_only:
@@ -161,7 +163,7 @@ def main():
                 raise Blocked('blocked', 'archive-changed-during-validation')
         environment = {**os.environ, 'FOUNDRY_URL': config['url'],
             'FOUNDRY_WORLD_ID': config['world_id'], 'MODSTEST_STATE_DIR': config['test_state_dir'],
-            'MODSTEST_LIVE_ENABLED': 'true'}
+            'MODSTEST_LIVE_ENABLED': 'true', 'MODSTEST_CREATE_FIXTURES': 'false'}
         # Start only the client-side guard. No server command, service name, port
         # or dataPath is accepted here. The privileged peer starts after the gate.
         guard = Peer(['node', 'e2e/deployment-guard.mjs'], environment)

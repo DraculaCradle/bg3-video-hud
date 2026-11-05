@@ -22,9 +22,10 @@ def read_test_config(path=CONFIG):
 def test_metadata(environment, config=None):
     world = environment.get('FOUNDRY_WORLD_ID') or (config or {}).get('world_id', '')
     tokens = environment.get('MODSTEST_TOKEN_IDS', '').strip()
+    create = environment.get('MODSTEST_CREATE_FIXTURES') == 'true'
     if not re.fullmatch(r'[A-Za-z0-9_-]+', world):
         raise ValueError('Configure FOUNDRY_WORLD_ID in modstest Environment or workflow input')
-    if not re.fullmatch(r'[A-Za-z0-9]{16}\s*,\s*[A-Za-z0-9]{16}', tokens) or len(set(part.strip() for part in tokens.split(','))) != 2:
+    if not create and (not re.fullmatch(r'[A-Za-z0-9]{16}\s*,\s*[A-Za-z0-9]{16}', tokens) or len(set(part.strip() for part in tokens.split(','))) != 2):
         raise ValueError('Configure MODSTEST_TOKEN_IDS: two different linked fixture token IDs, caster first')
     state = (config or {}).get('test_state_dir', '/srv/bg3deploy/modstest-state')
     path = Path(state)
@@ -33,7 +34,8 @@ def test_metadata(environment, config=None):
     if Path.cwd().resolve() == path or Path.cwd().resolve() in path.parents:
         raise ValueError('Test snapshots must persist outside the checkout')
     return {'FOUNDRY_URL': 'https://redmagic.club/', 'FOUNDRY_WORLD_ID': world,
-            'MODSTEST_TOKEN_IDS': ','.join(part.strip() for part in tokens.split(',')),
+            'MODSTEST_TOKEN_IDS': '' if create else ','.join(part.strip() for part in tokens.split(',')),
+            'MODSTEST_CREATE_FIXTURES': 'true' if create else 'false',
             'MODSTEST_STATE_DIR': state}
 
 

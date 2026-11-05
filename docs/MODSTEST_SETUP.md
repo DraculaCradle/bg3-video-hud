@@ -144,3 +144,13 @@ python3 tools/deploy_modstest.py --recover-only
 需要 modstest runner Online、Gamemaster Secret、准确 world ID 和两个 token ID。world ID 优先使用手动输入或 Environment Variable `FOUNDRY_WORLD_ID`，也可读取现有 root 配置；token ID 使用输入或 `MODSTEST_TOKEN_IDS`。状态默认保存于 `/srv/bg3deploy/modstest-state`，也可读取 root 配置的 `test_state_dir`。Player1 没有密码时无需创建 Secret。
 
 Environment 目前仅允许 main；先审阅合并 PR #3 才能从 main 运行新入口，保持自动部署开关关闭。若 runner 尚未上线，任务只会排队；若缺少 metadata 或 GM Secret，会明确停止。不要将“已排队”或“配置失败”描述为实机通过。
+
+## 没有测试角色 / token 时
+
+用户授权后，可在手动的 **ModsTest live tests only** 中勾选 `create_fixtures`。默认 false；部署流程强制保持 false，不能通过自动部署创建世界文档。
+
+这个模式不需要预先填写 token ID：登录和世界/会话守卫通过后，从已安装 D&D5e 系统的 SRD Actor 合集导入两个临时角色，必要时从同系统的法术合集补入戏法和一级法术。给予 Player1 所有权，并在活动场景创建链接 token；若没有活动场景，只创建并使用带专属标记的临时测试场景。不会安装新规则书、修改 compendium 或复用/覆盖现有正式角色。
+
+对临时施法者初始化的一级槽属于 fixture 设置，不代表通过真实施法验证消耗。角色、token 和临时场景均有本次唯一标记，创建前先持久化私有意向日志；测试后恢复快照、删除本次文档并验证。中断、外来 token 引用、身份/世界变化或不明缺失会保留日志并停止，不递归删除或猜测所有权。下次运行先恢复上次临时数据，再创建新一组。
+
+登录表单如果显示 GM 已活动/不可选，会报告 `test-account-already-active`；不会踢掉已有会话。完成测试会调用原生退出方法释放本任务自己的 GM / Player1 会话，并关闭自己的浏览器上下文。之前因 metadata 缺失而停在准备阶段的任务未启动浏览器，不应被解释为该任务占用了 GM。

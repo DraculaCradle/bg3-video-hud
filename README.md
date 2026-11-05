@@ -67,7 +67,7 @@ npm run package
 
 There are no npm dependencies; `npm ci` only checks the lockfile. `check` validates the manifest, its asset paths and JS syntax. The Node suite covers grouping, filters, ownership, UUID-scoped persistence and official method delegation. Browser tests use a **local Foundry API fixture** in real Chromium, not a Foundry server. Install Chromium on your development machine or set `CHROMIUM_PATH` to a compatible Chrome executable. The runner uses a temporary browser profile, a loopback-only HTTP server, and container-compatible `--no-sandbox`; run these trusted local fixtures in an isolated development environment.
 
-See [manual acceptance tests](docs/MANUAL_TESTS.md) for in-game requirements and [API notes](docs/API_NOTES.md) for inspected interfaces and compatibility limitations. Automated checks cannot prove actual D&D5e consumption, permissions, targeting, concentration or chat-card behavior without a Foundry world.
+See [the test report](docs/TEST_REPORT.md) for executed checks, including real Chromium viewport/keyboard testing and the remote access blocker; [manual acceptance tests](docs/MANUAL_TESTS.md) for in-game requirements; and [API notes](docs/API_NOTES.md) for inspected interfaces and compatibility limitations. Automated checks cannot prove actual D&D5e consumption, permissions, targeting, concentration or chat-card behavior without a Foundry world.
 
 ## Safety
 

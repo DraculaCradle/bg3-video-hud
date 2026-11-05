@@ -232,6 +232,17 @@ try {
     await tool.onChange(); await flush(); assert(root());
     await tool.onChange(); await flush(); assert(!root()); assert(originalVisible());
   });
+  // The Node runner now drives actual viewport changes and keyboard events.
+  await enable();
+  const interactions = await new Promise(resolve => {
+    window.finishBG3BrowserInteractions = resolve;
+    results.dataset.status = 'interactive';
+  });
+  for (const outcome of interactions) {
+    if (outcome.passed) { passed++; lines.push(`PASS ${outcome.name}`); }
+    else { failed++; lines.push(`FAIL ${outcome.name}: ${outcome.error}`); }
+  }
+  delete window.finishBG3BrowserInteractions;
   await test('unload removes temporary suppression', async () => {
     await enable(); assert(root());
     window.dispatchEvent(new Event('beforeunload')); assert(!root()); assert(originalVisible());

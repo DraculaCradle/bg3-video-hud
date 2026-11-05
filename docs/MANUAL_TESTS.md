@@ -1,6 +1,6 @@
 # Foundry v14 / D&D5e 6.0.6 acceptance
 
-Status: **NOT RUN**. A licensed server/test world was not supplied. No in-game acceptance result is implied by the automated suite or manifest compatibility metadata.
+Status: **NOT RUN**. The administrator has identified a remote test server and the ModsTest world, but this task's cloud proxy rejects HTTPS CONNECT to the server with HTTP 403. No remote installation or in-game test has been performed. No in-game acceptance result is implied by the automated suite or manifest compatibility metadata. See [the test report](TEST_REPORT.md) for the completed local checks and remaining access prerequisites.
 
 Use a backed-up disposable world with two player-owned characters (martial and spellcaster, including a pact caster or multiclass test actor), a separate GM account, and Core/D&D5e HUD 0.8.0. Record exact Foundry build, system/module versions, browser, user role, steps, expected/observed result and console errors for every failure. Do not include credentials, private videos or player data in reports.
 

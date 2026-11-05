@@ -4,9 +4,19 @@ export class GuardError extends Error {
   constructor(status, reason) { super(reason); this.status = status; this.reason = reason; }
 }
 
+function assertWorld(world, title, expected) {
+  if (title !== 'ModsTest') throw new GuardError('skipped', 'active-world-not-modstest');
+  if (world !== expected) {
+    // Only the public ID of a world with the exact test title can enter reports.
+    // Never adopt an observed ID automatically or dump the world document.
+    const observed = typeof world === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(world) ? world : 'unavailable';
+    throw new GuardError('skipped', `modstest-world-id-mismatch:${observed}`);
+  }
+}
+
 export function validateState(state, world) {
   if (!state.connected || !state.ready) throw new GuardError('blocked', 'live-session-not-connected');
-  if (state.world !== world || state.title !== 'ModsTest') throw new GuardError('skipped', 'active-world-not-modstest');
+  assertWorld(state.world, state.title, world);
   if (!state.gm || state.gmName !== 'Gamemaster' || !state.testAccountsValid) throw new GuardError('blocked', 'test-account-identity-invalid');
   if (state.foreignActive) throw new GuardError('blocked', 'non-test-account-active');
   if (state.unsafe) throw new GuardError('blocked', 'world-or-session-guard-latched');
@@ -32,6 +42,8 @@ export async function login(page, config, name, password) {
   const user = page.locator('#join-game-form select[name="userId"]');
   try { await user.waitFor({ state: 'visible', timeout: 30_000 }); }
   catch { throw new GuardError('blocked', 'v14-login-form-unavailable'); }
+  const advertised = await page.evaluate(() => ({ world: game.world?.id, title: game.world?.title }));
+  assertWorld(advertised.world, advertised.title, config.world);
   const options = await page.locator('#join-game-form select[name="userId"] option').evaluateAll((nodes, name) => nodes
     .filter(node => node.label.trim() === name || node.label.trim().startsWith(`${name} `))
     .map(node => ({ value: node.value, disabled: node.disabled })), name);
@@ -43,7 +55,7 @@ export async function login(page, config, name, password) {
   try { await page.waitForFunction(() => globalThis.game?.ready && globalThis.game?.user, undefined, { timeout: 60_000 }); }
   catch { throw new GuardError('blocked', 'test-login-or-world-initialization-failed'); }
   const actual = await page.evaluate(() => ({ world: game.world.id, title: game.world.title, name: game.user.name, gm: game.user.isGM }));
-  if (actual.world !== config.world || actual.title !== 'ModsTest') throw new GuardError('skipped', 'active-world-not-modstest');
+  assertWorld(actual.world, actual.title, config.world);
   if (actual.name !== name || actual.gm !== (name === 'Gamemaster')) {
     throw new GuardError('blocked', 'authenticated-world-or-user-mismatch');
   }

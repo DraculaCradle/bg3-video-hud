@@ -55,18 +55,31 @@ test('a missing V14 login form reports a controlled reason before entering crede
     error => error instanceof GuardError && error.reason === 'v14-login-form-unavailable'
       && !error.message.includes('private page details'));
 });
+test('the public world ID mismatch is reported before credentials and is never adopted', async () => {
+  const config = { url: 'https://example.invalid/', world: 'ModsTest' };
+  const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    locator: () => ({ waitFor: async () => {}, evaluateAll: () => assert.fail('must not select an account') }),
+    evaluate: async () => ({ world: 'modstest', title: 'ModsTest' }) };
+  await assert.rejects(login(page, config, 'Gamemaster', 'SENTINEL'),
+    error => error instanceof GuardError && error.status === 'skipped' && error.reason === 'modstest-world-id-mismatch:modstest');
+  assert.equal(config.world, 'ModsTest');
+  page.evaluate = async () => ({ world: 'private page\nSENTINEL', title: 'ModsTest' });
+  await assert.rejects(login(page, config, 'Gamemaster', 'SENTINEL'),
+    error => error.reason === 'modstest-world-id-mismatch:unavailable');
+});
 test('authentication or world initialization failure reports no password or page error', async () => {
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
     locator: () => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'gm', disabled: false }],
       selectOption: async () => {}, fill: async () => {}, click: async () => {} }),
     waitForFunction: async () => { throw new Error('private response SENTINEL'); },
-    evaluate: () => assert.fail('must not inspect documents before ready') };
+    evaluate: async () => ({ world: 'modstest', title: 'ModsTest' }) };
   await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', 'SENTINEL'),
     error => error instanceof GuardError && error.reason === 'test-login-or-world-initialization-failed'
       && !error.message.includes('SENTINEL'));
 });
 test('an already-active GM option is reported without submitting a login or kicking it', async () => {
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    evaluate: async () => ({ world: 'modstest', title: 'ModsTest' }),
     locator: () => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'gm', disabled: true }],
       selectOption: () => assert.fail('must not submit'), fill: () => assert.fail('must not fill') }) };
   await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', 'SENTINEL'),

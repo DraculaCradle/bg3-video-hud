@@ -156,3 +156,5 @@ Environment 目前仅允许 main；先审阅合并 PR #3 才能从 main 运行�
 登录表单如果显示 GM 已活动/不可选，会报告 `test-account-already-active`；不会踢掉已有会话。完成测试会调用原生退出方法释放本任务自己的 GM / Player1 会话，并关闭自己的浏览器上下文。之前因 metadata 缺失而停在准备阶段的任务未启动浏览器，不应被解释为该任务占用了 GM。
 
 V14 登录使用 `#join-game-form` 内大小写敏感的 `userId` 字段和提交按钮；测试不会点击相邻的返回 Setup 表单。`v14-login-form-unavailable` 表示尚未输入凭据；`test-login-or-world-initialization-failed` 表示已提交登录但认证或世界初始化未完成，不能据此判定密码错误。报告不保留密码、页面内容或原始错误。两种情况都未进入角色创建阶段。
+
+表单渲染后还会在输入凭据前读取公开世界 ID，登录后再次核对。标题为 ModsTest 但配置 ID 不符时，报告 `modstest-world-id-mismatch:<准确ID>` 并停止；不会自动接受这个 ID。管理员核实后可修正 Environment 的 `FOUNDRY_WORLD_ID` 或使用只测试工作流的 `world_id` 输入。标题变化仍报告 `active-world-not-modstest`，不会输出其他世界内容或切换世界。

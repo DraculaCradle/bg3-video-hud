@@ -1,0 +1,61 @@
+name: ModsTest live tests only
+on:
+  workflow_dispatch:
+    inputs:
+      world_id:
+        description: Exact ModsTest world ID (optional when configured on server or Environment)
+        type: string
+        default: ''
+      token_ids:
+        description: Two fixture token IDs, caster first (optional when configured in Environment)
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: modstest-deployment
+  cancel-in-progress: false
+jobs:
+  live-test:
+    if: github.ref == 'refs/heads/main'
+    environment: modstest
+    runs-on: [self-hosted, linux, x64, modstest]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare test metadata (no deployment permissions or enablement needed)
+        env:
+          FOUNDRY_WORLD_ID: ${{ inputs.world_id || vars.FOUNDRY_WORLD_ID }}
+          MODSTEST_TOKEN_IDS: ${{ inputs.token_ids || vars.MODSTEST_TOKEN_IDS }}
+        run: python3 tools/live_test_config.py
+      - run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund
+      - name: Install browser as the restricted runner account
+        working-directory: e2e
+        run: npx --no-install playwright install chromium
+      - name: Test installed module and restore fixtures
+        id: live
+        env:
+          MODSTEST_LIVE_ENABLED: 'true'
+          FOUNDRY_GM_PASSWORD: ${{ secrets.FOUNDRY_GM_PASSWORD }}
+          # Missing/empty is intentional for this existing passwordless account.
+          FOUNDRY_PLAYER_PASSWORD: ${{ secrets.FOUNDRY_PLAYER_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import os
+          if not os.environ.get('FOUNDRY_GM_PASSWORD'):
+              raise SystemExit('Missing modstest Environment Secret: FOUNDRY_GM_PASSWORD')
+          PY
+          npm --prefix e2e test
+      - name: Upload sanitized test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: modstest-tests-only-${{ github.sha }}-${{ github.run_attempt }}
+          path: e2e/results/report.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -68,7 +68,7 @@ jobs:
           python3 - <<'PY'
           import os
           required = ['MODSTEST_TOKEN_IDS',
-                      'FOUNDRY_GM_PASSWORD', 'FOUNDRY_PLAYER_PASSWORD']
+                      'FOUNDRY_GM_PASSWORD']
           if any(not os.environ.get(name) for name in required):
               raise SystemExit('Configure all ModsTest Environment variables and Secrets before deploying')
           PY

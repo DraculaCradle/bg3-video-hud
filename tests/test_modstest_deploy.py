@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 import modstest_filesystem as files
 import deploy_modstest as orchestrator
+import live_test_config
 
 
 class SharedInstanceFiles(unittest.TestCase):
@@ -311,6 +312,23 @@ class ConfigurationPolicy(unittest.TestCase):
 
     def test_existing_instance_schema_preserves_both_disabled_gates(self):
         self.assertEqual(self.read(), self.config)
+
+    def test_tests_only_metadata_does_not_require_deployment_enabled_or_player_secret(self):
+        result = live_test_config.test_metadata({'MODSTEST_TOKEN_IDS': 'aaaaaaaaaaaaaaaa,bbbbbbbbbbbbbbbb'},
+            {'world_id': 'modstest', 'test_state_dir': str(self.base / 'snapshots'), 'enabled': False})
+        self.assertEqual(result['FOUNDRY_WORLD_ID'], 'modstest')
+        self.assertNotIn('FOUNDRY_PLAYER_PASSWORD', result)
+
+    def test_tests_only_metadata_rejects_missing_or_duplicate_fixture_ids(self):
+        for tokens in ['', 'aaaaaaaaaaaaaaaa,aaaaaaaaaaaaaaaa']:
+            with self.assertRaises(ValueError):
+                live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest', 'MODSTEST_TOKEN_IDS': tokens})
+
+    def test_tests_only_metadata_rejects_snapshot_state_inside_checkout(self):
+        with self.assertRaises(ValueError):
+            live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',
+                'MODSTEST_TOKEN_IDS': 'aaaaaaaaaaaaaaaa,bbbbbbbbbbbbbbbb'},
+                {'test_state_dir': str(Path.cwd() / 'e2e/results')})
 
     def test_timed_out_peer_cannot_supply_stale_reply_as_a_new_safety_check(self):
         from unittest.mock import Mock

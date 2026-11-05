@@ -17,7 +17,7 @@ export function settings() {
   }
   const state = process.env.MODSTEST_STATE_DIR;
   if (!state || !state.startsWith('/')) throw Error('Configure persistent private test state directory');
-  for (const key of ['FOUNDRY_GM_PASSWORD', 'FOUNDRY_PLAYER_PASSWORD']) {
+  for (const key of ['FOUNDRY_GM_PASSWORD']) {
     if (!process.env[key]) throw Error('Missing dedicated test secret');
   }
   mkdirSync(state, { recursive: true, mode: 0o700 });

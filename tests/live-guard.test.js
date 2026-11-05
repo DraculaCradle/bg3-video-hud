@@ -31,13 +31,39 @@ test('another active world is rejected before entering either account credential
 });
 test('Player1 submits its intentionally empty password, while GM still requires a Secret', async () => {
   const filled = [];
+  const controls = {
+    '#join-game-form select[name="userId"]': { waitFor: async () => {}, selectOption: async () => {} },
+    '#join-game-form select[name="userId"] option': { evaluateAll: async () => [{ value: 'player', disabled: false }] },
+    '#join-game-form input[name="password"]': { fill: async value => filled.push(value) },
+    '#join-game-form button[type="submit"]': { click: async () => {} }
+  };
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
-    locator: selector => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'player', disabled: false }], selectOption: async () => {}, fill: async value => filled.push([selector, value]), click: async () => {} }),
+    // The legacy lowercase userid and name=join selectors do not exist in V14.
+    // Any unscoped control could select the separate setup form and must fail.
+    locator: selector => { assert.ok(controls[selector], `Unexpected login control: ${selector}`); return controls[selector]; },
     waitForFunction: async () => {}, evaluate: async () => ({ world: 'modstest', title: 'ModsTest', name: 'Player1', gm: false }) };
   await login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Player1', '');
-  assert.deepEqual(filled, [['input[name="password"]', '']]);
+  assert.deepEqual(filled, ['']);
   await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', ''),
     error => error.reason === 'missing-test-secret');
+});
+test('a missing V14 login form reports a controlled reason before entering credentials', async () => {
+  const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    locator: () => ({ waitFor: async () => { throw new Error('private page details'); },
+      fill: () => assert.fail('must not fill'), selectOption: () => assert.fail('must not select') }) };
+  await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', 'SENTINEL'),
+    error => error instanceof GuardError && error.reason === 'v14-login-form-unavailable'
+      && !error.message.includes('private page details'));
+});
+test('authentication or world initialization failure reports no password or page error', async () => {
+  const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    locator: () => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'gm', disabled: false }],
+      selectOption: async () => {}, fill: async () => {}, click: async () => {} }),
+    waitForFunction: async () => { throw new Error('private response SENTINEL'); },
+    evaluate: () => assert.fail('must not inspect documents before ready') };
+  await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', 'SENTINEL'),
+    error => error instanceof GuardError && error.reason === 'test-login-or-world-initialization-failed'
+      && !error.message.includes('SENTINEL'));
 });
 test('an already-active GM option is reported without submitting a login or kicking it', async () => {
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',

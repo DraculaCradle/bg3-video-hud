@@ -73,8 +73,10 @@ Hooks.on('getSceneControlButtons', controls => {
   if (!controls.tokens?.tools) return;
   controls.tokens.tools.bg3VideoHUD = {
     name: 'bg3VideoHUD', title: 'Toggle BG3 Video HUD', icon: 'fas fa-table-cells',
-    toggle: true, active: game.settings.get(MODULE_ID, 'enabled'), order: 101,
-    onChange: (_event, active) => game.settings.set(MODULE_ID, 'enabled', Boolean(active))
+    // A momentary button reads the current setting each click. A cached toggle's
+    // active state could become stale after the HUD button or a macro disables it.
+    button: true, order: 101,
+    onChange: () => toggle()
   };
 });
 

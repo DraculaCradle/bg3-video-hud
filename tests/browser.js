@@ -114,6 +114,17 @@ try {
     assert(notifications.some(n => n.includes('System rejected consumption')));
     assert(!find('use', 'sword').disabled); sword.use = original;
   });
+  await test('late workflow errors do not write status onto a newly selected actor', async () => {
+    const original = sword.use;
+    let reject;
+    sword.use = () => new Promise((_resolve, fail) => { reject = fail; });
+    find('use', 'sword').click(); await flush();
+    await select(actor('other'));
+    reject(new Error('Previous actor workflow failed')); await flush();
+    assert(!root().textContent.includes('Previous actor workflow failed'));
+    assert(notifications.some(n => n.includes('Previous actor workflow failed')));
+    sword.use = original; await select(hero); assert(!find('use', 'sword').disabled);
+  });
   await test('rests use both official workflows', async () => {
     for (const kind of ['short', 'long']) { root().querySelector(`[data-action="rest"][data-value="${kind}"]`).click(); await flush(); }
     equal(shortRests, 1); equal(longRests, 1);
@@ -196,12 +207,30 @@ try {
     assert(notifications.some(n => n.includes('Flag read unavailable')));
     user.getFlag = getFlag; await Hooks.emit('updateUser', user); assert(root());
   });
+  await test('an action-time render failure restores original and releases the busy lock', async () => {
+    const getFlag = user.getFlag;
+    const count = uses;
+    user.getFlag = () => { throw new Error('Action render unavailable'); };
+    await click('use', 'sword'); assert(!root()); assert(originalVisible()); equal(uses, count);
+    user.getFlag = getFlag; await Hooks.emit('updateUser', user);
+    assert(root()); assert(!find('use', 'sword').disabled);
+  });
   await test('disable restores upstream display and never overwrites original preferences', async () => {
     await click('disable'); assert(!root()); assert(originalVisible());
     equal(user.flags['bg3-hud-core'], { layout: ['untouched'] });
     equal(user.flags['bg3-hud-dnd5e'], { order: ['original'] });
     assert(user.writes.every(w => w.scope === MODULE_ID));
     equal([...settings.keys()], [`${MODULE_ID}.enabled`]);
+  });
+  await test('scene tool reads live setting after other controls toggle the HUD', async () => {
+    const controls = { tokens: { tools: {} } };
+    await Hooks.emit('getSceneControlButtons', controls);
+    const tool = controls.tokens.tools.bg3VideoHUD;
+    equal(tool.button, true);
+    await tool.onChange(); await flush(); assert(root());
+    await click('disable'); assert(!root());
+    await tool.onChange(); await flush(); assert(root());
+    await tool.onChange(); await flush(); assert(!root()); assert(originalVisible());
   });
   await test('unload removes temporary suppression', async () => {
     await enable(); assert(root());

@@ -14,6 +14,10 @@ on:
         description: Import two temporary SRD actors/tokens, test them and remove only these fixtures
         type: boolean
         default: false
+      diagnostics_only:
+        description: Inventory this runner account's browser processes without Foundry login or changes
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -32,19 +36,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Inventory runner browser processes (read-only, no login)
+        run: python3 tools/runner_browser_inventory.py
       - name: Prepare test metadata (no deployment permissions or enablement needed)
+        if: ${{ !inputs.diagnostics_only }}
         env:
           FOUNDRY_WORLD_ID: ${{ inputs.world_id || vars.FOUNDRY_WORLD_ID }}
           MODSTEST_TOKEN_IDS: ${{ inputs.token_ids || vars.MODSTEST_TOKEN_IDS }}
           MODSTEST_CREATE_FIXTURES: ${{ inputs.create_fixtures }}
         run: python3 tools/live_test_config.py
       - run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund
+        if: ${{ !inputs.diagnostics_only }}
       - name: Install browser as the restricted runner account
+        if: ${{ !inputs.diagnostics_only }}
         working-directory: e2e
         run: |
           npx --no-install playwright install chromium
           node browser-smoke.mjs
       - name: Test installed module and restore fixtures
+        if: ${{ !inputs.diagnostics_only }}
         id: live
         env:
           MODSTEST_LIVE_ENABLED: 'true'
@@ -63,6 +73,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: modstest-tests-only-${{ github.sha }}-${{ github.run_attempt }}
-          path: e2e/results/report.json
+          path: |
+            e2e/results/report.json
+            e2e/results/runner-browser-inventory.json
           if-no-files-found: warn
           retention-days: 7

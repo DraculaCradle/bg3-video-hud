@@ -45,6 +45,8 @@ curl 两次实际网络探测的退出码均为 0，因为未使用 `--fail`；�
 
 执行过的本地自动化测试合计 **92 通过，0 失败**，其中 Playwright 的服务器场景不计入通过数。首次默认沙箱内的 Chromium 运行因 loopback EPERM 未执行；启用命令网络权限后完整运行得到上述 31 项通过。
 
+提交后 push CI 已通过；随后一次 PR CI 在 Chromium DevTools 的原有 10 秒启动等待处超时，未执行浏览器断言。该次 runner 使用滚动的 Ubuntu 26.04 镜像，日志没有保留 Chrome 的退出信息，因此不能确定 Chrome 未就绪的具体原因。本次改为固定 Ubuntu 24.04、允许 30 秒启动时间、浏览器提前退出时立即报错并保留有界启动诊断，同时要求完整收到 DevTools 地址后才连接；没有通过自动重跑隐藏失败。
+
 ## 工作流及验收边界
 
 自动部署只在 `main`、repository variable `MODS_TEST_ENABLED=true`、`modstest` Environment 和专用 runner 同时就绪后执行。构建 job 和部署 job 使用同次运行、同一提交的带校验产物；PR 代码不会送往服务器 runner。模组备份、服务停启、原子指针更新、两会话实机检查和失败回滚在一笔持锁事务中完成；中断恢复日志保留至旧版本重新通过健康检查。

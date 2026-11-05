@@ -25,12 +25,16 @@ try {
     '--no-first-run', '--disable-background-networking', `--user-data-dir=${profile}`,
     '--remote-debugging-port=0', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
   const endpoint = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Chromium DevTools startup timed out')), 10000);
-    child.once('error', error => { clearTimeout(timer); reject(error); });
     let errors = '';
+    const timer = setTimeout(() => reject(new Error(`Chromium DevTools startup timed out; ${errors.slice(-2048)}`)), 30000);
+    child.once('error', error => { clearTimeout(timer); reject(error); });
+    child.once('exit', (code, signal) => {
+      clearTimeout(timer);
+      reject(new Error(`Chromium exited before DevTools startup (${code ?? signal}); ${errors.slice(-2048)}`));
+    });
     child.stderr.on('data', data => {
-      errors += data;
-      const match = errors.match(/DevTools listening on (ws:\/\/\S+)/);
+      errors = (errors + data).slice(-8192);
+      const match = errors.match(/DevTools listening on (ws:\/\/\S+)[\r\n]/);
       if (match) { clearTimeout(timer); resolve(match[1]); }
     });
   });

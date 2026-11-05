@@ -26,9 +26,9 @@ export async function publicWorld(page, config) {
 
 export async function login(page, config, name, password) {
   await publicWorld(page, config);
-  if (!password) throw new GuardError('blocked', 'missing-test-secret');
+  if (!password && name !== 'Player1') throw new GuardError('blocked', 'missing-test-secret');
   await page.locator('select[name="userid"]').selectOption({ label: name });
-  await page.locator('input[name="password"]').fill(password);
+  await page.locator('input[name="password"]').fill(password ?? '');
   await page.locator('button[name="join"]').click();
   await page.waitForFunction(() => globalThis.game?.ready, undefined, { timeout: 60_000 });
   const actual = await page.evaluate(() => ({ world: game.world.id, title: game.world.title, name: game.user.name, gm: game.user.isGM }));

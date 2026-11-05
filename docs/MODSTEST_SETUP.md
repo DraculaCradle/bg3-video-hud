@@ -7,12 +7,12 @@
 ## GitHub 配置
 
 1. 使用现有 `feat/modstest-actions` 分支上的本次修订。GitHub 查询显示 PR #2 已合并，不能重新打开；后续修改仍在同一开发分支，不直接推送 main。审阅并合并后才使用新的工作流。
-2. 创建或保留 Environment **`modstest`**，限制部署分支为 `main`。创建两个 Environment Secrets，只在 GitHub Secrets 页面填写现有测试账号密码：
+2. 创建或保留 Environment **`modstest`**，限制部署分支为 `main`。配置 Environment Secrets，只在 GitHub Secrets 页面填写现有测试账号密码：
 
    | Secret | 用途 |
    | --- | --- |
    | `FOUNDRY_GM_PASSWORD` | 现有 ModsTest 世界的 Gamemaster；不需要 Setup 管理密码 |
-   | `FOUNDRY_PLAYER_PASSWORD` | 现有 ModsTest 世界的 Player1 普通玩家 |
+   | `FOUNDRY_PLAYER_PASSWORD` | 可选；现有 Player1 无密码时不创建此 Secret，测试提交空密码 |
 
 3. 在 Environment Variables 配置 `MODSTEST_TOKEN_IDS`：同一活动场景两个链接角色 token 的 ID，以英文逗号分隔，第一个施法者、第二个战士。URL 和准确世界 ID 由服务器上 root 管理的配置提供，不允许 workflow 输入任意部署目录或 service 名称。
 4. Repository Settings → Actions → Runners，选择 Linux x64。按页面当前下载地址、校验和与短期注册 token 安装 runner，标签为 **`modstest`**。注册 token 不放入仓库、Secrets 示例、日志或聊天。runner 必须仅执行受信任维护者代码，PR 构建使用 GitHub 托管 runner；若是 public 仓库，配置 runner 访问策略，不能仅把标签当作授权边界。
@@ -96,7 +96,7 @@ sudo chmod 0644 /etc/bg3-modstest.json
 
 ### 5. 准备测试账号、角色和 runner
 
-- 复用现有 Gamemaster（世界 GM）和 Player1（普通玩家），密码通过上述两个 Secrets 提供；不生成或索要新密码。
+- 复用现有 Gamemaster（世界 GM）和 Player1（普通玩家），密码通过上述两个 Secrets 提供；不生成或索要新密码；Player1 无密码时允许空值，Gamemaster 仍必须有 Secret。
 - 在 ModsTest 的同一活动场景放置两个**链接到角色**的测试 token，对应不同的专用测试角色，均给 Player1 OWNER。施法者要有数值 HP、正的最大 HP、一级法术槽、至少一个戏法和一个一级法术；另一个角色至少有两件物品。不要指定正式玩家角色。
 - 安装 Node 24、Python 3.9+、git、curl 和 Playwright Chromium 所需 OS 库。OS 库由管理员预装，工作流只以普通账号下载浏览器。
 - 在 `/srv/bg3deploy/actions-runner`，以 `bg3deploy` 执行 GitHub Runners 页面提供的注册步骤，额外标签 `modstest`。可按官方步骤将 **GitHub runner 本身**注册为服务，进程用户仍为 bg3deploy；这不是新的 Foundry 服务。
@@ -136,3 +136,11 @@ python3 tools/deploy_modstest.py --recover-only
 | recovered | 完成旧事务恢复；没有发布新版本 |
 
 只上传脱敏报告，默认禁止 trace、截图、视频、完整错误附件、Cookie、密码和认证状态文件。法术槽同步由测试 GM 临时编辑资源验证，不冒充通过真实施法证明的官方扣槽；pact、专注、模板、休息和聊天卡仍按 MANUAL_TESTS.md 验收。
+
+## 已安装后的“只测试”入口
+
+使用 **ModsTest live tests only** (`modstest-test.yml`) 的 Run workflow，选择 main。此入口不执行打包部署、不调用 sudo/helper、不修改模组文件、不切换世界或重启，也不要求开启 MODS_TEST_ENABLED 或服务器 enabled。测试会临时修改指定 fixture 的 HP/法术槽和本模组布局，并恢复原值。
+
+需要 modstest runner Online、Gamemaster Secret、准确 world ID 和两个 token ID。world ID 优先使用手动输入或 Environment Variable `FOUNDRY_WORLD_ID`，也可读取现有 root 配置；token ID 使用输入或 `MODSTEST_TOKEN_IDS`。状态默认保存于 `/srv/bg3deploy/modstest-state`，也可读取 root 配置的 `test_state_dir`。Player1 没有密码时无需创建 Secret。
+
+Environment 目前仅允许 main；先审阅合并 PR #3 才能从 main 运行新入口，保持自动部署开关关闭。若 runner 尚未上线，任务只会排队；若缺少 metadata 或 GM Secret，会明确停止。不要将“已排队”或“配置失败”描述为实机通过。

@@ -29,6 +29,16 @@ test('another active world is rejected before entering either account credential
   await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', 'TEST_SENTINEL'),
     error => error instanceof GuardError && error.status === 'skipped');
 });
+test('Player1 submits its intentionally empty password, while GM still requires a Secret', async () => {
+  const filled = [];
+  const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    locator: selector => ({ selectOption: async () => {}, fill: async value => filled.push([selector, value]), click: async () => {} }),
+    waitForFunction: async () => {}, evaluate: async () => ({ world: 'modstest', title: 'ModsTest', name: 'Player1', gm: false }) };
+  await login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Player1', '');
+  assert.deepEqual(filled, [['input[name="password"]', '']]);
+  await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', ''),
+    error => error.reason === 'missing-test-secret');
+});
 test('GM test pages receive a new cache key instead of reusing preflight module assets', async t => {
   let sequence = 0, handler;
   t.mock.method(Math, 'random', () => ++sequence / 10);

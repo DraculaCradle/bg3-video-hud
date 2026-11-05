@@ -7,6 +7,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Read deployment switch without deploying
+        env:
+          FILE_DEPLOYMENT_ENABLED: ${{ vars.MODS_TEST_ENABLED }}
+        run: |
+          if [ "$FILE_DEPLOYMENT_ENABLED" = true ]; then
+            echo BG3_FILE_DEPLOYMENT_ENABLED=true
+          else
+            echo BG3_FILE_DEPLOYMENT_ENABLED=false
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

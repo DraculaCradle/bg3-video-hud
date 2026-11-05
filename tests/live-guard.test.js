@@ -5,6 +5,12 @@ import { GuardError, validateState, login, freshModuleRequests, closeOwnContext,
 const state = { connected: true, ready: true, world: 'modstest', title: 'ModsTest', gm: true,
   gmName: 'Gamemaster', testAccountsValid: true, foreignActive: false, generation: '14',
   system: 'dnd5e', systemVersion: '6.0.6', dependenciesValid: true, moduleActive: true };
+
+function anonymousReleaseProbe(onAvailability = () => {}) {
+  const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    locator: () => ({ waitFor: async () => {} }), waitForFunction: async (_fn, account) => onAvailability(account) };
+  return { newContext: async () => ({ newPage: async () => page, close: async () => {} }) };
+}
 test('shared-instance guard permits only the exact world and test-account session set', () => {
   assert.equal(validateState(state, 'modstest'), state);
 });
@@ -22,6 +28,14 @@ test('missing discovery, wrong versions and disabled modules require a maintenan
   for (const changed of [{ generation: '13' }, { systemVersion: '6.0.5' }, { dependenciesValid: false }, { moduleActive: false }]) {
     assert.throws(() => validateState({ ...state, ...changed }, 'modstest'), error => error.status === 'maintenance-required');
   }
+});
+test('version diagnostics include dependency enablement and exclude non-version data', () => {
+  assert.throws(() => validateState({ ...state, dependenciesValid: false, version: '14.369', dependencies: [
+    { id: 'bg3-hud-core', version: '0.8.0', active: false },
+    { id: 'bg3-hud-dnd5e', version: 'PRIVATE_PASSWORD', active: true }
+  ] }, 'modstest'), error => error.reason.includes('foundry=14.369;system=dnd5e@6.0.6')
+    && error.reason.includes('bg3-hud-core=0.8.0(active=false)')
+    && error.reason.includes('bg3-hud-dnd5e=unknown(active=true)') && !error.reason.includes('PRIVATE_PASSWORD'));
 });
 test('another active world is rejected before entering either account credential', async () => {
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'Campaign',
@@ -91,34 +105,43 @@ test('closing a test context logs out only its own authenticated account', async
   assert.equal(calls, 1); assert.equal(closed, 1);
   calls = 0;
   const page = { evaluate: async () => { calls++; return calls === 1; },
+    url: () => 'https://example.invalid/join',
     waitForURL: async () => {}, locator: () => ({ waitFor: async () => {} }), waitForFunction: async () => {} };
-  await closeOwnContext({ pages: () => [page], close: async () => { closed++; } }, page, 'Gamemaster');
+  await closeOwnContext({ browser: () => anonymousReleaseProbe(), pages: () => [page], close: async () => { closed++; } }, page, 'Gamemaster');
   assert.equal(calls, 2); assert.equal(closed, 2);
 });
-test('native logout must finish navigation and release the account before context closure', async () => {
+test('native logout waits for navigation then verifies release after closing all authenticated sockets', async () => {
   let finishNavigation, closed = false, evaluations = 0;
   const events = [];
   const page = {
+    url: () => 'https://example.invalid/join',
     evaluate: async () => { evaluations++; if (evaluations === 1) return true; events.push('native logout'); },
     waitForURL: async () => { events.push('wait navigation'); await new Promise(resolve => { finishNavigation = resolve; }); },
-    locator: () => ({ waitFor: async () => { events.push('join form'); } }),
-    waitForFunction: async (_fn, name) => { assert.equal(name, 'Gamemaster'); events.push('release confirmed'); }
   };
-  const context = { pages: () => [page, { close: async () => { events.push('sibling closed'); } }],
+  const context = { browser: () => anonymousReleaseProbe(name => {
+    assert.equal(name, 'Gamemaster'); assert.equal(closed, true); events.push('anonymous release confirmed');
+  }), pages: () => [page, { close: async () => { events.push('sibling closed'); } }],
     close: async () => { closed = true; events.push('context closed'); } };
   const closing = closeOwnContext(context, page, 'Gamemaster');
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(closed, false);
   assert.deepEqual(events, ['sibling closed', 'wait navigation', 'native logout']);
   finishNavigation(); await closing;
-  assert.deepEqual(events.slice(-3), ['join form', 'release confirmed', 'context closed']);
+  assert.deepEqual(events.slice(-2), ['context closed', 'anonymous release confirmed']);
 });
 test('unconfirmed native logout blocks a passing report while still closing our context', async () => {
   let closed = false;
-  const page = { evaluate: async () => true, waitForURL: async () => { throw Error('private response'); } };
-  await assert.rejects(closeOwnContext({ pages: () => [page], close: async () => { closed = true; } }, page, 'Player1'),
+  const page = { url: () => 'https://example.invalid/join', evaluate: async () => true, waitForURL: async () => { throw Error('private response'); } };
+  await assert.rejects(closeOwnContext({ browser: () => anonymousReleaseProbe(), pages: () => [page], close: async () => { closed = true; } }, page, 'Player1'),
     error => error instanceof GuardError && error.reason === 'test-session-release-unconfirmed:native-navigation');
   assert.equal(closed, true);
+});
+test('an account that remains active after our sockets close is never evicted', async () => {
+  let closed = false;
+  const page = { url: () => 'https://example.invalid/join', evaluate: async () => true, waitForURL: async () => {} };
+  const browser = anonymousReleaseProbe(() => { assert.equal(closed, true); throw Error('still active'); });
+  await assert.rejects(closeOwnContext({ browser: () => browser, pages: () => [page], close: async () => { closed = true; } }, page, 'Gamemaster'),
+    error => error.reason === 'test-session-release-unconfirmed:account-availability');
 });
 test('a logout failure preserves the original world/version guard failure for diagnosis', async t => {
   if (Object.hasOwn(process.env, 'FOUNDRY_GM_PASSWORD')) t.mock.property(process.env, 'FOUNDRY_GM_PASSWORD', 'SENTINEL');
@@ -134,11 +157,12 @@ test('a logout failure preserves the original world/version guard failure for di
     locator: () => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'gm', disabled: false }],
       selectOption: async () => {}, fill: async () => {}, click: async () => {} }),
     waitForFunction: async () => {}, evaluate: async () => replies.shift(), on: () => {},
-    waitForURL: async () => { throw Error('private cleanup error'); } };
+    url: () => 'https://example.invalid/join', waitForURL: async () => { throw Error('private cleanup error'); } };
   const context = { unroute: async () => {}, route: async () => {}, newPage: async () => page,
+    browser: () => anonymousReleaseProbe(),
     pages: () => [page], close: async () => { closed = true; } };
   await assert.rejects(openGuard({ newContext: async () => context }, { url: 'https://example.invalid/', world: 'modstest' }),
-    error => error.reason === 'foundry-or-dependency-version-mismatch'
+    error => error.reason.startsWith('foundry-or-dependency-version-mismatch:foundry=13;')
       && error.cleanupReason === 'test-session-release-unconfirmed:native-navigation');
   assert.equal(closed, true);
 });

@@ -21,7 +21,16 @@ export function validateState(state, world) {
   if (state.foreignActive) throw new GuardError('blocked', 'non-test-account-active');
   if (state.unsafe) throw new GuardError('blocked', 'world-or-session-guard-latched');
   if (state.generation !== '14' || state.system !== 'dnd5e' || state.systemVersion !== '6.0.6'
-      || !state.dependenciesValid) throw new GuardError('maintenance-required', 'foundry-or-dependency-version-mismatch');
+      || !state.dependenciesValid) {
+    const version = value => /^\d+(?:\.\d+){0,3}(?:[-+][0-9A-Za-z.-]+)?$/.test(String(value)) ? String(value) : 'unknown';
+    const details = [`foundry=${version(state.version ?? state.generation)}`,
+      `system=${state.system === 'dnd5e' ? 'dnd5e' : 'unsupported'}@${version(state.systemVersion)}`];
+    for (const id of ['bg3-hud-core', 'bg3-hud-dnd5e']) {
+      const dependency = state.dependencies?.find(d => d.id === id);
+      details.push(`${id}=${version(dependency?.version)}(active=${typeof dependency?.active === 'boolean' ? dependency.active : 'unknown'})`);
+    }
+    throw new GuardError('maintenance-required', `foundry-or-dependency-version-mismatch:${details.join(';')}`);
+  }
   if (!state.moduleActive) throw new GuardError('maintenance-required', 'module-not-enabled-in-modstest');
   return state;
 }
@@ -96,7 +105,9 @@ export async function openGuard(browser, config) {
               ready: game.ready, world: game.world.id, title: game.world.title, gm: game.user.isGM, gmName: game.user.name,
               testAccountsValid: accounts.every(users => users.length === 1) && accounts[0][0]?.isGM && !accounts[1][0]?.isGM,
               foreignActive: game.users.some(u => u.active && !allowed.has(u.id)),
-              generation: String(game.version).split('.')[0], system: game.system.id, systemVersion: game.system.version,
+              version: game.version, generation: String(game.version).split('.')[0], system: game.system.id, systemVersion: game.system.version,
+              dependencies: ['bg3-hud-core', 'bg3-hud-dnd5e'].map(id => ({ id,
+                version: game.modules.get(id)?.version, active: game.modules.get(id)?.active === true })),
               dependenciesValid: ['bg3-hud-core', 'bg3-hud-dnd5e'].every(id => {
                 const module = game.modules.get(id);
                 const parts = String(module?.version ?? '').match(/^(\d+)\.(\d+)\.(\d+)$/)?.slice(1).map(Number);
@@ -152,12 +163,14 @@ export async function closeOwnContext(context, page, account) {
     ownSession = await page.evaluate(name => globalThis.game?.user?.name === name
       && typeof game.logOut === 'function', account);
   } catch { /* A closed/unauthenticated page has no proven owned session. */ }
+  let browser, destination;
   try {
     if (ownSession) {
+      browser = context.browser();
+      const origin = new URL(page.url()).origin;
       // Every page in this context belongs to this task. Close sibling sockets
       // first, keeping our authenticated page until native logout is confirmed.
       for (const sibling of context.pages()) if (sibling !== page) await sibling.close();
-      let phase = 'native-navigation';
       try {
         // V14 logOut() returns immediately after assigning window.location.
         // Awaiting its return does not wait for the server's /join request.
@@ -165,17 +178,33 @@ export async function closeOwnContext(context, page, account) {
           page.waitForURL(url => /\/join\/?$/.test(url.pathname), { waitUntil: 'domcontentloaded', timeout: 30_000 }),
           page.evaluate(() => { game.logOut(); })
         ]);
-        phase = 'join-form';
-        await page.locator('#join-game-form').waitFor({ state: 'visible', timeout: 30_000 });
-        phase = 'account-availability';
-        await page.waitForFunction(name => {
+        const url = new URL(page.url());
+        if (url.origin !== origin || url.username || url.password) throw Error('Unexpected logout destination');
+        url.search = ''; url.hash = '';
+        destination = url.href;
+      } catch { throw new GuardError('blocked', 'test-session-release-unconfirmed:native-navigation'); }
+    }
+  } finally { await context.close(); }
+  if (destination) {
+    // A join page using the old authenticated cookie can itself keep the user
+    // active. Close all our sockets first, then verify from a fresh anonymous
+    // context. This probe can never clear or evict another user's session.
+    const probe = await browser.newContext({ serviceWorkers: 'block' });
+    let phase = 'join-form';
+    try {
+      const anonymous = await probe.newPage();
+      const response = await anonymous.goto(destination, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      if (response?.status() !== 200 || await anonymous.title() !== 'ModsTest') throw Error('Unexpected join page');
+      await anonymous.locator('#join-game-form').waitFor({ state: 'visible', timeout: 30_000 });
+      phase = 'account-availability';
+      await anonymous.waitForFunction(name => {
           const options = [...document.querySelectorAll('#join-game-form select[name="userId"] option')]
             .filter(node => node.label.trim() === name || node.label.trim().startsWith(`${name} `));
           return options.length === 1 && !options[0].disabled;
-        }, account, { timeout: 15_000 });
-      } catch { throw new GuardError('blocked', `test-session-release-unconfirmed:${phase}`); }
-    }
-  } finally { await context.close(); }
+      }, account, { timeout: 30_000 });
+    } catch { throw new GuardError('blocked', `test-session-release-unconfirmed:${phase}`); }
+    finally { await probe.close(); }
+  }
 }
 
 export async function freshModuleRequests(context) {

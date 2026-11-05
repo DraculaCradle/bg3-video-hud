@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GuardError, validateState, login, freshModuleRequests, closeOwnContext } from '../e2e/live-guard.mjs';
+import { GuardError, validateState, login, freshModuleRequests, closeOwnContext, openGuard } from '../e2e/live-guard.mjs';
 
 const state = { connected: true, ready: true, world: 'modstest', title: 'ModsTest', gm: true,
   gmName: 'Gamemaster', testAccountsValid: true, foreignActive: false, generation: '14',
@@ -117,7 +117,29 @@ test('unconfirmed native logout blocks a passing report while still closing our 
   let closed = false;
   const page = { evaluate: async () => true, waitForURL: async () => { throw Error('private response'); } };
   await assert.rejects(closeOwnContext({ pages: () => [page], close: async () => { closed = true; } }, page, 'Player1'),
-    error => error instanceof GuardError && error.reason === 'test-session-release-unconfirmed');
+    error => error instanceof GuardError && error.reason === 'test-session-release-unconfirmed:native-navigation');
+  assert.equal(closed, true);
+});
+test('a logout failure preserves the original world/version guard failure for diagnosis', async t => {
+  if (Object.hasOwn(process.env, 'FOUNDRY_GM_PASSWORD')) t.mock.property(process.env, 'FOUNDRY_GM_PASSWORD', 'SENTINEL');
+  else {
+    process.env.FOUNDRY_GM_PASSWORD = 'SENTINEL';
+    t.after(() => { delete process.env.FOUNDRY_GM_PASSWORD; });
+  }
+  const replies = [{ world: 'modstest', title: 'ModsTest' },
+    { world: 'modstest', title: 'ModsTest', name: 'Gamemaster', gm: true }, undefined,
+    { ...state, generation: '13' }, true];
+  let closed = false;
+  const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    locator: () => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'gm', disabled: false }],
+      selectOption: async () => {}, fill: async () => {}, click: async () => {} }),
+    waitForFunction: async () => {}, evaluate: async () => replies.shift(), on: () => {},
+    waitForURL: async () => { throw Error('private cleanup error'); } };
+  const context = { unroute: async () => {}, route: async () => {}, newPage: async () => page,
+    pages: () => [page], close: async () => { closed = true; } };
+  await assert.rejects(openGuard({ newContext: async () => context }, { url: 'https://example.invalid/', world: 'modstest' }),
+    error => error.reason === 'foundry-or-dependency-version-mismatch'
+      && error.cleanupReason === 'test-session-release-unconfirmed:native-navigation');
   assert.equal(closed, true);
 });
 test('GM test pages receive a new cache key instead of reusing preflight module assets', async t => {

@@ -18,6 +18,13 @@ test('Gamemaster and Player1: HUD, shared-instance safety and fixture restoratio
     } finally { await recoverCreatedFixtures(guard, cleanup); }
   } catch (error) {
     if (error instanceof GuardError) info.annotations.push({ type: 'guard', description: error.reason });
+    if (error.cleanupReason) info.annotations.push({ type: 'cleanup', description: error.cleanupReason });
     throw error;
-  } finally { await guard?.close(); }
+  } finally {
+    try { await guard?.close(); }
+    catch (error) {
+      info.annotations.push({ type: 'cleanup', description: error instanceof GuardError ? error.reason : 'test-session-release-unconfirmed' });
+      throw error;
+    }
+  }
 });

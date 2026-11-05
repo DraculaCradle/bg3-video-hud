@@ -1,0 +1,48 @@
+/* Independent namespace; the sole upstream selector suppresses its DOM shell only. */
+body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
+.bg3-video-hud {
+  --video-gold: #d9bd7b;
+  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 65; width: min(940px, calc(100vw - 36px)); max-height: min(50vh, 480px);
+  display: flex; flex-direction: column; gap: 7px; padding: 12px;
+  background: #171b22f5; color: #f3eee2; border: 1px solid #a58c56; border-radius: 12px;
+  box-shadow: 0 4px 24px #000a; font: 13px/1.4 system-ui, sans-serif;
+  pointer-events: auto; color-scheme: dark;
+}
+.bg3-video-hud *, .bg3-video-hud *::before, .bg3-video-hud *::after { box-sizing: border-box; }
+.bg3-video-hud button {
+  cursor: pointer; min-height: 30px; width: auto; margin: 0; padding: 3px 8px;
+  color: inherit; background: #292f3b; border: 1px solid #646974; border-radius: 5px;
+  font: inherit; line-height: 1.4; box-shadow: none;
+}
+.bg3-video-hud button:hover { border-color: var(--video-gold); background: #3d4350; }
+.bg3-video-hud button:focus-visible { outline: 2px solid #f8d68b; outline-offset: 2px; }
+.bg3-video-hud button[aria-pressed="true"] { background: #55482e; border-color: var(--video-gold); }
+.bg3-video-hud button:disabled { opacity: .55; cursor: default; }
+.bg3-video-hud-header { display: flex; align-items: center; gap: 10px; }
+.bg3-video-hud .bg3-video-hud-portrait { width: 64px; height: 64px; flex: 0 0 64px; padding: 0; border-radius: 50%; overflow: hidden; }
+.bg3-video-hud-portrait img { width: 100%; height: 100%; object-fit: cover; border: 0; }
+.bg3-video-hud-summary { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.bg3-video-hud-summary strong { overflow-wrap: anywhere; color: var(--video-gold); font-size: 16px; }
+.bg3-video-hud-controls, .bg3-video-hud-filters, .bg3-video-hud-spells nav, .bg3-video-hud footer { display: flex; flex-wrap: wrap; gap: 5px; }
+.bg3-video-hud-panels { overflow: auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.bg3-video-hud-panel { min-width: 0; padding: 6px; background: #0d111888; border-radius: 6px; }
+.bg3-video-hud h3 { font: bold 14px/1.4 system-ui, sans-serif; color: var(--video-gold); margin: 0 0 7px; border: 0; }
+.bg3-video-hud-items { list-style: none; padding: 0; margin: 5px 0 0; display: grid; gap: 5px; }
+.bg3-video-hud .bg3-video-hud-use { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; }
+.bg3-video-hud-use img { width: 32px; height: 32px; object-fit: cover; border: 0; flex-shrink: 0; }
+.bg3-video-hud-use span { min-width: 0; overflow-wrap: anywhere; }
+.bg3-video-hud small { display: block; color: #c5c9d2; font-size: 11px; }
+.bg3-video-hud-edit-controls { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 3px; }
+.bg3-video-hud-item[draggable="true"] { cursor: grab; border-bottom: 1px dashed #646974; padding-bottom: 4px; }
+.bg3-video-hud-item-hidden .bg3-video-hud-use { opacity: .4; }
+.bg3-video-hud-empty, .bg3-video-hud-help { color: #c5c9d2; margin: 3px 0; font-size: 12px; }
+.bg3-video-hud-status { overflow-wrap: anywhere; color: #ffcfac; align-self: center; }
+@media (min-width: 1300px) {
+  .bg3-video-hud { left: calc(50% - 140px); width: min(940px, calc(100vw - 380px)); }
+}
+@media (max-width: 650px) {
+  .bg3-video-hud { bottom: 4px; padding: 8px; max-height: 55vh; }
+  .bg3-video-hud-panels { grid-template-columns: 1fr; }
+  .bg3-video-hud-controls { flex-direction: column; }
+}

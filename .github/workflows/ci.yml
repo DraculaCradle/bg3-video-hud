@@ -1,0 +1,26 @@
+name: Validate module
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run test:deploy
+      - run: npm run test:modstest-deploy
+      - name: Validate live test discovery (no server login)
+        run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund && cd e2e && npx --no-install playwright test --list
+      - name: Chromium fixture integration
+        run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bg3-video-hud
+          path: dist/*

@@ -8,6 +8,7 @@
     "check": "node tools/check.mjs",
     "test": "node --test --test-isolation=none tests/*.test.js",
     "test:browser": "node tools/browser-test.mjs",
+    "test:modstest-deploy": "python3 -m unittest discover -s tests -p 'test_modstest_deploy.py' -v",
     "test:deploy": "python3 -m unittest discover -s tests -p 'test_deploy.py' -v",
     "package": "npm run check && python3 tools/package.py"
   }

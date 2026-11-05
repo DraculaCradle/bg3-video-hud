@@ -14,6 +14,9 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run test:deploy
+      - run: npm run test:modstest-deploy
+      - name: Validate live test discovery (no server login)
+        run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund && cd e2e && npx --no-install playwright test --list
       - name: Chromium fixture integration
         run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
       - run: npm run package

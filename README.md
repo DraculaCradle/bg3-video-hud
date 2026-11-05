@@ -71,4 +71,6 @@ See [the test report](docs/TEST_REPORT.md) for executed checks, including real C
 
 ## Safety
 
+For a dedicated ModsTest instance, see [GitHub Actions deployment and runner setup](docs/MODSTEST_SETUP.md). It builds on GitHub, deploys only this test module through a restricted local runner, atomically switches verified versions, rolls back failed live tests, and keeps test passwords in Environment Secrets. [The continuation report](docs/AUTOMATION_REPORT.md) separates local validation, server connectivity and live checks that have not yet run.
+
 Test only in a backed-up test world first. Spell/item consumption, ownership permissions, PC token switches and chat cards must be verified before real sessions.

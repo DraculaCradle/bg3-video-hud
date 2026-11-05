@@ -27,16 +27,21 @@ export async function publicWorld(page, config) {
 export async function login(page, config, name, password) {
   await publicWorld(page, config);
   if (!password && name !== 'Player1') throw new GuardError('blocked', 'missing-test-secret');
-  await page.locator('select[name="userid"]').waitFor({ state: 'attached', timeout: 30_000 });
-  const options = await page.locator('select[name="userid"] option').evaluateAll((nodes, name) => nodes
+  // V14 renders an ApplicationV2 form after the initial /join document arrives.
+  // Scope every control to login so the adjacent return-to-setup form is never submitted.
+  const user = page.locator('#join-game-form select[name="userId"]');
+  try { await user.waitFor({ state: 'visible', timeout: 30_000 }); }
+  catch { throw new GuardError('blocked', 'v14-login-form-unavailable'); }
+  const options = await page.locator('#join-game-form select[name="userId"] option').evaluateAll((nodes, name) => nodes
     .filter(node => node.label.trim() === name || node.label.trim().startsWith(`${name} `))
     .map(node => ({ value: node.value, disabled: node.disabled })), name);
   if (options.length !== 1) throw new GuardError('blocked', 'test-account-option-unavailable');
   if (options[0].disabled) throw new GuardError('blocked', 'test-account-already-active');
-  await page.locator('select[name="userid"]').selectOption(options[0].value);
-  await page.locator('input[name="password"]').fill(password ?? '');
-  await page.locator('button[name="join"]').click();
-  await page.waitForFunction(() => globalThis.game?.ready, undefined, { timeout: 60_000 });
+  await user.selectOption(options[0].value);
+  await page.locator('#join-game-form input[name="password"]').fill(password ?? '');
+  await page.locator('#join-game-form button[type="submit"]').click();
+  try { await page.waitForFunction(() => globalThis.game?.ready && globalThis.game?.user, undefined, { timeout: 60_000 }); }
+  catch { throw new GuardError('blocked', 'test-login-or-world-initialization-failed'); }
   const actual = await page.evaluate(() => ({ world: game.world.id, title: game.world.title, name: game.user.name, gm: game.user.isGM }));
   if (actual.world !== config.world || actual.title !== 'ModsTest') throw new GuardError('skipped', 'active-world-not-modstest');
   if (actual.name !== name || actual.gm !== (name === 'Gamemaster')) {

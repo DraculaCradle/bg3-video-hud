@@ -15,7 +15,8 @@ def inventory():
     browsers = []
     for line in listing.splitlines():
         fields = line.split()
-        if len(fields) != 4 or not any(word in fields[2].lower() for word in ['chrome', 'chromium']):
+        if len(fields) != 4 or not (fields[2] == 'headless_shell'
+                                   or any(word in fields[2].lower() for word in ['chrome', 'chromium'])):
             continue
         pid, parent, name, age = fields
         # Command arguments are inspected only for fixed Playwright markers;
@@ -27,7 +28,7 @@ def inventory():
                 continue
             args = process.joinpath('cmdline').read_bytes().decode('utf8', errors='replace').split('\0')
             marked = (bool(args) and '/.cache/ms-playwright/' in args[0]
-                      and Path(args[0]).name in ['chrome', 'chrome-headless-shell']
+                      and Path(args[0]).name in ['chrome', 'chrome-headless-shell', 'headless_shell']
                       and '--remote-debugging-pipe' in args
                       and any(arg.startswith('--user-data-dir=/tmp/playwright_chromiumdev_profile-') for arg in args))
         except (OSError, ValueError):

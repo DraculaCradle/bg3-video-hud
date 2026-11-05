@@ -17,6 +17,33 @@ sys.path.insert(0, str(ROOT / 'tools'))
 import modstest_filesystem as files
 import deploy_modstest as orchestrator
 import live_test_config
+import runner_browser_inventory
+
+
+class RunnerBrowserInventory(unittest.TestCase):
+    def test_pinned_playwright_headless_shell_is_included_without_argument_leak(self):
+        args = ('/srv/bg3deploy/.cache/ms-playwright/chromium_headless_shell-1194/chrome-linux/headless_shell\0'
+                '--remote-debugging-pipe\0--user-data-dir=/tmp/playwright_chromiumdev_profile-fixture\0'
+                '--example=PRIVATE_SENTINEL\0').encode()
+        with patch.object(os, 'getuid', return_value=1000), \
+                patch.object(runner_browser_inventory.subprocess, 'check_output', return_value='321 1 headless_shell 900\n400 1 node 900\n'), \
+                patch.object(Path, 'stat', return_value=SimpleNamespace(st_uid=1000)), \
+                patch.object(Path, 'read_bytes', return_value=args):
+            report = runner_browser_inventory.inventory()
+        self.assertEqual(len(report['browsers']), 1)
+        self.assertEqual(report['browsers'][0], {'pid': 321, 'parentPid': 1, 'name': 'headless_shell',
+                                              'ageSeconds': 900, 'playwrightBrowser': True})
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(report))
+        self.assertNotIn('user-data-dir', json.dumps(report))
+
+    def test_a_process_whose_owner_changed_is_not_read_or_reported(self):
+        with patch.object(os, 'getuid', return_value=1000), \
+                patch.object(runner_browser_inventory.subprocess, 'check_output', return_value='321 1 headless_shell 900\n'), \
+                patch.object(Path, 'stat', return_value=SimpleNamespace(st_uid=2000)), \
+                patch.object(Path, 'read_bytes') as read:
+            report = runner_browser_inventory.inventory()
+        read.assert_not_called()
+        self.assertEqual(report['browsers'], [])
 
 
 class SharedInstanceFiles(unittest.TestCase):

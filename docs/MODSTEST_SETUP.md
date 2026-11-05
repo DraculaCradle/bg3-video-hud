@@ -159,6 +159,8 @@ V14 登录使用 `#join-game-form` 内大小写敏感的 `userId` 字段和提�
 
 表单渲染后还会在输入凭据前读取公开世界 ID，登录后再次核对。标题为 ModsTest 但配置 ID 不符时，报告 `modstest-world-id-mismatch:<准确ID>` 并停止；不会自动接受这个 ID。管理员核实后可修正 Environment 的 `FOUNDRY_WORLD_ID` 或使用只测试工作流的 `world_id` 输入。标题变化仍报告 `active-world-not-modstest`，不会输出其他世界内容或切换世界。
 
-2026-11-05 实机只读检查确认现有世界标题为 `ModsTest`、ID 为 `modstest`，配置 `FOUNDRY_WORLD_ID` 时使用后者。原生退出会发起异步跳转；测试关闭自己的其他页面后，等待 `/join` 页面及账号选项恢复可用，再关闭浏览器上下文。未确认释放时报告 `test-session-release-unconfirmed`，不冒充退出成功，也不强制清除其他会话。
+2026-11-05 实机只读检查确认现有世界标题为 `ModsTest`、ID 为 `modstest`，配置 `FOUNDRY_WORLD_ID` 时使用后者。原生退出会发起异步跳转；测试等待 `/join` 请求完成后关闭自己的全部页面与连接，再从全新匿名上下文确认账号恢复可选，最后关闭匿名探测页。旧认证 Cookie 的 join 页面可能保持账号活动，不能在关闭该连接之前把其选项当作释放证明。未确认释放时报告 `test-session-release-unconfirmed`，不冒充退出成功，也不强制清除其他会话。
 
 浏览器预检还必须通过 WebGL2 canvas 创建，失败时在任何登录或部署之前停止。脱敏报告中的 `guardReason` 保留主失败原因，`cleanupReason` 单独记录退出失败阶段（`native-navigation`、`join-form` 或 `account-availability`）；退出异常不会覆盖更早的版本/世界/认证错误。若退出未确认，先检查已有 GM 页面，不反复提交登录或重启服务。
+
+版本守卫失败还会报告 Foundry／D&D5e 及两个依赖的数字版本、依赖启用布尔值。只记录固定模组 ID 和经过校验的版本，不输出其他设置或世界文档；校验仍然要求 Foundry 14、D&D5e 6.0.6 和已启用的兼容依赖。

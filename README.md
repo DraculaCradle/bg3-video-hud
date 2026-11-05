@@ -42,6 +42,8 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 
 The manifest's release URLs become usable after a maintainer publishes release `v0.1.0` with the built ZIP and `module.json` as assets. They are not pre-existing hosted downloads. The release workflow handles version-matching tags; ordinary branch pushes and PRs do not publish a release.
 
+For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
+
 ## Use
 
 - Click an item cell to call D&D5e's `Item5e.use({event})`. The system chooses among activities and owns targeting, spell-slot choice/upcasting, limited uses, concentration, templates and chat cards. An item without activities may display its system chat card. No slot/resource values are manually decremented, and canceled dialogs do not produce a success notification.
@@ -59,6 +61,7 @@ npm ci
 npm run check
 npm test
 npm run test:browser
+npm run test:deploy
 npm run package
 ```
 

@@ -8,8 +8,8 @@
   "relationships": {
     "systems": [{ "id": "dnd5e", "type": "system", "compatibility": { "minimum": "6.0.6", "verified": "6.0.6", "maximum": "6.0.6" } }],
     "requires": [
-      { "id": "bg3-hud-core", "type": "module", "compatibility": { "minimum": "0.8.0" } },
-      { "id": "bg3-hud-dnd5e", "type": "module", "compatibility": { "minimum": "0.8.0" } }
+      { "id": "bg3-hud-core", "type": "module", "manifest": "https://github.com/BragginRites/bg3-hud-core/releases/latest/download/module.json", "compatibility": { "minimum": "0.8.0" } },
+      { "id": "bg3-hud-dnd5e", "type": "module", "manifest": "https://github.com/BragginRites/bg3-hud-dnd5e/releases/latest/download/module.json", "compatibility": { "minimum": "0.8.0" } }
     ]
   },
   "esmodules": ["scripts/module.js"],

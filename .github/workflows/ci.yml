@@ -13,6 +13,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - run: npm run test:deploy
       - name: Chromium fixture integration
         run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
       - run: npm run package

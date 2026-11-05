@@ -16,7 +16,9 @@ test('live reporter excludes credentials, errors and attachments and never passe
       if (JSON.parse(readFileSync('results/report.json')).status !== 'not-run') process.exit(1);
       const report = new Reporter();
       report.onTestEnd({ title: 'controlled scenario' }, {
-        status: 'failed', duration: 5, annotations: [{ type: 'verified', description: 'HP' }],
+        status: 'failed', duration: 5, annotations: [{ type: 'verified', description: 'HP' },
+          { type: 'guard', description: 'module-not-enabled-in-modstest' },
+          { type: 'cleanup', description: 'test-session-release-unconfirmed:join-form' }],
         error: { message: 'SENTINEL_PASSWORD' },
         attachments: [{ body: 'SENTINEL_PASSWORD' }], stdout: ['SENTINEL_PASSWORD']
       });
@@ -28,6 +30,8 @@ test('live reporter excludes credentials, errors and attachments and never passe
     assert.equal(text.includes('SENTINEL_PASSWORD'), false);
     assert.equal(result.stdout.includes('SENTINEL_PASSWORD'), false);
     assert.deepEqual(JSON.parse(text).tests[0].assertions, ['HP']);
+    assert.equal(JSON.parse(text).tests[0].guardReason, 'module-not-enabled-in-modstest');
+    assert.equal(JSON.parse(text).tests[0].cleanupReason, 'test-session-release-unconfirmed:join-form');
     assert.equal(JSON.parse(text).status, 'failed');
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

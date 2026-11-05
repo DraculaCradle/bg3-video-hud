@@ -57,7 +57,9 @@ jobs:
         run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund
       - name: Install browser (OS dependencies must be provisioned by administrator)
         working-directory: e2e
-        run: npx --no-install playwright install chromium
+        run: |
+          npx --no-install playwright install chromium
+          node browser-smoke.mjs
       - name: Guard existing world, update one module, test or recover (no restart)
         id: live
         env:

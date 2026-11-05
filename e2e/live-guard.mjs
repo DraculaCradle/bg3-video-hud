@@ -136,7 +136,12 @@ export async function openGuard(browser, config) {
     await guard.check();
     return guard;
   } catch (error) {
-    await closeOwnContext(context, gm, 'Gamemaster');
+    try { await closeOwnContext(context, gm, 'Gamemaster'); }
+    catch (cleanupError) {
+      // Preserve the original guard failure as well as the cleanup failure.
+      // Neither raw browser errors nor page data belong in the report.
+      error.cleanupReason = cleanupError instanceof GuardError ? cleanupError.reason : 'test-session-release-unconfirmed';
+    }
     throw error;
   }
 }
@@ -152,6 +157,7 @@ export async function closeOwnContext(context, page, account) {
       // Every page in this context belongs to this task. Close sibling sockets
       // first, keeping our authenticated page until native logout is confirmed.
       for (const sibling of context.pages()) if (sibling !== page) await sibling.close();
+      let phase = 'native-navigation';
       try {
         // V14 logOut() returns immediately after assigning window.location.
         // Awaiting its return does not wait for the server's /join request.
@@ -159,13 +165,15 @@ export async function closeOwnContext(context, page, account) {
           page.waitForURL(url => /\/join\/?$/.test(url.pathname), { waitUntil: 'domcontentloaded', timeout: 30_000 }),
           page.evaluate(() => { game.logOut(); })
         ]);
+        phase = 'join-form';
         await page.locator('#join-game-form').waitFor({ state: 'visible', timeout: 30_000 });
+        phase = 'account-availability';
         await page.waitForFunction(name => {
           const options = [...document.querySelectorAll('#join-game-form select[name="userId"] option')]
             .filter(node => node.label.trim() === name || node.label.trim().startsWith(`${name} `));
           return options.length === 1 && !options[0].disabled;
         }, account, { timeout: 15_000 });
-      } catch { throw new GuardError('blocked', 'test-session-release-unconfirmed'); }
+      } catch { throw new GuardError('blocked', `test-session-release-unconfirmed:${phase}`); }
     }
   } finally { await context.close(); }
 }

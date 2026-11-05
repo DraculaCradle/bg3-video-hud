@@ -1,0 +1,22 @@
+name: Validate module
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - name: Chromium fixture integration
+        run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bg3-video-hud
+          path: dist/*

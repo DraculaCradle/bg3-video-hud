@@ -1,0 +1,25 @@
+name: Package tagged release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run check && npm test
+      - name: Chromium fixture integration
+        run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
+      - name: Check release version
+        run: node -e 'if (`v${JSON.parse(require("node:fs").readFileSync("module.json")).version}` !== process.env.GITHUB_REF_NAME) process.exit(1)'
+      - run: npm run package
+      - name: Publish installable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/bg3-video-hud.zip dist/module.json --verify-tag --generate-notes

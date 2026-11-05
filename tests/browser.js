@@ -47,6 +47,7 @@ const hero = actor('hero', [sword, item('bow', 'weapon'), item('second-wind'), l
 user.character = hero;
 globalThis.canvas = { ready: true, tokens: { controlled: [{ actor: hero }] } };
 globalThis.game = {
+  world: { id: 'modstest', title: 'ModsTest' },
   user, version: '14.0', system: { id: 'dnd5e', version: '6.0.6' },
   modules: new Map([[MODULE_ID, {}], ['bg3-hud-core', { active: true }], ['bg3-hud-dnd5e', { active: true }]]),
   settings: {
@@ -242,10 +243,26 @@ try {
     if (outcome.passed) { passed++; lines.push(`PASS ${outcome.name}`); }
     else { failed++; lines.push(`FAIL ${outcome.name}: ${outcome.error}`); }
   }
+  results.dataset.status = 'running';
   delete window.finishBG3BrowserInteractions;
   await test('unload removes temporary suppression', async () => {
     await enable(); assert(root());
     window.dispatchEvent(new Event('beforeunload')); assert(!root()); assert(originalVisible());
+  });
+  await test('a different world registers no HUD settings, controls or API and writes no flags', async () => {
+    handlers.clear();
+    game.world = { id: 'campaign', title: 'Campaign' };
+    game.modules.set(MODULE_ID, {});
+    const flags = JSON.stringify(user.flags);
+    game.settings.register = () => { throw new Error('Foreign world settings registration'); };
+    game.keybindings.register = () => { throw new Error('Foreign world keybindings registration'); };
+    await import('../scripts/module.js?foreign-world-bootstrap');
+    await Hooks.emit('init'); await Hooks.emit('ready');
+    const controls = { tokens: { tools: {} } };
+    await Hooks.emit('getSceneControlButtons', controls);
+    assert(!root()); assert(originalVisible());
+    assert(!controls.tokens.tools.bg3VideoHUD); assert(!game.modules.get(MODULE_ID).api);
+    equal(JSON.stringify(user.flags), flags);
   });
 } catch (error) { failed++; lines.push(`HARNESS FAILURE: ${error.stack ?? error}`); }
 results.textContent = `${lines.join('\n')}\n${passed} passed, ${failed} failed`;

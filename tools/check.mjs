@@ -20,4 +20,9 @@ for (const dir of ['scripts', 'tests', 'tools']) {
     checked++;
   }
 }
+for (const entry of readdirSync('e2e')) {
+  if (!entry.endsWith('.mjs')) continue;
+  execFileSync(process.execPath, ['--check', `e2e/${entry}`], { stdio: 'inherit' });
+  checked++;
+}
 console.log(`Manifest and ${checked} JavaScript files validated.`);

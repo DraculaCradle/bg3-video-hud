@@ -1,208 +1,136 @@
 #!/usr/bin/env python3
-"""Transactional deployment on a dedicated ModsTest runner. No SSH or world writes."""
+"""Guarded hot update of one module in the EXISTING Foundry process."""
 import argparse
-from contextlib import contextmanager
-import fcntl
+import base64
 import hashlib
 import json
 import os
 from pathlib import Path
-import re
+import select
 import signal
-import stat
 import subprocess
 import sys
-import tempfile
+import time
 
-from deploy_linux import archive_payload, verify_tree
+from deploy_linux import archive_payload
+from modstest_filesystem import load_config
 
-CONFIG = Path('/etc/bg3-modstest.json')
-SERVICE = ['/usr/bin/sudo', '-n', '/usr/local/sbin/bg3-modstest-service']
-
-
-def sync_directory(path):
-    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+HELPER = ['/usr/bin/sudo', '-n', '/usr/local/libexec/bg3-video-hud-deploy/session']
 
 
-def atomic_json(path, value):
-    fd, name = tempfile.mkstemp(prefix='.journal-', dir=path.parent)
-    try:
-        with os.fdopen(fd, 'w') as stream:
-            json.dump(value, stream)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(name, path)
-        sync_directory(path.parent)
-    finally:
-        Path(name).unlink(missing_ok=True)
+class Blocked(Exception):
+    def __init__(self, status, reason):
+        self.status, self.reason = status, reason
 
 
-def swap(root, release):
-    # Only this private directory is writable by the deployment account.
-    # Foundry's fixed Data/modules/bg3-video-hud link points at root/current.
-    temp = root / '.next'
-    temp.unlink(missing_ok=True)
-    if release is None:
-        (root / 'current').unlink(missing_ok=True)
-    else:
-        if not re.fullmatch(r'[a-f0-9]{64}', release):
-            raise ValueError('Invalid release identifier')
-        temp.symlink_to('releases/' + release, target_is_directory=True)
-        os.replace(temp, root / 'current')
-    sync_directory(root)
+class Peer:
+    def __init__(self, command, environment=None):
+        self.broken = False
+        self.child = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, text=True, bufsize=1, env=environment, start_new_session=True)
 
-
-def current_release(root):
-    link = root / 'current'
-    if not link.is_symlink():
-        raise ValueError('An administrator must seed a known-good current release first')
-    match = re.fullmatch(r'releases/([a-f0-9]{64})', os.readlink(link))
-    if not match or not link.is_dir():
-        raise ValueError('Current release must be an existing local release')
-    return match[1]
-
-
-@contextmanager
-def lock(root):
-    fd = os.open(root / '.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-    try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode) or os.fstat(fd).st_nlink != 1:
-            raise ValueError('Unsafe lock')
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        yield
-    finally:
-        os.close(fd)
-
-
-def service(action):
-    subprocess.run([*SERVICE, action], check=True, timeout=120,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
-def recover_pending(root, control=service):
-    """Caller holds the deployment lock. Keep recovery evidence on failure."""
-    journal = root / 'pending.json'
-    if not journal.exists():
-        return False
-    pending = json.loads(journal.read_text())
-    old = pending['previous']
-    if not re.fullmatch(r'[a-f0-9]{64}', old):
-        raise ValueError('Invalid recovery release')
-    backup_files = archive_payload(root / 'backups' / (old + '.zip'), old)
-    verify_tree(root / 'releases' / old, backup_files)
-    control('stop')
-    swap(root, old)
-    control('start')
-    control('check')
-    journal.unlink()
-    sync_directory(root)
-    return True
-
-
-def transact(root, files, release, check, control=service):
-    """Keep the lock through server restart, browser tests and rollback."""
-    root = Path(root)
-    if not root.is_dir() or root.is_symlink():
-        raise ValueError('Invalid deployment root')
-    root = root.resolve(strict=True)
-    if not re.fullmatch(r'[a-f0-9]{64}', release):
-        raise ValueError('Invalid release identifier')
-    with lock(root):
-        journal = root / 'pending.json'
-        if recover_pending(root, control):
-            # Recovery is its own operation; require a new run for new code.
-            raise RuntimeError('Recovered interrupted deployment; rerun after checking test cleanup')
-        previous = current_release(root)
-        backups = root / 'backups'
-        releases = root / 'releases'
-        for directory in (backups, releases):
-            if directory.is_symlink() or not directory.is_dir():
-                raise ValueError('Administrator must provision private releases and backups directories')
-        # Store exact previous archive and verify both checksum and installed bytes.
-        old_files = archive_payload(backups / (previous + '.zip'), previous)
-        verify_tree(releases / previous, old_files)
-        destination = releases / release
-        if destination.is_symlink():
-            raise ValueError('Linked release directory is forbidden')
-        if not destination.exists():
-            stage = Path(tempfile.mkdtemp(prefix='.stage-', dir=releases))
-            for name, content in files.items():
-                path = stage / name
-                path.parent.mkdir(parents=True, exist_ok=True)
-                with path.open('wb') as stream:
-                    stream.write(content)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                path.chmod(0o644)
-            for directory in sorted((p for p in stage.rglob('*') if p.is_dir()), reverse=True):
-                directory.chmod(0o755)
-                sync_directory(directory)
-            stage.chmod(0o755)
-            verify_tree(stage, files)
-            sync_directory(stage)
-            os.replace(stage, destination)
-            sync_directory(releases)
-        verify_tree(destination, files)
-        # Snapshot is durable before any stop or pointer change. Archives/releases
-        # are retained on success and failure; there is no automatic pruning.
-        atomic_json(journal, {'previous': previous, 'candidate': release})
+    def read(self, timeout=90):
+        if not select.select([self.child.stdout], [], [], timeout)[0]:
+            self.broken = True
+            raise Blocked('failed', 'peer-timeout')
+        line = self.child.stdout.readline()
+        if not line:
+            self.broken = True
+            raise Blocked('failed', 'peer-disconnected')
         try:
-            control('stop')
-            swap(root, release)
-            control('start')
-            control('check')
-            check()
-        except BaseException:
-            # Preserve the journal on any rollback failure for next-run recovery.
-            control('stop')
-            verify_tree(releases / previous, old_files)
-            swap(root, previous)
-            control('start')
-            control('check')
-            journal.unlink()
-            sync_directory(root)
-            raise
-        journal.unlink()
-        sync_directory(root)
+            value = json.loads(line)
+        except ValueError:
+            self.broken = True
+            raise Blocked('failed', 'invalid-peer-response') from None
+        if not value.get('ok'):
+            raise Blocked(value.get('status', 'failed'), value.get('reason', 'guard-failed'))
+        return value['value']
+
+    def call(self, operation, timeout=90, **fields):
+        if self.broken:
+            raise Blocked('failed', 'peer-session-invalid-after-timeout')
+        self.child.stdin.write(json.dumps({'op': operation, **fields}) + '\n')
+        self.child.stdin.flush()
+        return self.read(timeout)
+
+    def close(self):
+        try:
+            self.child.stdin.close()
+        except OSError:
+            pass
+        try:
+            self.child.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(self.child.pid, signal.SIGTERM)
+            except (PermissionError, ProcessLookupError):
+                return  # Privileged helper exits on EOF; do not acquire more authority.
+            try:
+                self.child.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(self.child.pid, signal.SIGKILL)
+                self.child.wait()
 
 
-def configuration():
-    if os.geteuid() == 0:
-        raise ValueError('Run as the dedicated deployment account, never root')
-    meta = CONFIG.lstat()
-    if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022:
-        raise ValueError('Configuration must be root-owned and not group/world writable')
-    config = json.loads(CONFIG.read_text())
-    if config.get('world') != 'ModsTest' or config.get('dedicated_instance') is not True:
-        raise ValueError('A dedicated ModsTest instance is required')
-    root = Path(config['deploy_root'])
-    if not root.is_absolute() or root.is_symlink():
-        raise ValueError('Expected a fixed absolute deployment root')
-    # No arbitrary data-dir, world, service, command or credential CLI arguments.
-    return root
-
-
-def retain_archive(root, release, data):
-    if not re.fullmatch(r'[a-f0-9]{64}', release) or hashlib.sha256(data).hexdigest() != release:
-        raise ValueError('Archive changed during validation')
-    directory = root / 'backups'
-    if directory.is_symlink() or not directory.is_dir():
-        raise ValueError('Provision a real backups directory')
-    fd, temporary = tempfile.mkstemp(prefix='.archive-', dir=directory)
+def run_transaction(guard, helper, archive, digest, recover_only=False):
+    """Every file mutation requires a fresh world/session check, including recovery."""
+    guard.call('check')
+    state = helper.call('inspect')
+    if state['pending']:
+        guard.call('check')
+        previous = helper.call('rollback')
+        guard.call('assets', assets=previous['assets'])
+        guard.call('cleanup')
+        guard.call('check')
+        helper.call('finish-rollback')
+        return {'status': 'recovered', 'reason': 'previous-transaction-restored-rerun-to-deploy'}
+    if recover_only:
+        guard.call('cleanup')
+        return {'status': 'no-pending-deployment', 'reason': 'nothing-to-recover'}
+    # Ensure the server registered exactly the version on disk; never install a
+    # new manifest into an already-running process and pretend it was discovered.
+    live = guard.call('check')
+    if live['moduleVersion'] != state['version'] or live['entrypoints'] != state['entrypoints'] or not live['moduleApi']:
+        raise Blocked('maintenance-required', 'server-module-registration-needs-maintenance')
+    guard.call('cleanup')
+    guard.call('check')
+    helper.call('prepare', archive=base64.b64encode(archive).decode(), sha256=digest)
     try:
-        with os.fdopen(fd, 'wb') as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        # Atomic publication also makes concurrent same-digest staging harmless.
-        os.replace(temporary, directory / (release + '.zip'))
-        sync_directory(directory)
-    finally:
-        Path(temporary).unlink(missing_ok=True)
+        guard.call('check')
+        candidate = helper.call('activate')
+        guard.call('assets', assets=candidate['assets'])
+        guard.call('test', timeout=900)
+        guard.call('check')
+        helper.call('commit')
+        return {'status': 'passed', 'reason': 'module-updated-tests-passed-fixtures-restored'}
+    except BaseException:
+        try:
+            # If the world changed, a socket disconnected, a non-test user joined
+            # or cleanup failed, defer writes rather than running an unsafe rollback.
+            guard.call('check')
+            previous = helper.call('rollback')
+            guard.call('assets', assets=previous['assets'])
+            guard.call('cleanup')
+            guard.call('check')
+            helper.call('finish-rollback')
+        except BaseException:
+            return {'status': 'recovery-required', 'reason': 'guard-or-recovery-failed-journal-retained'}
+        return {'status': 'rolled-back', 'reason': 'acceptance-failed-previous-module-restored'}
+
+
+def report(outcome):
+    destination = Path('e2e/results')
+    destination.mkdir(parents=True, exist_ok=True)
+    value = {**outcome, 'commit': os.environ.get('GITHUB_SHA'), 'restartAttempted': False,
+             'worldSwitched': False, 'module': 'bg3-video-hud', 'executedAt': int(time.time())}
+    (destination / 'deployment.json').write_text(json.dumps(value, indent=2) + '\n')
+    print(f"ModsTest: {outcome['status']} ({outcome['reason']})")
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+            stream.write(f"deployment_status={outcome['status']}\n")
+    if os.environ.get('GITHUB_STEP_SUMMARY'):
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+            stream.write(f"ModsTest deployment: **{outcome['status']}** — {outcome['reason']}. No service restart or world switch.\n")
 
 
 def main():
@@ -212,50 +140,49 @@ def main():
     source.add_argument('--recover-only', action='store_true')
     parser.add_argument('--sha256')
     args = parser.parse_args()
-    root = configuration()
-    if args.recover_only:
-        with lock(root):
-            recovered = recover_pending(root)
-        print('Previous module restored' if recovered else 'No pending deployment')
-        return
-    if not args.sha256:
-        parser.error('--zip requires --sha256')
-    files = archive_payload(Path(args.zip), args.sha256)
-    release = args.sha256.lower()
-    source = Path(args.zip)
-    # Candidate archive is also the next run's verified rollback archive.
-    data = source.read_bytes()
-    retain_archive(root, release, data)
-    backup = root / 'backups' / (release + '.zip')
-    expected_files = archive_payload(backup, release)
-    if expected_files != files:
-        raise ValueError('Archive changed during staging')
-    def check():
-        # Fixed command; no remotely supplied shell string. Secrets stay inherited.
-        child = subprocess.Popen(['npm', '--prefix', 'e2e', 'test'], start_new_session=True)
-        try:
-            if child.wait(timeout=900) != 0:
-                raise RuntimeError('Live acceptance failed')
-        except BaseException:
-            if child.poll() is None:
-                os.killpg(child.pid, signal.SIGTERM)
-                try:
-                    child.wait(timeout=15)
-                except subprocess.TimeoutExpired:
-                    os.killpg(child.pid, signal.SIGKILL)
-                    child.wait()
-            raise
-    transact(root, files, release, check)
-    print('ModsTest module deployment and live acceptance passed')
+    guard = helper = None
+    try:
+        if os.geteuid() == 0:
+            raise Blocked('blocked', 'runner-must-not-be-root')
+        config = load_config()
+        if not config['enabled']:
+            raise Blocked('skipped', 'administrator-has-not-enabled-deployment')
+        if not config['other_worlds_disabled_reviewed']:
+            raise Blocked('blocked', 'other-world-disablement-review-required')
+        archive = b''
+        digest = ''
+        if not args.recover_only:
+            if not args.sha256:
+                parser.error('--zip requires --sha256')
+            archive_payload(Path(args.zip), args.sha256)
+            archive = Path(args.zip).read_bytes()
+            digest = hashlib.sha256(archive).hexdigest()
+            if digest != args.sha256.lower():
+                raise Blocked('blocked', 'archive-changed-during-validation')
+        environment = {**os.environ, 'FOUNDRY_URL': config['url'],
+            'FOUNDRY_WORLD_ID': config['world_id'], 'MODSTEST_STATE_DIR': config['test_state_dir'],
+            'MODSTEST_LIVE_ENABLED': 'true'}
+        # Start only the client-side guard. No server command, service name, port
+        # or dataPath is accepted here. The privileged peer starts after the gate.
+        guard = Peer(['node', 'e2e/deployment-guard.mjs'], environment)
+        guard.read()
+        helper = Peer(HELPER)
+        outcome = run_transaction(guard, helper, archive, digest, args.recover_only)
+    except Blocked as error:
+        outcome = {'status': error.status, 'reason': error.reason}
+    except BaseException:
+        outcome = {'status': 'recovery-required' if helper else 'failed',
+                   'reason': 'configuration-or-transaction-failed-inspect-private-journal'}
+    finally:
+        for peer in [helper, guard]:
+            if peer:
+                peer.close()
+    report(outcome)
+    return 0 if outcome['status'] in ('passed', 'skipped', 'maintenance-required', 'recovered', 'no-pending-deployment') else 1
 
 
 if __name__ == '__main__':
     def interrupted(_signum, _frame):
-        raise InterruptedError('Interrupted deployment')
+        raise InterruptedError('Interrupted')
     signal.signal(signal.SIGTERM, interrupted)
-    try:
-        main()
-    except BaseException:
-        # Do not expose subprocess output, credentials, URLs or document data.
-        print('ModsTest deployment failed; inspect sanitized report and pending journal locally.', file=sys.stderr)
-        sys.exit(1)
+    sys.exit(main())

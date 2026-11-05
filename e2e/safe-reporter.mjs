@@ -21,7 +21,7 @@ export default class SafeReporter {
       status: this.results.length ? result.status : 'not-run', executedAt: new Date().toISOString(),
       commit: process.env.GITHUB_SHA ?? null, runId: process.env.GITHUB_RUN_ID ?? null,
       runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
-      scope: 'Dedicated ModsTest; Gamemaster and Player1', tests: this.results
+      scope: 'Existing Foundry instance / ModsTest / Gamemaster and Player1', tests: this.results
     }, null, 2) + '\n');
   }
 }

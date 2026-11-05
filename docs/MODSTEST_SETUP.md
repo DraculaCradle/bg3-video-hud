@@ -1,191 +1,138 @@
-# ModsTest 自动部署与实机测试配置
+# 现有 Foundry V14 实例：ModsTest 自动更新指南
 
-工作流：`.github/workflows/modstest.yml`。只在 `main` 推送或从 `main` 手动运行时部署；代码提交前的 PR 只在 GitHub 托管 runner 上测试。当前尚未安装自托管 runner、创建 Environment 或 Secrets，因此本次未远程部署、未使用真实账号登录。
+仅使用现有 `https://redmagic.club/`、Foundry Node.js 进程、端口、dataPath 和反向代理。只部署到现有 `Data/modules/bg3-video-hud` 普通目录；不会创建第二个 Foundry 实例，不调用任何 Foundry 服务停启命令，不切换世界，不修改其他模组或其他世界。
 
-## 方案与权限边界
+本次仅提交代码与自动化测试。你完成以下配置并明确启用之前，不执行线上部署或账号登录。
 
-`build` 在 GitHub 的 Ubuntu runner 执行静态检查、Node 测试、Chromium fixture 测试、两组部署故障注入测试和打包。构建产物以提交 SHA 命名；后续部署下载同一次运行的产物并验证 SHA-256。
+## GitHub 配置
 
-`deploy-and-test` 使用 Environment `modstest` 和标签 `[self-hosted, linux, x64, modstest]`，运行在测试服务器本机。它不需要 Codex 访问服务器，不使用 SSH、服务器密码、SSH 私钥或 Foundry Setup 管理密码。GitHub 自动提供的 `GITHUB_TOKEN` 仅有 `contents: read`，checkout 不保存该凭据。
+1. 使用现有 `feat/modstest-actions` 分支上的本次修订。GitHub 查询显示 PR #2 已合并，不能重新打开；后续修改仍在同一开发分支，不直接推送 main。审阅并合并后才使用新的工作流。
+2. 创建或保留 Environment **`modstest`**，限制部署分支为 `main`。创建两个 Environment Secrets，只在 GitHub Secrets 页面填写现有测试账号密码：
 
-必须使用 **ModsTest 独立 Foundry 实例与独立 dataPath**。仅在共享实例中选择 ModsTest 不构成隔离：`Data/modules` 是该实例全部世界共享的。本方案不允许对生产实例共享的 `Data/modules` 部署。如果当前 `https://redmagic.club/` 仍指向共享实例，请先将测试入口路由到独立实例；必要时使用独立子路径并相应修改 `FOUNDRY_URL`。
-
-部署账号 `bg3deploy` 仅可写 `/srv/bg3-modstest-deploy` 和 runner 工作目录；不得加入生产账号组、`sudo` 组或 `docker` 组，不授予世界数据库目录读写权限。Foundry 以另一个账号 `foundry-modstest` 运行，只读部署的模组代码。唯一 sudo 权限是固定 helper 对固定测试 systemd unit 执行 start/stop/check。helper、sudoers、unit 和 `/etc/bg3-modstest.json` 均由 root 管理，工作流不会安装或更改它们。
-
-```
-/srv/foundry-modstest/                 # 独立 Foundry dataPath；运行账号私有
-  Data/modules/bg3-video-hud -> /srv/bg3-modstest-deploy/current
-/srv/bg3-modstest-deploy/              # bg3deploy 可写，Foundry 可遍历
-  current -> releases/<ZIP SHA-256>    # 同目录 os.replace 原子切换
-  releases/<SHA-256>/                 # 模组版本完整副本
-  backups/<SHA-256>.zip               # 校验过的原始 ZIP；0700 目录
-  pending.json                       # 中断恢复日志
-  test-state/hud-snapshot.json        # 私有测试恢复快照；不上传
-```
-
-部署时先核验旧安装与原始 ZIP 备份一致，再完整写入新版本；保存并 fsync 恢复日志之后停止测试实例、原子更新指针并启动测试实例。Playwright 全部通过才提交事务。启动、健康检查或测试失败会停机、恢复旧指针并重启；任何回滚失败保留恢复日志及全部版本。不会自动清理备份或写入其他世界。
-
-## GitHub 上的配置操作
-
-1. 合并本次 PR 到 `main`。首次保持自动部署关闭；构建照常执行，部署 job 会跳过。
-2. Repository → Settings → Environments → New environment，创建 **`modstest`**。限制该 Environment 的部署分支为 `main`。需要时可使用 required reviewers；本工作流本身不要求每次人工审批。
-3. 在该 Environment 下添加以下 **Secrets**，用密码管理器设置已有的专用账号密码；不要把值写入 YAML、`.env`、命令行参数、PR 或聊天：
-
-   | Secret 名称 | 用途 |
+   | Secret | 用途 |
    | --- | --- |
-   | `FOUNDRY_GM_PASSWORD` | 独立 ModsTest 世界中 `Gamemaster` 的密码；仅世界 GM，无 Setup/操作系统权限 |
-   | `FOUNDRY_PLAYER_PASSWORD` | 独立 ModsTest 世界中普通玩家 `Player1` 的密码 |
+   | `FOUNDRY_GM_PASSWORD` | 现有 ModsTest 世界的 Gamemaster；不需要 Setup 管理密码 |
+   | `FOUNDRY_PLAYER_PASSWORD` | 现有 ModsTest 世界的 Player1 普通玩家 |
 
-4. 在该 Environment 下添加以下 **Variables**：
+3. 在 Environment Variables 配置 `MODSTEST_TOKEN_IDS`：同一活动场景两个链接角色 token 的 ID，以英文逗号分隔，第一个施法者、第二个战士。URL 和准确世界 ID 由服务器上 root 管理的配置提供，不允许 workflow 输入任意部署目录或 service 名称。
+4. Repository Settings → Actions → Runners，选择 Linux x64。按页面当前下载地址、校验和与短期注册 token 安装 runner，标签为 **`modstest`**。注册 token 不放入仓库、Secrets 示例、日志或聊天。runner 必须仅执行受信任维护者代码，PR 构建使用 GitHub 托管 runner；若是 public 仓库，配置 runner 访问策略，不能仅把标签当作授权边界。
+5. **先保持 repository variable `MODS_TEST_ENABLED` 未设置或为 `false`**。Linux 配置、自测和管理员审阅全部完成后，由你明确将服务器配置 `enabled` 改为 `true`，再设置 repository variable `MODS_TEST_ENABLED=true`。两个开关缺一不可；本任务不替你打开它们。
+6. Actions → **Build and update existing ModsTest** → Run workflow，选择 `main`。之后 main 推送自动构建并尝试受守卫保护的更新。构建产物绑定同一次运行及同一提交，部署前验证 SHA-256。工作流不接受任意 ref 或远端 shell 命令。
+7. 查看 Step Summary 及 `modstest-live-<SHA>-<attempt>` artifact 的 `deployment.json`、`report.json`。`skipped`、`maintenance-required`、`recovered` 均不等于实机验收通过。
 
-   | Variable 名称 | 值 |
-   | --- | --- |
-   | `FOUNDRY_URL` | 默认 `https://redmagic.club/`；必须实际路由至独立 ModsTest 实例，包含需要的子路径 |
-   | `FOUNDRY_WORLD_ID` | 实际 `game.world.id`；不能把世界标题当作 ID 猜测 |
-   | `MODSTEST_TOKEN_IDS` | 活动场景两个测试 token 的 ID，英文逗号分隔；第一个施法者、第二个战士 |
+## 现有 Linux 服务器配置
 
-5. Repository → Settings → Actions → Runners → New self-hosted runner，选择 Linux x64。按页面生成的当前下载地址、校验和、注册命令安装；添加标签 **`modstest`**，见下一节。注册 token 是短期安装凭据，不需要建立仓库 Secret，不保存到仓库。
-6. Linux 配置完成并手工验证已知良好版本后，在 **Repository Actions Variables** 中设 `MODS_TEST_ENABLED=true`。此开关必须是 repository variable，因为它在 job 选择 Environment 之前判断。其他变量和两个密码均放在 Environment 内。
-7. Actions → **Build and deploy ModsTest** → Run workflow，选择 `main`。之后 `main` 推送自动构建、部署和测试。检查 build、deploy-and-test 及 `modstest-live-<SHA>-<attempt>` 产物中的 `report.json`；部署跳过或没有报告不算实机通过。
+### 1. 保留现有 Foundry，不配置任何新服务或监听端口
 
-工作流未配置 `pull_request_target`、任意 ref 输入或远端 shell 命令。若仓库是 public，GitHub 的 runner 分组与访问策略应只允许这个受信任部署工作流使用该 runner；不要让 PR 工作流选择它。对 `.github/workflows/`、`tools/`、`e2e/` 的变更先进行代码审查。
+管理员确认现有模块目录的准确路径，例如 `/YOUR/EXISTING/DATA_PATH/Data/modules/bg3-video-hud`。示例路径必须替换，不能新建 Foundry dataPath。保持现有 Foundry 账号、Node 参数、端口、反代和世界目录不变。
 
-runner 标签是调度标识，不是授权边界。若当前 GitHub 套餐不支持按 workflow 限制 runner 组，不要直接把持久化服务器 runner 开放给 public 仓库的所有工作流；可将部署工作流和 runner 放入仅维护者可写的 private 部署仓库，再使用经过校验的本项目构建产物。该替代配置需相应调整 artifact 下载来源，不能直接用本工作流跨仓库下载。默认方案应在 runner 访问策略就绪后再打开开关。
+在你允许的维护窗口中，确保此模组已正常安装到该普通目录，并已被当前进程识别；**仅在现有 ModsTest 世界手工启用**，同时手工确认其他世界未启用。自动化不会为了检查或启用模组而切换世界，也不读取/编辑其他世界的数据库。以后若管理员改变其他世界的启用状态，需要重新审阅该前提。
 
-## Linux 服务器上的配置操作
+共享目录无法按世界保存不同版本。为避免意外影响，此模组另有运行时保护：非 ModsTest 标题的世界不注册 HUD 设置、按钮或 API，也不写入布局 flags；部署守卫还核对 ModsTest 的准确 world ID。运行时保护不代替管理员仅在 ModsTest 启用模组的要求。
 
-以下以 Ubuntu 24.04 x64、systemd、Node 24 和 Python 3.9+ 为例。由管理员执行系统配置；不要在现有生产 service 或世界目录上替换路径。
+**首次未安装、进程未识别/未启用模组、版本变化、任何 module.json 字节变化、依赖或系统版本不匹配，均报告 `maintenance-required` 并停止。** 自动化不会尝试重启、重载世界、关闭世界或从 Setup 安装来绕过。维护窗口由你安排；维护后应手工确认当前进程已加载准确清单。清单完全相同的 JS/CSS/文档资源更新才允许自动热更新。
 
-### 1. 准备独立 Foundry 实例
+### 2. 创建受限 runner 账号和两个独立状态目录
 
-创建专用账号，并准备独立 dataPath：
+以管理员身份执行，仅创建 runner/备份相关目录：
 
 ```sh
-sudo useradd --system --home-dir /srv/foundry-modstest --shell /usr/sbin/nologin foundry-modstest
 sudo useradd --create-home --home-dir /srv/bg3deploy --shell /bin/bash bg3deploy
-sudo install -d -o foundry-modstest -g foundry-modstest -m 0700 /srv/foundry-modstest
-sudo install -d -o bg3deploy -g bg3deploy -m 0755 /srv/bg3-modstest-deploy
-sudo install -d -o bg3deploy -g bg3deploy -m 0755 /srv/bg3-modstest-deploy/releases
-sudo install -d -o bg3deploy -g bg3deploy -m 0700 /srv/bg3-modstest-deploy/backups /srv/bg3-modstest-deploy/test-state
+sudo install -d -o root -g root -m 0700 /srv/bg3-video-hud-deploy-state
+sudo install -d -o bg3deploy -g bg3deploy -m 0700 /srv/bg3deploy/modstest-state
 ```
 
-在该独立实例安装 Foundry **V14**、D&D5e **6.0.6**、`bg3-hud-core >=0.8.0`、`bg3-hud-dnd5e >=0.8.0`；只配置测试世界，标题必须是 **ModsTest**。以此实例的实际路径和世界 ID 建立 `/etc/systemd/system/foundry-modstest.service`：
+账号已存在时复用，不重复创建。`bg3deploy` 不加入 Foundry 服务账号组、sudo 组或 docker 组，不授予现有 Data/modules 父目录或世界数据库的写权限；模组目录继续由现有 Foundry 账号持有。runner 无权任意替换其他模组。
 
-```ini
-[Unit]
-Description=Dedicated Foundry ModsTest
-After=network.target
+root 私有事务状态目录必须与现有模块目录位于**同一文件系统**，且在 Foundry Data 目录之外；若示例 `/srv` 与现有模块不在同一文件系统，选择满足条件的备份目录并修改配置。检查不满足时自动化会要求维护窗口，不退回多次 rename 的非原子更新。
 
-[Service]
-User=foundry-modstest
-Group=foundry-modstest
-WorkingDirectory=/srv/foundry-modstest
-# 将 /ABSOLUTE/PATH/TO/FOUNDRY_ENTRYPOINT 和 EXACT_WORLD_ID 替换为真实值。
-ExecStart=/usr/bin/node /ABSOLUTE/PATH/TO/FOUNDRY_ENTRYPOINT --dataPath=/srv/foundry-modstest --world=EXACT_WORLD_ID --port=30001
-Restart=on-failure
-TimeoutStopSec=60
-KillMode=control-group
-UMask=0077
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ReadWritePaths=/srv/foundry-modstest
+### 3. 安装只能操作这个模组的文件 helper
 
-[Install]
-WantedBy=multi-user.target
-```
-
-按照实际安装包定位 Foundry 入口文件，确认 Node 路径；不要照抄占位路径。配置反向代理将测试 URL（默认 `https://redmagic.club/`）和 WebSocket 转发至该实例，保留 HTTPS 验证；子路径须与 Foundry routePrefix 一致。先手工确认测试 URL 的 `/join` 页面显示 ModsTest，且服务只使用此 dataPath。
-
-### 2. 安装固定服务 helper 与配置
-
-从已审查的本仓库 checkout 中执行：
+从本次已审查的 checkout 安装两个 root 管理文件。它们不是 Foundry 服务，不会启动新的 Node 进程：
 
 ```sh
-sudo install -o root -g root -m 0755 tools/bg3-modstest-service /usr/local/sbin/bg3-modstest-service
-sudo tee /etc/bg3-modstest.json >/dev/null <<'JSON'
-{
-  "world": "ModsTest",
-  "dedicated_instance": true,
-  "deploy_root": "/srv/bg3-modstest-deploy"
-}
-JSON
-sudo chown root:root /etc/bg3-modstest.json
-sudo chmod 0644 /etc/bg3-modstest.json
-sudo visudo -f /etc/sudoers.d/bg3-modstest
+sudo install -d -o root -g root -m 0755 /usr/local/libexec/bg3-video-hud-deploy
+sudo install -o root -g root -m 0755 tools/modstest_filesystem.py /usr/local/libexec/bg3-video-hud-deploy/session
+sudo install -o root -g root -m 0644 tools/deploy_linux.py /usr/local/libexec/bg3-video-hud-deploy/deploy_linux.py
+sudo visudo -f /etc/sudoers.d/bg3-video-hud-deploy
 ```
 
-在 sudoers 文件写入以下三条精确授权，保存后用 `sudo visudo -cf /etc/sudoers.d/bg3-modstest` 校验：
+sudoers 仅写入以下一条（末尾空参数串限制 helper 不接受命令行参数）：
 
 ```sudoers
-bg3deploy ALL=(root) NOPASSWD: /usr/local/sbin/bg3-modstest-service start
-bg3deploy ALL=(root) NOPASSWD: /usr/local/sbin/bg3-modstest-service stop
-bg3deploy ALL=(root) NOPASSWD: /usr/local/sbin/bg3-modstest-service check
+bg3deploy ALL=(root) NOPASSWD: /usr/local/libexec/bg3-video-hud-deploy/session ""
 ```
 
-不得授予通用 `systemctl`、shell、Python、rsync、chown、docker 或任意 service 名称的 sudo 权限。
+执行 `sudo visudo -cf /etc/sudoers.d/bg3-video-hud-deploy` 校验。**不授予 systemctl、shell、Python、rsync 或任何通用命令权限。** helper 使用隔离 Python 解释器，只接受固定 JSON 操作及经校验的 ZIP 内容；模块目标、备份目录和配置均不从请求中接受路径。不会自动更新自己的 root 权限代码；以后修改 helper 也由管理员审阅安装。
 
-helper 的 `check` 除检查 systemd active，还在 30 次有限等待内检查固定 `http://127.0.0.1:30001/join` 返回 ModsTest 页面。如果实例使用 routePrefix，管理员需在安装 helper 前将这个固定探测路径改为相应本地路径。恢复旧版本后也使用该探测，失败会保留 journal。
+如果以前按旧指南配置过 `bg3-modstest-service` sudoers/helper 或第二实例资源，先人工核查是否实际存在和是否被使用；本工作流不调用它们，也不自动删除或停用任何现有服务。
 
-### 3. 建立经过验证的初始版本与固定链接
+### 4. 创建 root 管理的现有实例配置，先保持禁用
 
-以 `bg3deploy` 在该账号工作目录 clone 已审查代码。使用已手工验证的 ZIP 及从受信任构建取得的 SHA-256 作为初始回滚版本：
+创建 `/etc/bg3-modstest.json`：
+
+```json
+{
+  "schema": 2,
+  "mode": "existing-instance",
+  "enabled": false,
+  "url": "https://redmagic.club/",
+  "world_id": "REPLACE_WITH_EXACT_EXISTING_WORLD_ID",
+  "module_dir": "/YOUR/EXISTING/DATA_PATH/Data/modules/bg3-video-hud",
+  "state_dir": "/srv/bg3-video-hud-deploy-state",
+  "test_state_dir": "/srv/bg3deploy/modstest-state",
+  "other_worlds_disabled_reviewed": false
+}
+```
 
 ```sh
-sudo -u bg3deploy python3 tools/seed_modstest.py --zip /ABSOLUTE/PATH/known-good.zip --sha256 TRUSTED_64_HEX_SHA256
-sudo systemctl stop foundry-modstest.service
+sudo chown root:root /etc/bg3-modstest.json
+sudo chmod 0644 /etc/bg3-modstest.json
 ```
 
-确保 `bg3deploy` 可读取指定 ZIP 和仓库脚本。seed 不启动/停止服务，不写 Foundry dataPath，只允许尚未初始化的部署根；不会覆盖现有 `current`。如果已存在此模组的普通目录，管理员先将它备份到测试 dataPath 之外，保留完整副本；自动脚本不会移动它。确认 `Data/modules/bg3-video-hud` 不存在后，由管理员创建一次固定链接：
+准确 world ID 可以在已进入 ModsTest 的 GM 浏览器控制台读取 `game.world.id`，标题必须是 ModsTest。token ID 可以从 `canvas.tokens.placeables.map(t => ({id: t.id, name: t.name}))` 中选择。不要把密码写入此配置。
 
-```sh
-sudo ln -s /srv/bg3-modstest-deploy/current /srv/foundry-modstest/Data/modules/bg3-video-hud
-sudo systemctl daemon-reload
-sudo systemctl enable --now foundry-modstest.service
-```
+人工确认只有 ModsTest 启用此模组后，才将 `other_worlds_disabled_reviewed` 改为 true。此记录是明确的管理员前提确认，不宣称通过活跃世界的 API 验证了所有离线世界；自动化不能为审计而擅自启动其他世界。旧 schema / 独立实例配置会被拒绝，不能只删除旧检查就运行。
 
-在 ModsTest 的 Manage Modules 中启用此模组及两个依赖。使用普通浏览器手工验证这个初始版本能加载和工作，再启用自动部署。需要其他基线时必须先手工验证，不能把未经验证的初始包称为“已知良好备份”。
+### 5. 准备测试账号、角色和 runner
 
-### 4. 准备账号与 fixture
+- 复用现有 Gamemaster（世界 GM）和 Player1（普通玩家），密码通过上述两个 Secrets 提供；不生成或索要新密码。
+- 在 ModsTest 的同一活动场景放置两个**链接到角色**的测试 token，对应不同的专用测试角色，均给 Player1 OWNER。施法者要有数值 HP、正的最大 HP、一级法术槽、至少一个戏法和一个一级法术；另一个角色至少有两件物品。不要指定正式玩家角色。
+- 安装 Node 24、Python 3.9+、git、curl 和 Playwright Chromium 所需 OS 库。OS 库由管理员预装，工作流只以普通账号下载浏览器。
+- 在 `/srv/bg3deploy/actions-runner`，以 `bg3deploy` 执行 GitHub Runners 页面提供的注册步骤，额外标签 `modstest`。可按官方步骤将 **GitHub runner 本身**注册为服务，进程用户仍为 bg3deploy；这不是新的 Foundry 服务。
+- 确保 runner Online/Idle；能读取 root 配置、写自己的工作目录和私有 fixture 快照目录，不能直接写 Data/modules 父目录、其他模组或世界数据库。
+- 你选择当前活动世界为 ModsTest、测试时段无其他用户在线并确认配置无误后，再显式开启两个部署开关。自动化不会替你切换。
 
-- 世界中建立专用 **Gamemaster**（GM）和 **Player1**（普通玩家），分别使用不同的非空密码。它们都不是 Foundry Setup 管理账号。
-- 当前活动场景中放置两个**链接到角色**的 token，分配给 Player1 OWNER 权限；两个 token 对应不同角色。第一个施法者应有一级法术槽、至少一个戏法和一个一级法术；第二个角色应有至少两件物品。不要使用正式玩家角色。
-- 玩家应能进入相同活动场景并控制两个 token；测试运行期间不允许其他用户在线或人工同时操作这两个账号。原始 BG3 HUD 应能显示。
-- GM 浏览器控制台读取 `game.world.id` 和 `canvas.tokens.placeables.map(t => ({id: t.id, name: t.name}))`，将正确 world ID 和两个 token ID 配置到 GitHub Variables；无需输出角色数据或密码。
+## 自动检查、更新与恢复行为
 
-### 5. 安装专用 self-hosted runner
+1. 登录前检查现有 `/join` 页的 ModsTest 标题；不是则 `skipped`，不提交测试账号密码。
+2. 登录现有 Gamemaster，核对准确世界 ID、账号身份、Foundry 14、D&D5e 6.0.6、两个 BG3 依赖及本模组启用状态。发现 Gamemaster/Player1 之外的活动账号，立即 `blocked`，不启动文件 helper。
+3. 保持一个 GM socket 会话用于持续守卫。正式用户加入、世界导航或连接断开会锁存不安全状态；每次准备、交换、提交、回滚和恢复前还会重新检查。
+4. 文件 helper 持有事务锁，验证 ZIP、清单/版本、完整本地 JS import 图、目录边界、链接、磁盘空间和同文件系统。旧版 ZIP 校验通过后，将新版本完整写入私有 staging，fsync 日志，用 Linux `renameat2(RENAME_EXCHANGE)` 一次交换 **现有普通模组目录**和候选目录。其他模块、世界数据库、service 和配置文件均不操作。
+5. 校验服务器实际返回的 JS/CSS SHA-256。测试客户端绕过自身与反代旧缓存，不修改反代配置，也不重载世界。使用现有 GM 会话认证创建测试页面，Player1 独立登录，避免重复执行 GM 登录。
+6. 验证角色切换、HP/AC、真实 socket 的 HP/法术槽显示更新、戏法过滤、快捷栏显示/隐藏/排序/刷新持久化以及原 HUD 恢复。所有测试角色字段和两用户的本模组布局在修改前保存私有快照，finally 恢复并验证；快照限制为指定两个角色及两账号。
+7. 通过后提交；失败且守卫仍安全时交换回旧目录，验证旧资源、恢复 fixture 后才清除 journal。若期间有人加入或世界切换，**不继续写入、不切回世界、不重启、不强行回滚**，报告 `recovery-required` 并保留版本、备份与快照。
 
-在 `/srv/bg3deploy/actions-runner` 目录，以 `bg3deploy` 执行 GitHub 设置页面提供的下载、SHA 校验和 `./config.sh` 注册步骤；URL 为 `https://github.com/DraculaCradle/bg3-video-hud`，额外标签 `modstest`。不要以 root 运行 runner 进程。注册完成后管理员在该目录执行：
+会话检查无法与用户登录形成服务器端原子锁；管理员应安排无人使用的测试时段。持续守卫可检测变化并停止，但不能在不修改现有服务器的条件下阻止别人登录，也不能撤销已加载到另一个浏览器内存的 JS。回滚恢复磁盘及后续新测试页面，不宣称热替换已打开页面的代码。
 
-```sh
-sudo ./svc.sh install bg3deploy
-sudo ./svc.sh start
-```
-
-通过 GitHub UI 验证 runner Online/Idle，标签包含 self-hosted/linux/x64/modstest。安装 Node 24、Python 3、git、curl、unzip，以及 Playwright Chromium 所需操作系统库。管理员可在自己的受信任临时目录用固定 `@playwright/test@1.56.1` 执行 `playwright install-deps chromium` 一次；部署 job 只执行普通用户的 `playwright install chromium`，不获取通用 sudo 权限。
-
-Runner 仅需出站访问 GitHub Actions、npm、Playwright 下载站和测试 HTTPS 入口，无需开放新的 SSH 入站端口。检查 `bg3deploy` 可以调用三个固定 helper 动作、可以写部署根和 `test-state`、不能读取/写入世界数据库和生产 dataPath。随后按 GitHub 步骤启用开关并运行工作流。
-
-## Playwright 覆盖、报告与恢复
-
-`e2e/` 固定 Playwright **1.56.1** 并提交 npm lockfile。两个独立浏览器 context 分别登录 Gamemaster 和 Player1，检查准确世界 ID/标题、Foundry 14、D&D5e 6.0.6 和三个已启用模组，再验证：
-
-- 两个 token 来回切换后角色名、HP、AC 匹配真实文档。
-- GM 修改测试角色 HP 和一级法术槽数值，两个独立会话通过真实 Foundry socket 更新 HUD。
-- 戏法过滤、快捷栏隐藏、刷新后持久性、排序、切回原 BG3 HUD。
-- 两个会话无 pageerror 或 console error。
-- `finally` 恢复并核验两个测试角色的 HP、法术槽以及两账号原有布局 flags。只修改该模组自己的 flags，不更改上游布局、世界设置、物品或正式角色。
-
-**法术槽同步测试是 GM 资源编辑，不代表通过法术施放证明了官方消耗。** 官方 item/activity 使用、真实施法扣槽、pact、专注、模板、休息和聊天卡仍按 `MANUAL_TESTS.md` 手工验收；不会通过伪造系统消耗关闭这些项目。本次没有真实登录报告。
-
-私有 snapshot 在修改前写入磁盘，浏览器中断后由后续测试先恢复；不能把它放进 artifact 或仓库。默认禁用 Playwright trace、截图、视频和完整错误附件，报告只含固定检查名称、最后阶段、通过状态和版本。失败不输出账号密码、Cookie、完整 DOM、角色数据或认证状态文件。
-
-硬断电、runner 被强制终止、sudo helper 超时等情况可能阻止即时回滚。`pending.json` 和备份会保留，下一次部署首先恢复旧版本并停止本次发布；之后再运行一次才会部署新版本。也可以在仓库根目录用部署账号执行：
+恢复仍要通过同样的世界/会话守卫。让现有实例处于 ModsTest 且仅测试账号在线后，在 runner checkout 根目录、具备既有 Secrets 的安全环境中执行：
 
 ```sh
 python3 tools/deploy_modstest.py --recover-only
 ```
 
-此命令只恢复模组，不需要 Secrets；测试角色 snapshot 的恢复需要下一次成功登录 GM。若 snapshot 仍存在，不要手工删除它并宣布数据已恢复；排查登录/场景/模组问题后重新测试，或由管理员依照私有快照恢复指定 fixture 字段。若 `pending.json` 仍存在，服务恢复未完成，应保留所有版本及原始 ZIP，先修复测试服务。
+下一次工作流发现 pending journal 时也只恢复旧事务，报告 `recovered`，不会同时发布新版本；再次运行才会更新。无法登录、旧备份损坏、未知外部文件改动或 fixture 恢复失败时保留证据，报告需要人工维护，不猜测状态或覆盖未知文件。不要手工删除私有快照、pending.json 并声称恢复完成。备份不会自动清理。
 
-备份和历史版本不会自动删除。确认不再用于恢复后，由管理员维护保留策略；不要在部署脚本中递归清理 Foundry 数据目录。
+## 报告状态
+
+| 状态 | 含义 |
+| --- | --- |
+| passed | 完成目录更新、实机断言和测试数据恢复 |
+| skipped | 当前世界不是 ModsTest，或管理员未启用；未部署 |
+| blocked | 非测试会话、连接或身份不安全；停止 |
+| maintenance-required | 首次安装、清单/版本/依赖/注册变化或不支持原子交换；未自动重启 |
+| rolled-back | 失败后恢复旧目录和 fixture；本次验收失败 |
+| recovery-required | 无法安全完成即时恢复；保留 journal、备份和私有快照 |
+| recovered | 完成旧事务恢复；没有发布新版本 |
+
+只上传脱敏报告，默认禁止 trace、截图、视频、完整错误附件、Cookie、密码和认证状态文件。法术槽同步由测试 GM 临时编辑资源验证，不冒充通过真实施法证明的官方扣槽；pact、专注、模板、休息和聊天卡仍按 MANUAL_TESTS.md 验收。

@@ -1,4 +1,4 @@
-name: Build and deploy ModsTest
+name: Build and update existing ModsTest
 on:
   push:
     branches: [main]
@@ -58,19 +58,16 @@ jobs:
       - name: Install browser (OS dependencies must be provisioned by administrator)
         working-directory: e2e
         run: npx --no-install playwright install chromium
-      - name: Deploy, verify, or restore previous module
+      - name: Guard existing world, update one module, test or recover (no restart)
         id: live
         env:
-          FOUNDRY_URL: ${{ vars.FOUNDRY_URL }}
-          FOUNDRY_WORLD_ID: ${{ vars.FOUNDRY_WORLD_ID }}
           MODSTEST_TOKEN_IDS: ${{ vars.MODSTEST_TOKEN_IDS }}
-          MODSTEST_STATE_DIR: /srv/bg3-modstest-deploy/test-state
           FOUNDRY_GM_PASSWORD: ${{ secrets.FOUNDRY_GM_PASSWORD }}
           FOUNDRY_PLAYER_PASSWORD: ${{ secrets.FOUNDRY_PLAYER_PASSWORD }}
         run: |
           python3 - <<'PY'
           import os
-          required = ['FOUNDRY_URL', 'FOUNDRY_WORLD_ID', 'MODSTEST_TOKEN_IDS',
+          required = ['MODSTEST_TOKEN_IDS',
                       'FOUNDRY_GM_PASSWORD', 'FOUNDRY_PLAYER_PASSWORD']
           if any(not os.environ.get(name) for name in required):
               raise SystemExit('Configure all ModsTest Environment variables and Secrets before deploying')
@@ -82,6 +79,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: modstest-live-${{ github.sha }}-${{ github.run_attempt }}
-          path: e2e/results/report.json
+          path: |
+            e2e/results/report.json
+            e2e/results/deployment.json
           if-no-files-found: warn
           retention-days: 7

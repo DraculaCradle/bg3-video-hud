@@ -7,14 +7,20 @@ let canvasReady = false;
 let refreshQueued = false;
 let compatibilityWarning = false;
 
+// This test module is intentionally inert outside ModsTest, even if an
+// administrator accidentally enables it elsewhere. Deployment also checks the
+// exact world id; no other world's enablement/settings/documents are changed.
+function testWorld() { return game.world?.title === 'ModsTest'; }
+
 function compatible() {
-  return game.system?.id === 'dnd5e' && String(game.version).split('.')[0] === '14'
+  return testWorld() && game.system?.id === 'dnd5e' && String(game.version).split('.')[0] === '14'
     && game.system.version === '6.0.6'
     && ['bg3-hud-core', 'bg3-hud-dnd5e'].every(id => game.modules.get(id)?.active);
 }
 
 function refresh() {
   if (!hud) return;
+  if (!testWorld()) { hud.clear(); return; }
   try {
     if (!game.settings.get(MODULE_ID, 'enabled')) { hud.clear(); return; }
     if (!compatible()) {
@@ -42,6 +48,7 @@ function scheduleRefresh() {
 }
 
 Hooks.once('init', () => {
+  if (!testWorld()) return;
   game.settings.register(MODULE_ID, 'enabled', {
     name: 'Use BG3 Video HUD',
     hint: 'Client-only. Disable to restore the original HUD without changing its settings or layout.',
@@ -54,10 +61,12 @@ Hooks.once('init', () => {
 });
 
 async function toggle() {
+  if (!testWorld()) return;
   await game.settings.set(MODULE_ID, 'enabled', !game.settings.get(MODULE_ID, 'enabled'));
 }
 
 Hooks.once('ready', () => {
+  if (!testWorld()) return;
   canvasReady = globalThis.canvas?.ready === true;
   hud = new VideoHUD({
     user: game.user, store: new LayoutStore(game.user),
@@ -70,6 +79,7 @@ Hooks.once('ready', () => {
 });
 
 Hooks.on('getSceneControlButtons', controls => {
+  if (!testWorld()) return;
   if (!controls.tokens?.tools) return;
   controls.tokens.tools.bg3VideoHUD = {
     name: 'bg3VideoHUD', title: 'Toggle BG3 Video HUD', icon: 'fas fa-table-cells',

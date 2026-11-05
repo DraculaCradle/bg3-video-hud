@@ -71,6 +71,6 @@ See [the test report](docs/TEST_REPORT.md) for executed checks, including real C
 
 ## Safety
 
-For a dedicated ModsTest instance, see [GitHub Actions deployment and runner setup](docs/MODSTEST_SETUP.md). It builds on GitHub, deploys only this test module through a restricted local runner, atomically switches verified versions, rolls back failed live tests, and keeps test passwords in Environment Secrets. [The continuation report](docs/AUTOMATION_REPORT.md) separates local validation, server connectivity and live checks that have not yet run.
+For the existing shared Foundry instance at redmagic.club, see [ModsTest deployment and runner setup](docs/MODSTEST_SETUP.md). Automation verifies the active world and test-only sessions before updating only `Data/modules/bg3-video-hud`, keeps verified backups and recovery journals, and never stops/restarts Foundry or switches worlds. First installation or any manifest/version change requires an administrator's maintenance window. The module is inert outside a world titled ModsTest. [The test report](docs/AUTOMATION_REPORT.md) distinguishes local validation from live checks that have not run.
 
 Test only in a backed-up test world first. Spell/item consumption, ownership permissions, PC token switches and chat cards must be verified before real sessions.

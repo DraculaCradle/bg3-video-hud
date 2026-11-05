@@ -142,16 +142,32 @@ export async function openGuard(browser, config) {
 }
 
 export async function closeOwnContext(context, page, account) {
-  let timer;
+  let ownSession = false;
   try {
-    const ownSession = await page.evaluate(name => globalThis.game?.user?.name === name
+    ownSession = await page.evaluate(name => globalThis.game?.user?.name === name
       && typeof game.logOut === 'function', account);
-    if (ownSession) await Promise.race([
-      page.evaluate(async () => { await game.logOut(); }).catch(() => {}),
-      new Promise(resolve => { timer = setTimeout(resolve, 5000); })
-    ]);
-  } catch { /* A closed/unauthenticated page has no session to log out. */ }
-  finally { clearTimeout(timer); await context.close(); }
+  } catch { /* A closed/unauthenticated page has no proven owned session. */ }
+  try {
+    if (ownSession) {
+      // Every page in this context belongs to this task. Close sibling sockets
+      // first, keeping our authenticated page until native logout is confirmed.
+      for (const sibling of context.pages()) if (sibling !== page) await sibling.close();
+      try {
+        // V14 logOut() returns immediately after assigning window.location.
+        // Awaiting its return does not wait for the server's /join request.
+        await Promise.all([
+          page.waitForURL(url => /\/join\/?$/.test(url.pathname), { waitUntil: 'domcontentloaded', timeout: 30_000 }),
+          page.evaluate(() => { game.logOut(); })
+        ]);
+        await page.locator('#join-game-form').waitFor({ state: 'visible', timeout: 30_000 });
+        await page.waitForFunction(name => {
+          const options = [...document.querySelectorAll('#join-game-form select[name="userId"] option')]
+            .filter(node => node.label.trim() === name || node.label.trim().startsWith(`${name} `));
+          return options.length === 1 && !options[0].disabled;
+        }, account, { timeout: 15_000 });
+      } catch { throw new GuardError('blocked', 'test-session-release-unconfirmed'); }
+    }
+  } finally { await context.close(); }
 }
 
 export async function freshModuleRequests(context) {

@@ -313,11 +313,30 @@ class ConfigurationPolicy(unittest.TestCase):
     def test_existing_instance_schema_preserves_both_disabled_gates(self):
         self.assertEqual(self.read(), self.config)
 
+    def test_file_deployment_cannot_take_over_pending_temporary_world_fixtures(self):
+        pending = self.base / 'created-fixtures.json'
+        pending.write_text('{}')
+        config = {**self.config, 'enabled': True, 'other_worlds_disabled_reviewed': True, 'test_state_dir': str(self.base)}
+        with patch.object(orchestrator, 'load_config', return_value=config), patch.object(orchestrator.os, 'geteuid', return_value=1000), \
+             patch.object(sys, 'argv', ['deploy_modstest.py', '--recover-only']), patch.object(orchestrator, 'Peer') as peer, \
+             patch.object(orchestrator, 'report') as report:
+            self.assertEqual(orchestrator.main(), 1)
+            peer.assert_not_called()
+            self.assertEqual(report.call_args[0][0]['reason'], 'temporary-fixtures-need-tests-only-recovery')
+
     def test_tests_only_metadata_does_not_require_deployment_enabled_or_player_secret(self):
         result = live_test_config.test_metadata({'MODSTEST_TOKEN_IDS': 'aaaaaaaaaaaaaaaa,bbbbbbbbbbbbbbbb'},
             {'world_id': 'modstest', 'test_state_dir': str(self.base / 'snapshots'), 'enabled': False})
         self.assertEqual(result['FOUNDRY_WORLD_ID'], 'modstest')
         self.assertNotIn('FOUNDRY_PLAYER_PASSWORD', result)
+
+    def test_fixture_creation_requires_explicit_opt_in_and_does_not_reuse_existing_tokens(self):
+        env = {'FOUNDRY_WORLD_ID': 'modstest', 'MODSTEST_CREATE_FIXTURES': 'true'}
+        result = live_test_config.test_metadata(env, {'test_state_dir': str(self.base / 'snapshots')})
+        self.assertEqual(result['MODSTEST_TOKEN_IDS'], '')
+        self.assertEqual(result['MODSTEST_CREATE_FIXTURES'], 'true')
+        with self.assertRaises(ValueError):
+            live_test_config.test_metadata({**env, 'MODSTEST_CREATE_FIXTURES': 'false'})
 
     def test_tests_only_metadata_rejects_missing_or_duplicate_fixture_ids(self):
         for tokens in ['', 'aaaaaaaaaaaaaaaa,aaaaaaaaaaaaaaaa']:

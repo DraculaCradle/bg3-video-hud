@@ -10,6 +10,10 @@ on:
         description: Two fixture token IDs, caster first (optional when configured in Environment)
         type: string
         default: ''
+      create_fixtures:
+        description: Import two temporary SRD actors/tokens, test them and remove only these fixtures
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -32,11 +36,14 @@ jobs:
         env:
           FOUNDRY_WORLD_ID: ${{ inputs.world_id || vars.FOUNDRY_WORLD_ID }}
           MODSTEST_TOKEN_IDS: ${{ inputs.token_ids || vars.MODSTEST_TOKEN_IDS }}
+          MODSTEST_CREATE_FIXTURES: ${{ inputs.create_fixtures }}
         run: python3 tools/live_test_config.py
       - run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund
       - name: Install browser as the restricted runner account
         working-directory: e2e
-        run: npx --no-install playwright install chromium
+        run: |
+          npx --no-install playwright install chromium
+          node --input-type=module -e 'import { chromium } from "playwright"; const browser = await chromium.launch(); await browser.close();'
       - name: Test installed module and restore fixtures
         id: live
         env:

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GuardError, validateState, login, freshModuleRequests } from '../e2e/live-guard.mjs';
+import { GuardError, validateState, login, freshModuleRequests, closeOwnContext } from '../e2e/live-guard.mjs';
 
 const state = { connected: true, ready: true, world: 'modstest', title: 'ModsTest', gm: true,
   gmName: 'Gamemaster', testAccountsValid: true, foreignActive: false, generation: '14',
@@ -32,12 +32,27 @@ test('another active world is rejected before entering either account credential
 test('Player1 submits its intentionally empty password, while GM still requires a Secret', async () => {
   const filled = [];
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
-    locator: selector => ({ selectOption: async () => {}, fill: async value => filled.push([selector, value]), click: async () => {} }),
+    locator: selector => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'player', disabled: false }], selectOption: async () => {}, fill: async value => filled.push([selector, value]), click: async () => {} }),
     waitForFunction: async () => {}, evaluate: async () => ({ world: 'modstest', title: 'ModsTest', name: 'Player1', gm: false }) };
   await login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Player1', '');
   assert.deepEqual(filled, [['input[name="password"]', '']]);
   await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', ''),
     error => error.reason === 'missing-test-secret');
+});
+test('an already-active GM option is reported without submitting a login or kicking it', async () => {
+  const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    locator: () => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'gm', disabled: true }],
+      selectOption: () => assert.fail('must not submit'), fill: () => assert.fail('must not fill') }) };
+  await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', 'SENTINEL'),
+    error => error.reason === 'test-account-already-active');
+});
+test('closing a test context logs out only its own authenticated account', async () => {
+  let closed = 0, calls = 0;
+  await closeOwnContext({ close: async () => { closed++; } }, { evaluate: async () => { calls++; return false; } }, 'Gamemaster');
+  assert.equal(calls, 1); assert.equal(closed, 1);
+  calls = 0;
+  await closeOwnContext({ close: async () => { closed++; } }, { evaluate: async () => { calls++; return calls === 1; } }, 'Gamemaster');
+  assert.equal(calls, 2); assert.equal(closed, 2);
 });
 test('GM test pages receive a new cache key instead of reusing preflight module assets', async t => {
   let sequence = 0, handler;

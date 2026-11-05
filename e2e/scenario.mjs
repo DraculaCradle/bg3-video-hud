@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { login, freshModuleRequests } from './live-guard.mjs';
+import { login, freshModuleRequests, closeOwnContext } from './live-guard.mjs';
 import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -11,8 +11,9 @@ export function settings() {
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw Error('Invalid URL');
   if (!url.pathname.endsWith('/')) url.pathname += '/';
   const world = process.env.FOUNDRY_WORLD_ID;
-  const tokens = process.env.MODSTEST_TOKEN_IDS?.split(',').map(v => v.trim());
-  if (!world || tokens?.length !== 2 || tokens.some(v => !/^[a-zA-Z0-9]{16}$/.test(v)) || tokens[0] === tokens[1]) {
+  const createFixtures = process.env.MODSTEST_CREATE_FIXTURES === 'true';
+  const tokens = createFixtures ? [] : process.env.MODSTEST_TOKEN_IDS?.split(',').map(v => v.trim());
+  if (!world || (!createFixtures && (tokens?.length !== 2 || tokens.some(v => !/^[a-zA-Z0-9]{16}$/.test(v)) || tokens[0] === tokens[1]))) {
     throw Error('Configure the exact ModsTest world ID and two fixture token IDs');
   }
   const state = process.env.MODSTEST_STATE_DIR;
@@ -22,7 +23,7 @@ export function settings() {
   }
   mkdirSync(state, { recursive: true, mode: 0o700 });
   if (lstatSync(state).isSymbolicLink() || (lstatSync(state).mode & 0o077)) throw Error('Private state directory required');
-  return { url: url.href, world, tokens, journal: join(state, 'hud-snapshot.json') };
+  return { url: url.href, world, tokens, createFixtures, journal: join(state, 'hud-snapshot.json'), fixtureJournal: join(state, 'created-fixtures.json') };
 }
 
 async function guard(page, config) {
@@ -245,7 +246,7 @@ export async function runScenario(live, info) {
         verified('Fixture HP, spell slots and both user layout flags restored and verified');
       }
     } finally {
-      await playerContext.close();
+      await closeOwnContext(playerContext, player, 'Player1');
       await gm.close();
     }
   }

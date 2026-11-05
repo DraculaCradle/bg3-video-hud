@@ -27,7 +27,13 @@ export async function publicWorld(page, config) {
 export async function login(page, config, name, password) {
   await publicWorld(page, config);
   if (!password && name !== 'Player1') throw new GuardError('blocked', 'missing-test-secret');
-  await page.locator('select[name="userid"]').selectOption({ label: name });
+  await page.locator('select[name="userid"]').waitFor({ state: 'attached', timeout: 30_000 });
+  const options = await page.locator('select[name="userid"] option').evaluateAll((nodes, name) => nodes
+    .filter(node => node.label.trim() === name || node.label.trim().startsWith(`${name} `))
+    .map(node => ({ value: node.value, disabled: node.disabled })), name);
+  if (options.length !== 1) throw new GuardError('blocked', 'test-account-option-unavailable');
+  if (options[0].disabled) throw new GuardError('blocked', 'test-account-already-active');
+  await page.locator('select[name="userid"]').selectOption(options[0].value);
   await page.locator('input[name="password"]').fill(password ?? '');
   await page.locator('button[name="join"]').click();
   await page.waitForFunction(() => globalThis.game?.ready, undefined, { timeout: 60_000 });
@@ -106,16 +112,29 @@ export async function openGuard(browser, config) {
         }
         await this.check();
       },
-      async close() { await context.close(); }
+      async close() { await closeOwnContext(context, gm, 'Gamemaster'); }
     };
     gm.on('framenavigated', frame => { if (frame === gm.mainFrame()) guard.unsafe = true; });
     gm.on('close', () => { guard.unsafe = true; });
     await guard.check();
     return guard;
   } catch (error) {
-    await context.close();
+    await closeOwnContext(context, gm, 'Gamemaster');
     throw error;
   }
+}
+
+export async function closeOwnContext(context, page, account) {
+  let timer;
+  try {
+    const ownSession = await page.evaluate(name => globalThis.game?.user?.name === name
+      && typeof game.logOut === 'function', account);
+    if (ownSession) await Promise.race([
+      page.evaluate(async () => { await game.logOut(); }).catch(() => {}),
+      new Promise(resolve => { timer = setTimeout(resolve, 5000); })
+    ]);
+  } catch { /* A closed/unauthenticated page has no session to log out. */ }
+  finally { clearTimeout(timer); await context.close(); }
 }
 
 export async function freshModuleRequests(context) {

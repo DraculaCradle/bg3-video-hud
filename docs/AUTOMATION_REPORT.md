@@ -41,6 +41,7 @@ curl 两次实际网络探测的退出码均为 0，因为未使用 `--fail`；�
 | actionlint 1.7.7 | 三个工作流通过；已声明专用 runner 的 `modstest` 标签 |
 | `npm run package` 和 `dist/SHA256SUMS` | 通过；可安装 ZIP 不包含账号、测试数据或 node_modules |
 | `git diff --check` | 通过 |
+| GitHub 托管 CI | 提交 `60d287a` 的 [Validate module #5](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42021446537) 已完成且 success；包含测试、实机场景发现与打包，不包含服务器登录 |
 
 执行过的本地自动化测试合计 **92 通过，0 失败**，其中 Playwright 的服务器场景不计入通过数。首次默认沙箱内的 Chromium 运行因 loopback EPERM 未执行；启用命令网络权限后完整运行得到上述 31 项通过。
 
@@ -54,7 +55,8 @@ Playwright 实机场景会登录 Gamemaster 和 Player1、验证世界及版本�
 | --- | --- |
 | ModsTest 模组部署及回滚演练 | **未执行**：尚无独立实例部署配置和 runner |
 | Gamemaster / Player1 登录与 HUD 验收 | **未执行**：尚无测试 Secrets；未索取或生成真实密码 |
-| 正式 GitHub Actions 远程运行 | **未执行**：需先配置、合并与启用 |
+| GitHub 托管构建和自动化 CI | **已通过**；见上面的运行链接 |
+| GitHub Actions 服务器部署与实机工作流 | **未执行**：需先配置、合并与启用 |
 | 官方施法扣槽、pact、专注、模板、休息和聊天卡 | **未执行**；仍在手工验收范围，资源同步断言不替代官方施法消耗验证 |
 
 GitHub 和 Linux 分别需要执行的具体操作、账号权限、两个 Secret 名称、fixture 要求和恢复命令，见 [MODSTEST_SETUP.md](MODSTEST_SETUP.md)。

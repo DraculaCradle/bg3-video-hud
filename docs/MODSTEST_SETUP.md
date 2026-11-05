@@ -158,3 +158,5 @@ Environment 目前仅允许 main；先审阅合并 PR #3 才能从 main 运行�
 V14 登录使用 `#join-game-form` 内大小写敏感的 `userId` 字段和提交按钮；测试不会点击相邻的返回 Setup 表单。`v14-login-form-unavailable` 表示尚未输入凭据；`test-login-or-world-initialization-failed` 表示已提交登录但认证或世界初始化未完成，不能据此判定密码错误。报告不保留密码、页面内容或原始错误。两种情况都未进入角色创建阶段。
 
 表单渲染后还会在输入凭据前读取公开世界 ID，登录后再次核对。标题为 ModsTest 但配置 ID 不符时，报告 `modstest-world-id-mismatch:<准确ID>` 并停止；不会自动接受这个 ID。管理员核实后可修正 Environment 的 `FOUNDRY_WORLD_ID` 或使用只测试工作流的 `world_id` 输入。标题变化仍报告 `active-world-not-modstest`，不会输出其他世界内容或切换世界。
+
+2026-11-05 实机只读检查确认现有世界标题为 `ModsTest`、ID 为 `modstest`，配置 `FOUNDRY_WORLD_ID` 时使用后者。原生退出会发起异步跳转；测试关闭自己的其他页面后，等待 `/join` 页面及账号选项恢复可用，再关闭浏览器上下文。未确认释放时报告 `test-session-release-unconfirmed`，不冒充退出成功，也不强制清除其他会话。

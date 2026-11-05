@@ -90,8 +90,35 @@ test('closing a test context logs out only its own authenticated account', async
   await closeOwnContext({ close: async () => { closed++; } }, { evaluate: async () => { calls++; return false; } }, 'Gamemaster');
   assert.equal(calls, 1); assert.equal(closed, 1);
   calls = 0;
-  await closeOwnContext({ close: async () => { closed++; } }, { evaluate: async () => { calls++; return calls === 1; } }, 'Gamemaster');
+  const page = { evaluate: async () => { calls++; return calls === 1; },
+    waitForURL: async () => {}, locator: () => ({ waitFor: async () => {} }), waitForFunction: async () => {} };
+  await closeOwnContext({ pages: () => [page], close: async () => { closed++; } }, page, 'Gamemaster');
   assert.equal(calls, 2); assert.equal(closed, 2);
+});
+test('native logout must finish navigation and release the account before context closure', async () => {
+  let finishNavigation, closed = false, evaluations = 0;
+  const events = [];
+  const page = {
+    evaluate: async () => { evaluations++; if (evaluations === 1) return true; events.push('native logout'); },
+    waitForURL: async () => { events.push('wait navigation'); await new Promise(resolve => { finishNavigation = resolve; }); },
+    locator: () => ({ waitFor: async () => { events.push('join form'); } }),
+    waitForFunction: async (_fn, name) => { assert.equal(name, 'Gamemaster'); events.push('release confirmed'); }
+  };
+  const context = { pages: () => [page, { close: async () => { events.push('sibling closed'); } }],
+    close: async () => { closed = true; events.push('context closed'); } };
+  const closing = closeOwnContext(context, page, 'Gamemaster');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(closed, false);
+  assert.deepEqual(events, ['sibling closed', 'wait navigation', 'native logout']);
+  finishNavigation(); await closing;
+  assert.deepEqual(events.slice(-3), ['join form', 'release confirmed', 'context closed']);
+});
+test('unconfirmed native logout blocks a passing report while still closing our context', async () => {
+  let closed = false;
+  const page = { evaluate: async () => true, waitForURL: async () => { throw Error('private response'); } };
+  await assert.rejects(closeOwnContext({ pages: () => [page], close: async () => { closed = true; } }, page, 'Player1'),
+    error => error instanceof GuardError && error.reason === 'test-session-release-unconfirmed');
+  assert.equal(closed, true);
 });
 test('GM test pages receive a new cache key instead of reusing preflight module assets', async t => {
   let sequence = 0, handler;

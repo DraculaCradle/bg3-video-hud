@@ -6,13 +6,13 @@
 
 | 检查 | 结果与证据 |
 | --- | --- |
-| 自动化回归 | 最近完整 CI 的 147 项通过：54 Node、22 离线安装、39 共享实例部署／配置、32 Chromium fixture 检查；另有语法、清单、打包、Playwright 用例发现和 actionlint 校验。进程清单修复另增 2 项 Python 回归，合计 149 项，需在合并前通过最新 CI |
+| 自动化回归 | 149 项通过：54 Node、22 离线安装、41 共享实例部署／配置／进程清单、32 Chromium fixture 检查；另有语法、清单、打包、Playwright 用例发现和 actionlint 校验 |
 | runner 浏览器能力 | Chromium 启动及 WebGL2 canvas 预检通过 |
 | 世界身份 | 公开 Socket `getJoinData` 只读核实标题 ModsTest、ID modstest；不自动采用其他 ID 或切换世界 |
 | 三个模组启用 | 用户确认均已启用；本次尚未成功进入认证后的完整守卫重新核实，不能将人工确认当作实机断言 |
 | GM 登录 | [测试运行 42061094020](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42061094020) 第 2、3 次尝试均在提交密码前报告 `test-account-already-active` |
 | 活动连接交叉核实 | 00:31:21 的匿名 Socket 快照显示 Gamemaster 在线、Player1 离线、非测试账号在线数 0；00:33:20 仍收到 GM `active=true` 活动消息。观察连接自身未认证；第 3 次测试步骤已于 00:31:44 结束 |
-| runner 遗留浏览器 | [初版纯诊断运行 42066215567](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42066215567) 返回 `runnerUid=1000`、`browsers=[]`，但该版漏检固定 Playwright 使用的 `headless_shell` 名称，**不能据此排除遗留浏览器**。已修正名称检查并补充回归，待复核。纯诊断不启动浏览器、登录 Foundry 或终止进程；绿色状态不是 HUD 验收通过 |
+| runner 遗留浏览器 | [修正版纯诊断运行 42067889378](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42067889378) 返回 `runnerUid=1000`、`browsers=[]`，已包含固定 Playwright 使用的 `headless_shell` 及 Chrome／Chromium 名称检查和回归。初版清单曾漏检，不能作为排除证据；以本次复核为准。纯诊断不启动浏览器、登录 Foundry 或终止进程；绿色状态不是 HUD 验收通过 |
 | 实机角色与数据 | 最新测试均止于初始认证守卫，未创建临时角色、token 或场景，未执行角色 HP／法术槽／布局修改 |
 | 自动部署 | 保持关闭；main 构建中的 `deploy-and-test` 任务跳过 |
 
@@ -23,3 +23,16 @@
 仍待实机验证：临时规则书角色导入与清理、GM／Player1 双会话、角色切换、HP／AC、法术槽实时显示、戏法筛选、快捷栏隐藏／排序／刷新持久化、原 BG3 HUD 恢复及数据还原。普通测试和浏览器 fixture 的通过不代替这些结果；法术槽显示同步也不等于验证了真实施法消耗。
 
 下一步是定位并释放仍在活动的 GM 连接。仅在公开账号状态确认释放后重跑只测试流程，保持 `MODS_TEST_ENABLED=false`，不启用自动部署。不得因登录受阻而重启服务、切换世界、强制清除未知会话或修改数据库。
+
+修正版进程诊断后，再次只读请求公开账号状态，Gamemaster 仍在线、Player1 离线、非测试账号在线数为 0。当前没有正在执行的实机测试，且该受限 runner 没有上述浏览器进程；现有 GM 连接的来源尚未定位，不归因于某台具体设备，也不强制断开。
+
+## 后续操作
+
+- GitHub：`modstest` Environment 的 `FOUNDRY_WORLD_ID` 使用 `modstest`，保持 `MODS_TEST_ENABLED=false`。账号释放后使用 **ModsTest live tests only**，选择 main、`world_id=modstest`、`create_fixtures=true`；不要勾选纯诊断来代替 HUD 验收。
+- 现有 Linux 服务器：无需新增服务、端口或 dataPath。管理员可先只读查看现有 Foundry 服务连接日志，定位活动 GM 连接；不修改数据库或删除会话文件，不自动重启。以下命令仅在服务器本地查看，勿发送原始日志、会话 ID 或 Cookie：
+
+```sh
+sudo journalctl -u foundryvtt.service --since '20 minutes ago' --no-pager --grep='(?i)(gamemaster|connect|disconnect|session)'
+```
+
+服务日志不足以定位时，应由管理员检查现有反向代理的 WebSocket 连接记录及实例会话状态。是否需要维护窗口取决于管理员诊断；本报告不授权自动重启或强制清除未知连接。

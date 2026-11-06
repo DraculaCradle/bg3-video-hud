@@ -1,55 +1,64 @@
 # ModsTest 实机测试报告
 
-状态：**超时后的只恢复已通过；HUD 实机验收尚未通过**。日期：2026-11-06（中国标准时间 UTC+8）。
+日期：2026-11-06（中国标准时间 UTC+8）。**HUD 实机验收尚未通过。**
 
-现已核实服务器发布的 Foundry V14 客户端要求 Chromium 至少 146；旧 Playwright 1.56.1 自带 Chromium 141，低于要求。测试工具升级为固定 Playwright 1.65.0／Chromium 158.0.8127.18，登录前检查实际版本及 WebGL2。本地新版预检已通过，尚待 runner 实机验证，不能据此宣称解决了 RPC 超时。
+目标为现有 `https://redmagic.club/`、世界标题 `ModsTest`、world ID `modstest`。使用现有 Gamemaster 及无密码 Player1，凭据仅由 GitHub `modstest` Environment 提供。
 
-[只读回调诊断 42147966129](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42147966129) 于 10:09:25 报告 Socket 用户匹配；真实索引、空结果世界 Actor 查询及直接 Socket 回调均约 34.8 秒超时，原生包装读取约 34.3 秒超时；未捕获客户端错误类别。没有世界文档写入，报告无退出清理异常。系统 Node 二进制参考版本为 v24.18.0；这不是对运行中 Foundry PID 所加载版本的证明。旧浏览器结果不足以归因于服务器，先使用受支持浏览器复核。
+## 本轮结果
 
+[新版浏览器只读运行 42169878299](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42169878299) 于 13:49:09 结束，`mode=source-inspection`、`status=failed`，守卫原因 `srd-source-inspection-unavailable`。runner 日志确认 Chromium 158.0.8127.18、WebGL2=true，已通过 GM 认证及世界／版本／依赖守卫；没有执行 Player1 登录或 HUD 验收。
 
-[只恢复运行 42140503885](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42140503885) 于 09:00:59 生成 `mode=recovery-only`、`status=passed` 报告，断言待恢复日志已处理并确认不存在，未创建新角色或开始 HUD 测试；正常退出确认也通过。此结果只证明本轮恢复成功，不能替代 HUD 验收。
-
-[后续验收运行 42142183072](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42142183072) 于 09:16:16 明确报告 `fixture-source-read-timeout:actor-source-document`，已定位到规则书角色文档的只读阶段，尚未进入世界角色导入或 HUD 测试，后续恢复／退出未报告异常。系统安装顺序将 heroes 排在 monsters 之前；准备代码现改为优先标准怪物合集，保留只读超时和所有守卫，待下一轮实机验证。
-
-[标准怪物合集验收运行 42143717040](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42143717040) 于 09:29:47 在同一只读文档阶段超时，报告明确通过断言 `Fixture recovery completed; both private recovery journals absent`，退出未报告异常。这次没有进入世界角色导入或 HUD 测试；仅调整合集优先级不足以解决读取障碍。下一步使用 `inspect_sources` 比较原始 Socket get 与 `pack.getDocument()`，不创建任何世界文档。
-
-[只读源诊断 42145551770](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42145551770) 于 09:46:18 报告本地索引 337 条、读取 1ms；原始 Actor Socket get 在约 34.8 秒超时，包装读取约 34.4 秒超时。缓存索引可读不能证明服务端索引 RPC 正常。下一步补测真实索引 RPC、空结果世界 Actor get、Socket 用户匹配布尔值及系统 Node 参考版本，仍不写世界文档。
-
-最新重试：[运行 42138235766](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42138235766) 已通过 GM 登录、世界身份、Foundry／D&D5e／依赖版本及启用状态守卫，进入临时规则书角色／token 准备阶段后在 10 分钟上限超时。报告于 08:48:45 生成，`lastStage=Import temporary SRD actors and create marked tokens`，超时后的会话守卫锁存，无法确认临时文档清理完成；不能宣称本轮未创建角色或已还原数据。公开账号状态随后核实 GM／Player1 均离线，非测试账号在线数为 0。
-
-已使用新增 `recover_only` 入口和原私有日志／唯一标记完成恢复验证。以下表格保留之前的诊断背景；关于旧轮次“未创建角色”的描述不适用于本次超时。
-
-目标是现有 `https://redmagic.club/`、世界标题 `ModsTest`、准确 world ID `modstest`、现有 Gamemaster 和无密码 Player1。没有创建第二实例、部署模组文件、停止或重启 Foundry、切换世界或修改其他世界。
-
-| 检查 | 结果与证据 |
+| 读取检查 | 实机结果 |
 | --- | --- |
-| 自动化回归 | 149 项通过：54 Node、22 离线安装、41 共享实例部署／配置／进程清单、32 Chromium fixture 检查；另有语法、清单、打包、Playwright 用例发现和 actionlint 校验 |
-| runner 浏览器能力 | Chromium 启动及 WebGL2 canvas 预检通过 |
-| 世界身份 | 公开 Socket `getJoinData` 只读核实标题 ModsTest、ID modstest；不自动采用其他 ID 或切换世界 |
-| 三个模组启用 | 用户确认均已启用；本次尚未成功进入认证后的完整守卫重新核实，不能将人工确认当作实机断言 |
-| GM 登录 | [测试运行 42061094020](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42061094020) 第 2、3 次尝试均在提交密码前报告 `test-account-already-active` |
-| 活动连接交叉核实 | 00:31:21 的匿名 Socket 快照显示 Gamemaster 在线、Player1 离线、非测试账号在线数 0；00:33:20 仍收到 GM `active=true` 活动消息。观察连接自身未认证；第 3 次测试步骤已于 00:31:44 结束 |
-| runner 遗留浏览器 | [修正版纯诊断运行 42067889378](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42067889378) 返回 `runnerUid=1000`、`browsers=[]`，已包含固定 Playwright 使用的 `headless_shell` 及 Chrome／Chromium 名称检查和回归。初版清单曾漏检，不能作为排除证据；以本次复核为准。纯诊断不启动浏览器、登录 Foundry 或终止进程；绿色状态不是 HUD 验收通过 |
-| 实机角色与数据 | 最新测试均止于初始认证守卫，未创建临时角色、token 或场景，未执行角色 HP／法术槽／布局修改 |
-| 自动部署 | 保持关闭；main 构建中的 `deploy-and-test` 任务跳过 |
+| 本地缓存索引 | 337 条，0ms；只证明缓存可用 |
+| Socket 用户与 GM 匹配 | true |
+| 真实合集索引 RPC | 33,756ms 超时 |
+| 当前世界随机不存在 ID 的空结果查询 | 33,757ms 超时 |
+| 直接 Socket get 回调 | 33,757ms 超时，未收到可记录的回调参数 |
+| 原生 `pack.getDocument()` | 32,793ms 超时 |
+| 客户端错误类别 | 未捕获 |
 
-此前曾在成功认证后遇到 `foundry-or-dependency-version-mismatch`，随后退出错误覆盖了主错误。测试驱动现已分别报告主错误和退出错误，并在版本守卫失败时记录经过校验的数字版本及固定依赖启用布尔值。用户确认启用三个模组之后的最新尝试未越过 GM 已在线检查，因此不推断当前依赖仍不兼容。
+新版浏览器未解决文档读取障碍。证据只能证明这些请求未在时限内向测试客户端返回回调，不能证明请求是否抵达服务端，也不能单凭此定位为数据库、Node 或反向代理故障。本轮未开始创建角色，后续相同重试已停止。
 
-已修复 V14 大小写敏感的 `userId` 表单字段、登录表单范围、世界标题与 ID 的区分、原生退出异步跳转等待，以及在关闭全部自有连接后从匿名页面核实账号释放的流程。已有会话不可选时仍停止，不强制踢人或绕过守卫。
+该模式拒绝待恢复日志，不执行任何世界文档写入；本轮未创建角色／token／场景或修改 HP、法术槽、布局。原生退出、关闭自有认证连接和全新匿名账号可选性检查未报告异常。结束后另用匿名公开 Socket 状态复核：Gamemaster 与 Player1 均为离线，非测试账号在线数为 0。runner 开始时同账号浏览器清单为空；这只反映启动前清单，不能代替结束后的进程证明。
 
-仍待实机验证：临时规则书角色导入与清理、GM／Player1 双会话、角色切换、HP／AC、法术槽实时显示、戏法筛选、快捷栏隐藏／排序／刷新持久化、原 BG3 HUD 恢复及数据还原。普通测试和浏览器 fixture 的通过不代替这些结果；法术槽显示同步也不等于验证了真实施法消耗。
+## 已验证和未验证
 
-下一步是定位并释放仍在活动的 GM 连接。仅在公开账号状态确认释放后重跑只测试流程，保持 `MODS_TEST_ENABLED=false`，不启用自动部署。不得因登录受阻而重启服务、切换世界、强制清除未知会话或修改数据库。
+| 项目 | 结论 |
+| --- | --- |
+| 自动化回归 | 161 项通过：63 Node、44 共享实例部署／配置、22 离线安装、32 Chromium fixture；语法、清单、打包及 Playwright 用例发现通过。CI：[42169741375](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42169741375) |
+| 浏览器兼容性 | 服务器发布的 V14 客户端要求 Chromium ≥146，旧 Playwright 1.56.1 的 Chromium 141 低于要求。[PR #19](https://github.com/DraculaCradle/bg3-video-hud/pull/19) 已升级为固定 Playwright 1.65.0／Chromium 158.0.8127.18，并加入登录前版本检查；本地及现有 runner 的版本和 WebGL2 预检通过 |
+| 超时后的数据恢复 | [只恢复 42140503885](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42140503885) 通过，确认 pending journals 不存在；[42143717040](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42143717040) 再次明确断言两个私有恢复日志均不存在 |
+| HUD 功能 | 尚未验证 GM／Player1 双会话、角色切换、HP／AC、法术槽显示同步、戏法筛选、快捷栏隐藏／排序／刷新持久化及原 HUD 恢复。未进行真实施法消耗验收 |
+| 自动部署与服务 | 自动部署保持关闭；main [构建 42169868287](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42169868287) 的 `deploy-and-test` 被跳过。未部署模组文件、停止／重启服务、切换世界或修改其他世界 |
 
-修正版进程诊断后，再次只读请求公开账号状态，Gamemaster 仍在线、Player1 离线、非测试账号在线数为 0。当前没有正在执行的实机测试，且该受限 runner 没有上述浏览器进程；现有 GM 连接的来源尚未定位，不归因于某台具体设备，也不强制断开。
+## 相关诊断证据
 
-## 后续操作
+- [42138235766](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42138235766)：GM 登录及世界／版本／模组启用守卫通过，临时规则书角色准备阶段达到 600 秒上限，退出时无法确认清理。不能把这轮记为“未创建角色”；后续以上述只恢复成功为依据。
+- [42142183072](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42142183072) 和 [42143717040](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42143717040)：只读 Actor 文档阶段超时，尚未进入世界角色导入或 HUD 验收；调整合集优先级没有解决读取障碍。
+- [42147966129](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42147966129)：旧 Chromium 下的只读诊断报告 Socket 用户匹配，本地缓存索引 337 条；真实索引、空结果世界 Actor 查询、直接 Socket 回调约 34.8 秒超时，原生包装读取约 34.3 秒超时，未捕获客户端错误类别。无世界文档写入，脱敏报告未记录退出异常。系统 `/usr/bin/node` 参考版本 v24.18.0 不证明运行中 Foundry PID 所加载的版本。
 
-- GitHub：`modstest` Environment 的 `FOUNDRY_WORLD_ID` 使用 `modstest`，保持 `MODS_TEST_ENABLED=false`。账号释放后使用 **ModsTest live tests only**，选择 main、`world_id=modstest`、`create_fixtures=true`；不要勾选纯诊断来代替 HUD 验收。
-- 现有 Linux 服务器：无需新增服务、端口或 dataPath。管理员可先只读查看现有 Foundry 服务连接日志，定位活动 GM 连接；不修改数据库或删除会话文件，不自动重启。以下命令仅在服务器本地查看，勿发送原始日志、会话 ID 或 Cookie：
+缓存索引读取成功不等于真实文档 RPC 成功，客户端没有在时限内收到回调也不足以断定请求是否抵达服务器。本轮已纠正浏览器版本并复核，文档读取障碍仍存在。
+
+## 安全边界与恢复
+
+测试保留精确世界身份、版本、启用状态、活动会话守卫及事务恢复。临时文档只使用唯一标记；保存的角色 HP／法术槽及两个用户布局必须先恢复并验证，才能清除私有日志。只读诊断发现 pending journal 会停止，交由单独的 `recover_only` 处理。只恢复或诊断绿色不代表 HUD 验收通过。
+
+不强制断开未知会话，不新增实例、服务、端口或 dataPath，不自动启用模组或修改其他世界。测试结束应关闭自己的全部认证连接，并从全新匿名页面确认测试账号恢复可选；未确认时报告清理异常，不宣称账号已释放。
+
+## 下一步操作
+
+### GitHub
+
+保持 `MODS_TEST_ENABLED=false`，不要启动部署。PR #19 已合并。先由管理员结合上述测试时段排查现有实例；问题修复后，只运行 **ModsTest live tests only**、main、`world_id=modstest`、`inspect_sources=true`。确认真实读取正常、无其他会话且账号释放后，才运行 `create_fixtures=true` 的完整验收。原测试凭据继续放在 `modstest` Environment Secrets，不需要在聊天或仓库提供密码。
+
+### 现有 Linux 服务器
+
+无需安装第二实例、改权限或重启服务。管理员可在本地只读核对现有服务状态，并查看本轮请求对应时段的日志：
 
 ```sh
-sudo journalctl -u foundryvtt.service --since '20 minutes ago' --no-pager --grep='(?i)(gamemaster|connect|disconnect|session)'
+systemctl show foundryvtt.service -p MainPID -p User -p ActiveState -p SubState
+sudo journalctl -u foundryvtt.service --since '2026-11-06 05:45:00 UTC' --until '2026-11-06 05:50:00 UTC' --no-pager --output=short-iso
 ```
 
-服务日志不足以定位时，应由管理员检查现有反向代理的 WebSocket 连接记录及实例会话状态。是否需要维护窗口取决于管理员诊断；本报告不授权自动重启或强制清除未知连接。
+同时检查既有反向代理在相同时段的 WebSocket／upstream 错误，关注 `modifyDocument`、数据库异常、会话授权、超时或断线。上述日志只在服务器本地查看；对外只提供错误类别、时间及是否出现对应请求，不发送原始日志、Cookie、会话 ID 或密码。如果没有相关日志，应明确记为“未观察到”，不能推断请求没有到达。现有服务运行版本、日志和代理记录需要管理员核实，本轮未访问管理员日志；不为排查提升 runner 权限。任何需要重启的修复必须另行安排维护窗口。

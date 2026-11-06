@@ -95,4 +95,22 @@ Hooks.on('canvasTearDown', () => { canvasReady = false; hud?.clear(); });
 for (const event of ['controlToken', 'deleteToken', 'updateToken', 'updateActor', 'deleteActor',
   'createItem', 'updateItem', 'deleteItem', 'createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect',
   'updateUser', 'updateCombat', 'deleteCombat']) Hooks.on(event, scheduleRefresh);
+Hooks.on('dnd5e.postUseActivity', (activity, config, results) => {
+  if (!hud || !compatible()) return;
+  hud.ledger.observe(activity, config, results, game.user, game.combat);
+  if (activity.actor === hud.actor && !config.bg3Sequence && activity.type !== 'attack') {
+    queueMicrotask(() => {
+      if (activity.actor === hud?.actor) hud.visuals.pulse(values(game.user.targets), activity.type === 'heal' ? 'heal' : 'cast');
+    });
+  }
+  scheduleRefresh();
+});
+Hooks.on('dnd5e.postRollAttack', (_rolls, { subject } = {}) => {
+  if (hud && compatible() && subject?.actor === hud.actor) hud.visuals.pulse(values(game.user.targets), 'attack');
+});
+Hooks.on('hoverToken', (token, hovered) => {
+  if (!hud?.root?.isConnected || !compatible() || hud.targeting.picking) return;
+  if (hovered && token.visible && !token.document?.hidden) hud.visuals.status(token);
+  else hud.visuals.stop();
+});
 globalThis.addEventListener('beforeunload', () => hud?.destroy());

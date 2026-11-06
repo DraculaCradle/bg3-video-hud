@@ -2,6 +2,7 @@ import { actor, item, userWithFlags } from './fixtures.js';
 import { MODULE_ID } from '../scripts/model.js';
 import { LayoutStore } from '../scripts/persistence.js';
 import { targetingBrowserTests, createTargetingFixture } from './targeting-browser.js';
+import { completeFeatureBrowserTests } from './complete-features-browser.js';
 
 const results = document.querySelector('#test-results');
 const lines = [];
@@ -10,8 +11,11 @@ const assert = (ok, message = 'assertion failed') => { if (!ok) throw new Error(
 const equal = (a, b) => assert(JSON.stringify(a) === JSON.stringify(b), `${JSON.stringify(a)} !== ${JSON.stringify(b)}`);
 async function flush() { for (let i = 0; i < 16; i++) await Promise.resolve(); }
 async function test(name, callback) {
+  console.debug(`BG3 TEST START ${name}`);
   try { await callback(); passed++; lines.push(`PASS ${name}`); }
   catch (error) { failed++; lines.push(`FAIL ${name}: ${error.stack ?? error}`); }
+  results.textContent = lines.join('\n');
+  console.debug(`BG3 TEST END ${name}`);
 }
 const handlers = new Map();
 globalThis.Hooks = {
@@ -63,6 +67,10 @@ const originalVisible = () => getComputedStyle(document.getElementById('bg3-hotb
 const find = (action, itemId) => root()?.querySelector(`button[data-action="${action}"]${itemId ? `[data-item-id="${itemId}"]` : ''}`);
 async function click(action, itemId) {
   const button = find(action, itemId); assert(button, `Missing ${action} ${itemId ?? ''}`); button.click(); await flush();
+  for (let i = 0; root()?.getAttribute('aria-busy') === 'true' && i < 100; i++) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  assert(root()?.getAttribute('aria-busy') !== 'true', 'Layout saving did not settle');
 }
 async function enable() { await game.settings.set(MODULE_ID, 'enabled', true); }
 async function select(next) { canvas.tokens.controlled = next ? [{ actor: next }] : []; await Hooks.emit('controlToken'); }
@@ -168,7 +176,7 @@ try {
     const transfer = new DataTransfer();
     transfer.setData('application/x-bg3-video-hud', JSON.stringify({ actor: hero.uuid, itemId: 'sword' }));
     target.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer })); await flush();
-    equal(new LayoutStore(user).read(hero).order.slice(0, 2), ['sword', 'bow']);
+    equal([...root().querySelectorAll('.bg3-video-hud-panel:first-child li')].slice(0, 2).map(n => n.dataset.itemId), ['sword', 'bow']);
     const writes = user.writes.length;
     for (const payload of ['invalid JSON', JSON.stringify({ actor: 'Actor.enemy', itemId: 'sword' }),
       JSON.stringify({ actor: hero.uuid, itemId: 'hex' }), JSON.stringify({ actor: hero.uuid, itemId: 'foreign' })]) {
@@ -252,6 +260,7 @@ try {
     await tool.onChange(); await flush(); assert(!root()); assert(originalVisible());
   });
   await targetingBrowserTests({ test, assert, equal, flush });
+  await completeFeatureBrowserTests({ test, assert, equal, flush });
   // The Node runner now drives actual viewport changes and keyboard events.
   await enable();
   const crowded = actor('crowded', Array.from({ length: 180 }, (_, i) => item(`crowded-${i}`,
@@ -264,7 +273,8 @@ try {
   });
   window.bg3LayoutTest = {
     crowded: () => select(crowded), reset: () => select(hero),
-    refresh: () => Hooks.emit('updateActor', crowded), writes: () => user.writes.length, enable
+    refresh: () => Hooks.emit('updateActor', crowded), writes: () => user.writes.length,
+    notifications: () => notifications.slice(-5), enable
   };
   let targetingFixture;
   window.bg3TargetTest = {
@@ -309,6 +319,6 @@ try {
     equal(JSON.stringify(user.flags), flags);
   });
 } catch (error) { failed++; lines.push(`HARNESS FAILURE: ${error.stack ?? error}`); }
-results.textContent = `${lines.join('\n')}\n${passed} passed, ${failed} failed`;
+results.textContent = `${lines.join('\n')}\n${passed} passed, ${failed} failed${failed ? `\nFixture notifications: ${JSON.stringify(notifications.slice(-5))}` : ''}`;
 results.dataset.status = failed ? 'failed' : 'passed';
 results.dataset.count = String(passed + failed);

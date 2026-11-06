@@ -1,5 +1,6 @@
-import { canUseActor, values } from './model.js';
+import { MODULE_ID, canUseActor, values } from './model.js';
 import { resolveOwnedItem, useOwnedItem } from './actions.js';
+import { nativeCastingOptions, scaledActivity, sequencePlan, requireActor } from './casting.js';
 
 // Read prepared system data, never evaluate formulas or infer rules from names.
 export function targetPlan(activity) {
@@ -39,8 +40,10 @@ function descriptors(tokens) {
 /** Client-only input controller. Selection never edits actors, items or scenes. */
 export class TargetWorkflow {
   constructor({ user, onStatus, onError, current, getCanvas = () => globalThis.canvas,
-    getSystem = () => globalThis.game?.dnd5e, hooks = globalThis.Hooks }) {
-    Object.assign(this, { user, onStatus, onError, current, getCanvas, getSystem, hooks });
+    getSystem = () => globalThis.game?.dnd5e, hooks = globalThis.Hooks,
+    chooseUse, allocate, onProgress, visuals }) {
+    Object.assign(this, { user, onStatus, onError, current, getCanvas, getSystem, hooks,
+      chooseUse, allocate, onProgress, visuals });
     this.sequence = 0;
     this.picking = false;
   }
@@ -48,6 +51,7 @@ export class TargetWorkflow {
   cancel() {
     this.sequence++;
     this.stopPicking?.();
+    this.visuals?.stop();
   }
 
   async use(actor, itemId, event) {
@@ -56,12 +60,20 @@ export class TargetWorkflow {
     const canvas = this.getCanvas();
     const scene = canvas?.scene;
     const item = resolveOwnedItem(actor, itemId, this.user);
+    if (item.flags?.[MODULE_ID]?.castingSource?.enabled === false) throw new Error('此施法来源已在本界面停用。');
     const activities = values(item.system?.activities).filter(a => a.canUse === true && typeof a.use === 'function');
     // Activity-less items still use their official chat-card workflow. Unknown
     // data never turns into a guessed attack or an invented resource operation.
     if (!activities.length) return useOwnedItem(actor, itemId, this.user, event);
-    let activity = activities[0];
-    if (activities.length > 1 && !event?.shiftKey) {
+    let activity = activities[0], choice = {};
+    if (this.chooseUse && activities.some(a => a.type)) {
+      choice = await this.chooseUse(actor, item, event);
+      if (!choice) return;
+      const freshItem = resolveOwnedItem(actor, itemId, this.user);
+      if (freshItem !== item) throw new Error('物品已更改，请重新选择。');
+      activity = values(freshItem.system?.activities).find(a => a.id === choice.activityId && a.canUse === true);
+      if (!activity) throw new Error('请选择当前物品的可用活动。');
+    } else if (activities.length > 1 && !event?.shiftKey) {
       const choice = this.getSystem()?.applications?.activity?.ActivityChoiceDialog;
       if (typeof choice?.create !== 'function') throw new Error('系统活动选择接口不可用，请从角色卡操作。');
       activity = await choice.create(item);
@@ -76,25 +88,35 @@ export class TargetWorkflow {
       if (found !== activity || activity.canUse !== true) throw new Error('活动已更改或不可用，请重新选择技能。');
     };
     fresh();
-    const plan = targetPlan(activity);
-    if (plan.mode === 'native') return useOwnedItem(actor, itemId, this.user, event, activity.id);
+    const usage = nativeCastingOptions(actor, item, activity, choice);
+    const preview = scaledActivity(activity, usage.scaling || 0);
+    const repetition = choice.nativeOnly ? null : sequencePlan(item, activity, { level: (Number(item.system?.level) || 0) + (usage.scaling || 0),
+      count: choice.count ?? null, mode: choice.mode ?? null });
+    const profile = targetPlan(preview);
+    const plan = repetition && repetition.count > 1 && profile.mode !== 'area'
+      ? { mode: 'multi', max: repetition.count } : profile;
+    if (plan.mode === 'native') return useOwnedItem(actor, itemId, this.user, event, activity.id, usage);
     if (typeof canvas.tokens?.setTargets !== 'function') throw new Error('当前场景的目标选择接口不可用。');
 
     if (plan.mode !== 'area') {
-      const selected = await this.pick(canvas, plan, active).finally(() => this.stopPicking?.());
+      const selected = await this.pick(canvas, plan, active, preview).finally(() => this.stopPicking?.());
       if (!selected || !active()) {
         if (active()) this.onStatus?.('已取消目标选择。');
         return;
       }
       fresh();
-      if (JSON.stringify(targetPlan(activity)) !== JSON.stringify(plan)) throw new Error('目标规则已更改，请重新选择技能。');
+      if (JSON.stringify(targetPlan(scaledActivity(activity, usage.scaling || 0))) !== JSON.stringify(profile)) throw new Error('目标规则已更改，请重新选择技能。');
       const visible = new Set(visibleTargets(canvas));
       if (selected.some(t => !visible.has(t))) throw new Error('目标已离开场景或不可见，请重新选择。');
+      const validated = nativeCastingOptions(actor, item, activity, choice);
+      if (JSON.stringify(validated) !== JSON.stringify(usage)) throw new Error('施法方式已更改，请重新选择。');
+      if (repetition) return this.settleSequence({ actor, item, activity, choice, usage,
+        repetition, selected, active, event, canvas });
       canvas.tokens.setTargets(selected.map(t => t.id), { mode: 'replace' });
       this.onStatus?.(`已选择 ${selected.length} 个目标，交由系统处理。`);
       // Leave targets selected, just like Foundry's targeting tool. Restoring
       // here would race D&D5e's subsequent (not awaited) attack/roll dialogs.
-      return useOwnedItem(actor, itemId, this.user, event, activity.id);
+      return useOwnedItem(actor, itemId, this.user, event, activity.id, usage);
     }
 
     // V14 / D&D5e 6 uses native Region templates. Do not make a second template
@@ -137,13 +159,100 @@ export class TargetWorkflow {
     };
     this.hooks.on('dnd5e.postUseActivity', afterUse);
     try {
-      return await useOwnedItem(actor, itemId, this.user, event, activity.id, { bg3VideoHUD: nonce });
+      return await useOwnedItem(actor, itemId, this.user, event, activity.id, { ...usage, bg3VideoHUD: nonce });
     } finally {
       this.hooks.off('dnd5e.postUseActivity', afterUse);
     }
   }
 
-  pick(canvas, plan, active) {
+  async settleSequence({ actor, item, activity, choice, usage, repetition, selected, active, event, canvas }) {
+    if (globalThis.game?.modules?.get('midi-qol')?.active) {
+      throw new Error('此客户端已启用战斗自动化，请从原生流程结算重复攻击，避免重复掷骰。');
+    }
+    const distribute = count => Array.from({ length: count }, (_, i) => selected[i % selected.length]);
+    let allocation = choice.manual && this.allocate
+      ? await this.allocate({ item, selected, count: repetition.count, consumed: false }) : distribute(repetition.count);
+    if (!allocation || !active()) return;
+    const validate = (allocation, count) => {
+      const available = new Set(visibleTargets(canvas));
+      if (allocation.length !== count || allocation.some(t => !selected.includes(t) || !available.has(t))) {
+        throw new Error('目标分配已失效，请重新选择。');
+      }
+      requireActor(actor, this.user);
+    };
+    validate(allocation, repetition.count);
+    const freshItem = resolveOwnedItem(actor, item.id, this.user);
+    if (values(freshItem.system.activities).find(a => a.id === activity.id) !== activity
+      || JSON.stringify(nativeCastingOptions(actor, freshItem, activity, choice)) !== JSON.stringify(usage)) {
+      throw new Error('活动或施法来源已改变，请重新选择。');
+    }
+    const nonce = `${this.user.id}:${globalThis.crypto.randomUUID()}`;
+    let used, results;
+    const capture = (a, config, result) => {
+      if (config.bg3VideoHUD !== nonce) return;
+      if (a.id !== activity.id || a.item?.uuid !== item.uuid || !active()) return false;
+      used = a; results = result;
+    };
+    this.hooks.on('dnd5e.postUseActivity', capture);
+    let outcome;
+    try {
+      outcome = await useOwnedItem(actor, item.id, this.user, event, activity.id,
+        { ...usage, subsequentActions: false, bg3VideoHUD: nonce, bg3Sequence: true });
+    } finally { this.hooks.off('dnd5e.postUseActivity', capture); }
+    if (!outcome || !used || !active()) return outcome;
+    const final = sequencePlan(used.item, used, {
+      level: used.getRollData?.().item?.level ?? ((Number(used.item.system.level) || 0) + (Number(used.item.flags?.dnd5e?.scaling) || 0)),
+      count: choice.count ?? null, mode: choice.mode ?? null
+    }) ?? repetition;
+    if (allocation.length !== final.count) {
+      allocation = choice.manual && this.allocate
+        ? await this.allocate({ item, selected, count: final.count, consumed: true }) : distribute(final.count);
+      if (!allocation || !active()) { this.onStatus?.('已停止分配；施法消耗以系统记录为准。'); return outcome; }
+    }
+    const roller = values(used.item.system.activities).find(a => a.id === final.rollerId);
+    if (!roller) throw new Error('系统未返回本次施放的结算活动；请核实消耗，不会重新施放。');
+    const deltas = results?.message?.system?.deltas ?? results?.message?.data?.system?.deltas;
+    const consumed = used.createConsumedFlag?.(actor, deltas);
+    if (consumed) used.item.updateSource?.({ 'flags.dnd5e.consumed': consumed });
+    const step = (index, stage) => this.onProgress?.({ item, allocation, index, total: final.count, stage });
+    let currentIndex = 0;
+    try {
+      for (let index = 0; index < allocation.length; index++) {
+        currentIndex = index;
+        if (!active()) { step(index, 'stopped'); return outcome; }
+        validate(allocation, final.count);
+        canvas.tokens.setTargets([allocation[index].id], { mode: 'replace' });
+        const message = { data: { system: { origin: results?.message?.id },
+          flags: { 'bg3-video-hud': { sequence: { index: index + 1, total: final.count } } } } };
+        let attack;
+        if (final.method === 'attack') {
+          step(index, 'attack');
+          const rolls = await roller.rollAttack({ event }, {}, message);
+          if (!rolls?.length || !active()) { step(index, 'stopped'); return outcome; }
+          attack = rolls[0];
+          if (attack.isFumble || (attack.isSuccess === false && Number.isFinite(attack.options?.target))) continue;
+        }
+        requireActor(actor, this.user);
+        step(index, 'damage');
+        const rolls = await roller.rollDamage({ event, isCritical: attack?.isCritical === true,
+          ...Object.fromEntries(['ability', 'ammunition', 'attackMode', 'mastery']
+            .filter(key => attack?.options?.[key] !== undefined).map(key => [key, attack.options[key]])),
+          ...(final.damageScaling !== undefined ? { scaling: final.damageScaling } : {}) }, {}, message);
+        if (!rolls?.length || !active()) { step(index, 'stopped'); return outcome; }
+      }
+      step(final.count, 'done');
+      this.onStatus?.(`已完成 ${final.count} 次原生结算；伤害应用请查看系统聊天卡。`);
+      return outcome;
+    } catch (error) { step(currentIndex, 'error'); throw error; }
+    finally {
+      if (active()) {
+        const visible = new Set(visibleTargets(canvas));
+        canvas.tokens.setTargets(selected.filter(t => visible.has(t)).map(t => t.id), { mode: 'replace' });
+      }
+    }
+  }
+
+  pick(canvas, plan, active, activity = null) {
     const board = document.getElementById('board');
     if (!board || typeof canvas.stage?.worldTransform?.applyInverse !== 'function') {
       throw new Error('地图尚未就绪，无法选择目标。');
@@ -166,6 +275,7 @@ export class TargetWorkflow {
         if (settled) return;
         settled = true;
         abort.abort(); rectangle.remove();
+        this.visuals?.stop();
         if (board.style.cursor === 'crosshair') board.style.cursor = previousCursor;
         if (pointer !== undefined && board.hasPointerCapture?.(pointer)) board.releasePointerCapture(pointer);
         this.stopPicking = null; this.picking = false;
@@ -199,6 +309,11 @@ export class TargetWorkflow {
       }), options);
       board.addEventListener('pointermove', safe(event => {
         intercept(event);
+        const world = point(event);
+        const hovered = visibleTargets(canvas).filter(t => t.bounds?.contains(world.x, world.y)).at(-1);
+        const count = start && plan.mode === 'multi' ? targetsInBox(visibleTargets(canvas), start.world, world).length : null;
+        this.visuals?.preview(activity, { x: event.clientX, y: event.clientY }, hovered,
+          count === null ? '' : `${count}${plan.max ? `/${plan.max}` : ''}`);
         if (!start || pointer !== event.pointerId || plan.mode !== 'multi') return;
         rectangle.hidden = false;
         Object.assign(rectangle.style, {
@@ -237,6 +352,7 @@ export class TargetWorkflow {
       globalThis.addEventListener('resize', () => finish(null), { signal: abort.signal });
       board.addEventListener('contextmenu', event => { intercept(event); finish(null); }, options);
       document.addEventListener('keydown', event => {
+        if (event.target?.closest?.('dialog[open]')) return;
         if (event.key === 'Escape') { intercept(event); finish(null); }
       }, options);
     });

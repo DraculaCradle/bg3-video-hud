@@ -1,32 +1,21 @@
-# Test report — 2026-11-05
+# 自动检查报告 — 2026-11-06
 
-Scope: the v0.1.0 MVP and Linux installer at base commit `4bcdc95`, with the additional real-keyboard/viewport browser checks in this change. Tests ran in the cloud development machine, not the remote Foundry server. No player/world data was modified.
+范围：当前中文自适应 HUD 与视频功能补齐开发版本。测试在开发环境和本地 Chromium 中使用原创模拟文档执行，未连接线上 Foundry。稳定 Release 仍为 v0.1.1。
 
-| Check | Observed result | Boundary |
+| 检查 | 结果 | 证据边界 |
 | --- | --- | --- |
-| `npm run check` | Passed; manifest/versioned download URL, asset paths and 12 JS files | Static validation |
-| `npm test` | 22 passed, 0 failed, 0 skipped | Model, ownership, system-call delegation and User flag persistence with document doubles |
-| `npm run test:browser` | 31 passed, 0 failed, 0 skipped | Real Chromium DOM/CSS/input with Foundry API fixtures |
-| `npm run test:deploy` | 22 passed, 0 failed, 0 skipped | Actual temporary-directory file installation/backup/restore with injected failures |
-| `npm run package` | Passed; root manifest, 12-file ZIP, transitive JS imports and separate deployment script | Local build artifacts |
-| `sha256sum --check SHA256SUMS` in `dist/` | ZIP, manifest and deployment script all passed | Local artifact integrity |
-| `git diff --check` | Passed | Patch whitespace |
-| Remote HTTPS connectivity | Blocked; curl exit 56, CONNECT tunnel HTTP 403 from cloud proxy | The request did not reach the Foundry application |
-| Remote deployment / ModsTest acceptance | **NOT RUN** | No server filesystem/Setup access is configured; server connectivity is blocked |
-| GitHub Release publication / release URLs | **NOT RUN** | Workflow and URLs are configured; no release was published by this task |
+| npm run check | 通过，40 个 JS 文件及 manifest/资源路径 | 静态检查 |
+| npm test | 97 通过 | 分组／权限／布局、原生调用配置、来源 schema、一次消费／顺序射线、暴击／取消／最终升环／上下文守卫，使用文档替身 |
+| npm run test:browser | 91 通过，固定 Chrome 158；Chrome 155 验证见 CI／日志 | 真实 Chromium DOM/CSS/输入，模拟 Foundry API |
+| npm run test:deploy | 22 通过 | 临时目录实际安装、备份／原子更新／失败回滚 |
+| npm run test:modstest-deploy | 44 通过 | 共享实例配置、安全守卫与事务恢复 |
+| npm run package | 通过 | ZIP 根 manifest、所有传递 JS 导入、独立安装器 |
+| SHA256SUMS | 通过 | 本地 ZIP／manifest／安装器完整性 |
+| Playwright discovery | 通过 | 仅列出用例，无服务器登录 |
+| 五档截图／尺寸 | 通过，原创模拟素材 | 1280×720、1366×768、1920×1080、2560×1440、3840×2160；另有五张功能面板截图 |
 
-Total executed automated tests: **75 passed, 0 failed, 0 skipped**. These counts do not include the blocked/unrun remote checks. This report does not claim GitHub Actions or release workflows have run remotely.
+共 **254 项自动检查**，不将静态／打包／发现计入用例数。Chromium 检查包含有效 CSS 视口／DPR 模型、真实键盘／鼠标／滚轮、少空间下可达性、焦点与滚动保留，以及搜索／草稿取消／重复排序、来源 UI、说明卡 XSS 与隐私、原生唯一调用、范围坐标、VFX 清理与 AA 避让。它们不等于操作真实硬件缩放或通过 Foundry 联机规则验收。
 
-## Additional browser evidence
+本次保持自动部署关闭；没有发布新 Release、访问线上账号、修改服务器文件、重启／停止 Foundry、切换世界或创建第二实例。实机读取的既有阻碍是测试客户端未收到原生文档 RPC 回调，不能将缓存索引成功或离线测试绿色记为已解决；历史证据和未完成项见[实机报告](MODSTEST_LIVE_REPORT.md)。
 
-The Node runner uses Chromium DevTools to change the real viewport to 390×844, 650×900 and 1440×900. It checks that the HUD stays within the viewport, does not overflow horizontally, retains a nonzero scrollable panel area and switches from one column to three at the intended breakpoint.
-
-The runner sends native DevTools keyboard input rather than calling a click handler for the new keyboard checks. Enter activates Edit; Enter on an order button changes the actual rendered item order and restores focus after rerender; Tab reaches the named Original HUD control; Enter on that control removes the custom HUD and restores the upstream shell. The existing unload-cleanup test still runs afterward. A first attempt omitted Enter's text event in the driver; that driver error was corrected and all seven added checks passed on rerun. No runtime code change was necessary for these new checks.
-
-Earlier browser coverage remains in place for permission changes, actor/scene changes, system cancellation/errors, busy locks, namespaced persistent edits, malformed/foreign drops and upstream restoration. Deployment tests verify the actual built runtime payload, permission and checksum rejection, verified backups, caught interruption/error rollback, and retention of recovery data when rollback itself cannot complete.
-
-## Remaining real-world acceptance
-
-The remote world and GM/player account names have been provided. The current running cloud instance still lacks an effective allowlist entry for the server, even though configuration changes were saved separately. The 403 above is proxy evidence, not a Foundry login or application failure. No additional credential is inferred from it.
-
-Once the running task can reach the server and an authorized server filesystem/Foundry Setup deployment route is available, install the tested ZIP, verify the real Foundry/system/dependency versions, use a backed-up ModsTest world, and execute [the full manual checklist](MANUAL_TESTS.md) as GM and ordinary player. Real spell/pact consumption, activity selection, concentration, target templates, rest dialogs, chat cards and multiplayer permissions remain unverified. Local fixtures and temporary data directories do not close any of those acceptance items.
+功能使用、预览和具体边界见[视频功能说明](COMPLETE_HUD.md)、[目标说明](TARGETING.md)及[人工验收](MANUAL_TESTS.md)。恢复实际测试时只使用现有 ModsTest、专用账号与唯一标记临时数据，按恢复日志还原并确认登出；不踢未知会话。

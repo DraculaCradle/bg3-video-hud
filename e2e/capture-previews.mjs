@@ -35,6 +35,34 @@ try {
     await page.screenshot({ path: join(output, file), type: 'jpeg', quality: 85 });
     measurements.push({ viewport: { width, height }, file, ...layout });
   }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const fresh = () => page.goto(`http://127.0.0.1:${server.address().port}/tests/compact-preview.html`);
+  await fresh(); await page.locator('#bg3-video-hud').waitFor();
+  await page.evaluate(() => {
+    const { hud, hero } = window.compactPreview;
+    hud.busy.add(`${hero.uuid}:spell-2`); void hud.chooseUse(hero, hero.items.get('spell-2'));
+  });
+  await page.locator('[data-action="choose-activity"]').click();
+  await page.screenshot({ path: join(output, 'complete-casting-720p.jpg'), type: 'jpeg', quality: 85 });
+  await page.locator('[data-action="source-manager"]').click();
+  await page.screenshot({ path: join(output, 'complete-source-720p.jpg'), type: 'jpeg', quality: 85 });
+  await fresh(); await page.locator('#bg3-video-hud').waitFor();
+  await page.locator('[data-action="edit-group"][data-value="Spells"]').click();
+  await page.screenshot({ path: join(output, 'complete-edit-720p.jpg'), type: 'jpeg', quality: 85 });
+  await fresh(); await page.locator('#bg3-video-hud').waitFor();
+  await page.locator('[data-action="use"][data-item-id="spell-2"]').hover();
+  await page.locator('.bg3-video-hud-tooltip').waitFor();
+  await page.screenshot({ path: join(output, 'complete-tooltip-720p.jpg'), type: 'jpeg', quality: 85 });
+  await fresh(); await page.locator('#bg3-video-hud').waitFor();
+  await page.evaluate(() => {
+    const { hud, hero } = window.compactPreview;
+    hud.busy.add(`${hero.uuid}:spell-2`);
+    void hud.allocate({ item: hero.items.get('spell-2'), count: 3, consumed: false,
+      selected: [{ id: 'preview-a', document: { name: '模拟目标甲' } }, { id: 'preview-b', document: { name: '模拟目标乙' } }] });
+  });
+  await page.locator('[data-action="allocate-plus"][data-value="preview-a"]').click();
+  await page.locator('[data-action="allocate-plus"][data-value="preview-b"]').click();
+  await page.screenshot({ path: join(output, 'complete-allocation-720p.jpg'), type: 'jpeg', quality: 85 });
   await writeFile(join(output, 'measurements.json'), JSON.stringify({
     scope: 'Original synthetic preview; not Foundry or physical display acceptance', browser: browser.version(), measurements
   }, null, 2) + '\n');

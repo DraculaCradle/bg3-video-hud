@@ -13,9 +13,19 @@ const all = [
   ...spells.map((name, i) => item(`spell-${i}`, 'spell', { level: i < 2 ? 0 : 1, activities: [{ activation: { type: 'action' } }] }, { name, img: icon(['✺', '✹', '✚', '✧'][i % 4], '#6b5296') }))
 ];
 const hero = actor('preview', all, { name: '林间游侠 · Rowan', img: icon('R', '#6c8659'),
-  system: { attributes: { hp: { value: 12, max: 12 }, ac: { value: 14 } }, spells: { spell1: { value: 2, max: 3 } } } });
+  system: { attributes: { hp: { value: 12, max: 12 }, ac: { value: 14 } }, spells: { spell1: { value: 2, max: 3, level: 1 }, spell2: { value: 1, max: 2, level: 2 } } } });
+for (const entry of hero.items.values()) {
+  entry.actor = hero; entry.uuid = `${hero.uuid}.Item.${entry.id}`;
+  entry.system.description = { value: '<p>原创模拟物品说明，用于验证完整说明卡、搜索和紧凑布局。</p><p><strong>操作：</strong>在栏内选择使用方式，再选择地图目标。</p>' };
+  const activation = entry.system.activities[0]?.activation ?? { type: 'action' };
+  const activity = { id: 'preview-use', name: entry.type === 'spell' ? '施放' : '使用', type: 'utility',
+    canUse: true, item: entry, actor: hero, activation, consumption: { spellSlot: entry.type === 'spell' },
+    target: { affects: { type: 'self', count: 1 } }, use: async () => undefined };
+  entry.system.activities = new Map([[activity.id, activity]]);
+  entry.use = async () => undefined;
+}
 const user = userWithFlags();
 const hud = new VideoHUD({ store: new LayoutStore(user), user, onDisable: () => hud.clear(), onError: () => {} });
 hud.setActor(hero);
 // A standalone visual fixture, never imported by the runtime module.
-window.compactPreview = { hud, hero };
+window.compactPreview = { hud, hero, user };

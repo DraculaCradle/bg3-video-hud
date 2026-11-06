@@ -4,7 +4,7 @@
 
 目标为现有 `https://redmagic.club/`、世界标题 `ModsTest`、world ID `modstest`。使用现有 Gamemaster 及无密码 Player1，凭据仅由 GitHub `modstest` Environment 提供。
 
-## 本轮结果
+## 最近一次实机诊断结果
 
 [新版浏览器只读运行 42169878299](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42169878299) 于 13:49:09 结束，`mode=source-inspection`、`status=failed`，守卫原因 `srd-source-inspection-unavailable`。runner 日志确认 Chromium 158.0.8127.18、WebGL2=true，已通过 GM 认证及世界／版本／依赖守卫；没有执行 Player1 登录或 HUD 验收。
 
@@ -22,15 +22,21 @@
 
 该模式拒绝待恢复日志，不执行任何世界文档写入；本轮未创建角色／token／场景或修改 HP、法术槽、布局。原生退出、关闭自有认证连接和全新匿名账号可选性检查未报告异常。结束后另用匿名公开 Socket 状态复核：Gamemaster 与 Player1 均为离线，非测试账号在线数为 0。runner 开始时同账号浏览器清单为空；这只反映启动前清单，不能代替结束后的进程证明。
 
-## 已验证和未验证
+## 诊断当时已验证和未验证
 
 | 项目 | 结论 |
 | --- | --- |
-| 自动化回归 | 161 项通过：63 Node、44 共享实例部署／配置、22 离线安装、32 Chromium fixture；语法、清单、打包及 Playwright 用例发现通过。CI：[42169741375](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42169741375) |
+| 该次诊断提交的自动化回归 | 161 项通过：63 Node、44 共享实例部署／配置、22 离线安装、32 Chromium fixture；语法、清单、打包及 Playwright 用例发现通过。CI：[42169741375](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42169741375) |
 | 浏览器兼容性 | 服务器发布的 V14 客户端要求 Chromium ≥146，旧 Playwright 1.56.1 的 Chromium 141 低于要求。[PR #19](https://github.com/DraculaCradle/bg3-video-hud/pull/19) 已升级为固定 Playwright 1.65.0／Chromium 158.0.8127.18，并加入登录前版本检查；本地及现有 runner 的版本和 WebGL2 预检通过 |
 | 超时后的数据恢复 | [只恢复 42140503885](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42140503885) 通过，确认 pending journals 不存在；[42143717040](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42143717040) 再次明确断言两个私有恢复日志均不存在 |
 | HUD 功能 | 尚未验证 GM／Player1 双会话、角色切换、HP／AC、法术槽显示同步、戏法筛选、快捷栏隐藏／排序／刷新持久化及原 HUD 恢复。未进行真实施法消耗验收 |
 | 自动部署与服务 | 自动部署保持关闭；main [构建 42169868287](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42169868287) 的 `deploy-and-test` 被跳过。未部署模组文件、停止／重启服务、切换世界或修改其他世界 |
+
+## 后续 HUD 开发状态（离线）
+
+本轮在开发工作区补齐栏内活动／施放选择、原生来源管理、搜索和批量草稿编辑、血条／法术位图形、说明卡、目标预览、顺序攻击／射线结算、观察到的动作使用记录、队伍状态及可选效果。详见[操作说明](COMPLETE_HUD.md)和[视频对照](VIDEO_COMPARISON.md)。
+
+当前 254 项离线检查通过（97 Node、44 共享实例／配置、22 安装、91 Chromium），不能替代上表中未执行的真实消费、恢复或第三方组合验收。720P～4K 原创模拟预览已更新。稳定安装地址仍为 v0.1.1，新代码尚未发布、部署或在现有 Foundry 中认证。本轮没有登录测试账号、写入世界文档、重复阻塞 RPC，不能据此宣称账号当前在线状态已重新核实。
 
 ## 相关诊断证据
 

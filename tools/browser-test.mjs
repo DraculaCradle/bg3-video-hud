@@ -45,6 +45,14 @@ try {
   const pending = new Map();
   socket.addEventListener('message', event => {
     const message = JSON.parse(event.data);
+    if (process.env.BG3_BROWSER_TRACE === 'true' && message.method === 'Runtime.consoleAPICalled') {
+      const text = message.params.args?.map(a => a.value ?? '').join(' ');
+      if (text?.startsWith('BG3 TEST')) console.log(text);
+    }
+    if (message.method === 'Page.javascriptDialogOpening') {
+      console.error(`Unexpected test browser dialog: ${message.params.type}`);
+      send('Page.handleJavaScriptDialog', { accept: false }, message.sessionId).catch(() => {});
+    }
     if (!pending.has(message.id)) return;
     const { resolve, reject, timer } = pending.get(message.id);
     clearTimeout(timer); pending.delete(message.id);
@@ -62,6 +70,8 @@ try {
   const targetId = targetInfos.find(target => target.type === 'page')?.targetId;
   if (!targetId) throw new Error('Chromium created no page');
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  await send('Runtime.enable', {}, sessionId);
+  await send('Page.enable', {}, sessionId);
   const evaluate = async expression => {
     const response = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId);
     if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
@@ -190,6 +200,8 @@ try {
       const before = await evaluate('[...document.querySelectorAll("#bg3-video-hud .bg3-video-hud-items")].map(list => list.scrollTop)');
       assert.ok(before.every(top => top > 0), JSON.stringify(before));
       await evaluate('window.bg3LayoutTest.refresh()');
+      assert.ok(await evaluate('!!document.getElementById("bg3-video-hud")'),
+        JSON.stringify(await evaluate('window.bg3LayoutTest.notifications()')));
       assert.deepEqual(await evaluate('[...document.querySelectorAll("#bg3-video-hud .bg3-video-hud-items")].map(list => list.scrollTop)'), before);
       for (let index = 0; index < 3; index++) {
         const reachable = await evaluate(`(() => {
@@ -223,6 +235,15 @@ try {
       assert.equal(controlsFit, true);
       await evaluate('window.bg3LayoutTest.reset()');
       assert.ok(await evaluate('[...document.querySelectorAll("#bg3-video-hud .bg3-video-hud-items")].every(list => list.scrollTop === 0)'));
+    });
+    await test('focused item explanations survive the real browser input phase without executable HTML', async () => {
+      await evaluate('document.querySelector("#bg3-video-hud [data-action=use]").focus()');
+      await evaluate('new Promise(resolve => setTimeout(resolve, 180))');
+      const tooltip = await evaluate(`(() => {
+        const root = document.querySelector('.bg3-video-hud-tooltip');
+        return { present: !!root, unsafe: !!root?.querySelector('script,img[onerror],[onclick]') };
+      })()`);
+      assert.equal(tooltip.present, true); assert.equal(tooltip.unsafe, false);
     });
     await test('real Enter key activates the focused Edit button', async () => {
       await evaluate('document.querySelector("#bg3-video-hud button[data-action=edit]").focus()');

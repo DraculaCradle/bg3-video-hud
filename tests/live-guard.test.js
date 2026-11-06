@@ -1,10 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GuardError, validateState, login, freshModuleRequests, closeOwnContext, openGuard } from '../e2e/live-guard.mjs';
+import { GuardError, validateState, validateModuleVersion, login, freshModuleRequests, closeOwnContext, openGuard } from '../e2e/live-guard.mjs';
 
 const state = { connected: true, ready: true, world: 'modstest', title: 'ModsTest', gm: true,
   gmName: 'Gamemaster', testAccountsValid: true, foreignActive: false, generation: '14',
   system: 'dnd5e', systemVersion: '6.0.6', dependenciesValid: true, moduleActive: true };
+
+test('release acceptance rejects older installed versions and sanitizes non-version metadata', () => {
+  validateModuleVersion({ moduleVersion: '0.1.2' }, '0.1.2');
+  for (const installed of ['0.1.1', undefined, 'PRIVATE_SENTINEL']) {
+    assert.throws(() => validateModuleVersion({ moduleVersion: installed }, '0.1.2'),
+      error => error.status === 'maintenance-required' && error.reason.includes('expected=0.1.2')
+        && !error.reason.includes('PRIVATE_SENTINEL'));
+  }
+  assert.throws(() => validateModuleVersion({}, 'bad'), error => error.reason === 'invalid-checkout-module-version');
+});
 
 function anonymousReleaseProbe(onAvailability = () => {}) {
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',

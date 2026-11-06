@@ -40,13 +40,13 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 4. Each player opts in using **Game Settings → Configure Settings → BG3 视频界面 → 启用 BG3 视频界面**, or the **切换 BG3 视频界面** token scene tool. It is off by default. A keybinding can be assigned in Foundry's controls configuration.
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) in Foundry package management. Version **0.1.1** includes the compact icon dock and automatic 720P–4K sizing. Tagged releases provide the ZIP, manifest, standalone installer and checksums; ordinary branch pushes and PRs do not publish a release. Full live HUD acceptance remains incomplete; see [the live report](docs/MODSTEST_LIVE_REPORT.md).
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) in Foundry package management. Version **0.1.2** adds Chinese controls, casting/source options, map targets and staged editing to the compact adaptive dock. Tagged releases provide the ZIP, manifest, standalone installer and checksums; ordinary branch pushes and PRs do not publish a release. Full live HUD acceptance remains incomplete; see [the live report](docs/MODSTEST_LIVE_REPORT.md).
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 
 ## Use
 
-中文化为尚未发布的代码改动，当前安装地址仍提供 v0.1.1。模组自身控件、设置、提示与可访问名称现使用中文。角色、物品名及系统弹窗采用 Foundry／D&D5e 提供的内容，不自动修改世界语言或重命名数据。地图目标选择已按用户确认的单体点选／多目标范围选择实现，尚待 Foundry 实机验收；详见[中文界面与视频提供说明](docs/CHINESE_UI.md)。
+中文化与本轮功能由 v0.1.2 发布。模组自身控件、设置、提示与可访问名称现使用中文。角色、物品名及系统弹窗采用 Foundry／D&D5e 提供的内容，不自动修改世界语言或重命名数据。地图目标选择已按用户确认的单体点选／多目标范围选择实现，尚待 Foundry 实机验收；详见[中文界面与视频提供说明](docs/CHINESE_UI.md)。
 
 - The bottom dock automatically scales its width, height, icons, text and spacing with the available CSS viewport: about 188px high at 720P, 230px at 1080P, 273px at 1440P and 348px at 4K, with upper/lower bounds. Zoomed or short viewports keep a compact side layout. Each group scrolls independently; names/details remain available in tooltips and accessible names. Spell levels, slots and activation filters share the top strip. **编辑** reveals names and editing controls within the same height. See the [adaptive layout guide and five-resolution previews](docs/COMPACT_HUD.md).
 - Click an item cell, choose its activity and casting method in the category panel, then select targets. Single-target actions use a map click; multi-target actions use a dragged range; native areas retain Region placement. Coordinated attacks and supported rays consume through one original native use, then await native attack/damage rolls. Native-only mode remains available for automation. See [targeting and cancellation boundaries](docs/TARGETING.md).
@@ -57,7 +57,7 @@ For Linux server installation or upgrades, use the [deployment guide](docs/DEPLO
 - **原版界面** turns this module's client setting off. The module temporarily hides only the public HUD's DOM shell while the replacement is actually mounted. Original HUD settings, flags, order and source files remain unchanged, including an originally disabled public HUD.
 - Optional macro: `await game.modules.get("bg3-video-hud").api.toggle()`.
 
-新增来源管理、目标预览、可选重复分配、队伍概览与骰子／动画联动状态的中文操作与边界，见[视频功能补齐](docs/COMPLETE_HUD.md)及[视频对照](docs/VIDEO_COMPARISON.md)。这些代码尚未发布，未部署到线上。
+新增来源管理、目标预览、可选重复分配、队伍概览与骰子／动画联动状态的中文操作与边界，见[视频功能补齐](docs/COMPLETE_HUD.md)及[视频对照](docs/VIDEO_COMPARISON.md)。这些代码已纳入 v0.1.2 发布；发布不会自动安装到线上。
 
 ## Development and checks
 

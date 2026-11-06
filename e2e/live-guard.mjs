@@ -4,6 +4,14 @@ export class GuardError extends Error {
   constructor(status, reason) { super(reason); this.status = status; this.reason = reason; }
 }
 
+export function validateModuleVersion(state, expected) {
+  if (!/^\d+\.\d+\.\d+$/.test(expected)) throw new GuardError('blocked', 'invalid-checkout-module-version');
+  if (state.moduleVersion !== expected) {
+    const observed = /^\d+\.\d+\.\d+$/.test(String(state.moduleVersion)) ? state.moduleVersion : 'unknown';
+    throw new GuardError('maintenance-required', `installed-module-version-mismatch:expected=${expected};installed=${observed}`);
+  }
+}
+
 function assertWorld(world, title, expected) {
   if (title !== 'ModsTest') throw new GuardError('skipped', 'active-world-not-modstest');
   if (world !== expected) {

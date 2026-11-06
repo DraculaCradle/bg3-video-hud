@@ -191,3 +191,8 @@ Player1 未分配角色时，V14 会自动打开账号配置窗口。测试只�
 
 
 2026-11-06 新版浏览器复核仍在文档 RPC 读取阶段超时；详见 [实机报告](MODSTEST_LIVE_REPORT.md)。先由管理员只读核查既有服务／代理的对应时段日志，不重复创建 fixture、提升 runner 权限或自动重启。读取恢复后先跑 `inspect_sources`，再做完整验收。
+
+
+## 发布后的实机版本核对
+
+发布不会更新正在运行的现有 Foundry。只测试工作流现在要求已安装的 `bg3-video-hud` 版本与 checkout 的 `module.json` 一致；不一致以 `maintenance-required` 停止。完整验收还会核对服务器返回的每个运行时 JS/CSS 的 SHA-256，之后才创建唯一标记的临时角色。恢复流程不因版本不同而禁止恢复。管理员仅在现有实例通过原 module.json 地址手动更新；需要重载／重启时安排维护窗口，runner 不代为操作。

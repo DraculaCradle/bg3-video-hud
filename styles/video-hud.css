@@ -1,5 +1,9 @@
 /* Independent namespace; the sole upstream selector suppresses its DOM shell only. */
 body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
+.bg3-video-hud-target-box {
+  position: fixed; z-index: 64; pointer-events: none; box-sizing: border-box;
+  border: 2px solid #f8d68b; background: #d9bd7b22; box-shadow: 0 0 0 1px #15171caa;
+}
 .bg3-video-hud {
   --video-gold: #d9bd7b;
   /* A bounded length, not a transform: layout and hit targets scale together.

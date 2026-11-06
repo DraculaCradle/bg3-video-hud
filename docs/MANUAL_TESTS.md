@@ -21,6 +21,8 @@ Use a backed-up disposable world with two player-owned characters (martial and s
 
 ## System workflows (verify actual state before/after)
 
+Map-targeting behavior is implemented but not live-certified. Follow the additional [single-click, range-selection and native Region checklist](TARGETING.md), including cancellation/consumption timing and multi-ray limitations.
+
 - [ ] Use a weapon attack and a multi-activity item: official activity choice/roll dialogs, targeting, advantage modifiers and chat cards appear exactly once.
 - [ ] Use a cantrip: no spell slot consumed. Use levelled spells with normal casting, upcasting and pact slots; selected pool is consumed exactly once. Include multiclass and zero-normal-slots/remaining-pact cases.
 - [ ] Cancel activity, casting, targeting/template or roll dialogs at each stage. No fabricated success notification or extra consumption occurs. Compare to identical use from the system character sheet.

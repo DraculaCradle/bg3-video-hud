@@ -1,6 +1,7 @@
 import { actor, item, userWithFlags } from './fixtures.js';
 import { MODULE_ID } from '../scripts/model.js';
 import { LayoutStore } from '../scripts/persistence.js';
+import { targetingBrowserTests, createTargetingFixture } from './targeting-browser.js';
 
 const results = document.querySelector('#test-results');
 const lines = [];
@@ -16,6 +17,7 @@ const handlers = new Map();
 globalThis.Hooks = {
   on(name, fn) { const list = handlers.get(name) ?? []; list.push({ fn }); handlers.set(name, list); },
   once(name, fn) { const list = handlers.get(name) ?? []; list.push({ fn, once: true }); handlers.set(name, list); },
+  off(name, fn) { handlers.set(name, (handlers.get(name) ?? []).filter(h => h.fn !== fn)); },
   async emit(name, ...args) {
     const list = [...(handlers.get(name) ?? [])];
     handlers.set(name, list.filter(h => !h.once));
@@ -249,6 +251,7 @@ try {
     await tool.onChange(); await flush(); assert(root());
     await tool.onChange(); await flush(); assert(!root()); assert(originalVisible());
   });
+  await targetingBrowserTests({ test, assert, equal, flush });
   // The Node runner now drives actual viewport changes and keyboard events.
   await enable();
   const crowded = actor('crowded', Array.from({ length: 180 }, (_, i) => item(`crowded-${i}`,
@@ -263,6 +266,16 @@ try {
     crowded: () => select(crowded), reset: () => select(hero),
     refresh: () => Hooks.emit('updateActor', crowded), writes: () => user.writes.length, enable
   };
+  let targetingFixture;
+  window.bg3TargetTest = {
+    async start(kind) {
+      targetingFixture?.dispose();
+      targetingFixture = createTargetingFixture();
+      targetingFixture.use(kind === 'single' ? 'attack' : 'spell'); await flush();
+    },
+    snapshot: () => targetingFixture.snapshot(),
+    dispose: () => { targetingFixture?.dispose(); targetingFixture = null; }
+  };
   const interactions = await new Promise(resolve => {
     window.finishBG3BrowserInteractions = resolve;
     results.dataset.status = 'interactive';
@@ -274,6 +287,8 @@ try {
   results.dataset.status = 'running';
   delete window.finishBG3BrowserInteractions;
   delete window.bg3LayoutTest;
+  window.bg3TargetTest.dispose();
+  delete window.bg3TargetTest;
   await test('unload removes temporary suppression', async () => {
     await enable(); assert(root());
     window.dispatchEvent(new Event('beforeunload')); assert(!root()); assert(originalVisible());

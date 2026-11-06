@@ -1,6 +1,7 @@
 import { MODULE_ID, GROUPS, actorStats, groupFor, itemsFor, normalizeLayout, reorder, slotPools,
   spellLevels, spellLevel, toggleId, usesLabel, values } from './model.js';
-import { useOwnedItem, restActor } from './actions.js';
+import { restActor } from './actions.js';
+import { TargetWorkflow } from './targeting.js';
 
 // Display labels only: stable model groups, item IDs and stored layouts are unchanged.
 const groupLabels = { Equipment: '装备', Features: '特性', Spells: '法术' };
@@ -35,6 +36,12 @@ export class VideoHUD {
     this.busy = new Set();
     this.status = '';
     this.destroyed = false;
+    this.targeting = new TargetWorkflow({ user, current: actor => this.actor === actor && !this.destroyed,
+      onStatus: message => { this.status = message; this.render(); },
+      onError: (message, { stale = false } = {}) => {
+        this.onError?.(message);
+        if (!stale) { this.status = message; this.render(); }
+      } });
     // A focused overflow control must remain visible when zoom/resizing changes
     // the viewport. CSS performs the sizing; this never renders or writes flags.
     this.keepFocusVisible = () => {
@@ -47,6 +54,7 @@ export class VideoHUD {
   }
 
   clear() {
+    this.targeting.cancel();
     this.root?.remove();
     this.root = null;
     this.actor = null;
@@ -63,6 +71,7 @@ export class VideoHUD {
   setActor(actor, token = null) {
     if (this.destroyed) return;
     if (!actor) { this.clear(); return; }
+    if (this.actor?.uuid !== actor.uuid || this.token?.id !== token?.id) this.targeting.cancel();
     if (this.actor?.uuid !== actor.uuid) {
       this.edit = false;
       this.level = 'all';
@@ -125,6 +134,7 @@ export class VideoHUD {
     header.append(summary);
     const controls = node('div', undefined, 'bg3-video-hud-controls');
     const edit = button(this.edit ? '完成' : '编辑', 'edit', '编辑物品显示与排序');
+    edit.disabled = this.busy.size > 0;
     edit.setAttribute('aria-pressed', String(this.edit));
     controls.append(edit, button('原版界面', 'disable', '返回原版 BG3 界面'));
     header.append(controls);
@@ -164,9 +174,10 @@ export class VideoHUD {
     const footer = node('footer');
     for (const [kind, label] of [['short', '短休'], ['long', '长休']]) {
       const control = button(label, 'rest', `${label}（系统确认窗口）`, { value: kind });
-      control.disabled = this.busy.has(`${actor.uuid}:rest`);
+      control.disabled = this.busy.size > 0;
       footer.append(control);
     }
+    if (this.targeting.picking) footer.append(button('取消选目标', 'cancel-target', '取消目标选择，不使用技能'));
     const status = node('span', this.status, 'bg3-video-hud-status');
     status.title = this.status;
     status.setAttribute('role', 'status');
@@ -238,7 +249,7 @@ export class VideoHUD {
     if (usesLabel(item)) {
       use.append(node('small', usesLabel(item).replace(/ 次$/, ''), 'bg3-video-hud-uses'));
     }
-    use.disabled = this.edit || this.busy.has(`${this.actor.uuid}:${item.id}`);
+    use.disabled = this.edit || this.busy.size > 0;
     row.append(use);
     if (this.edit) {
       const buttons = node('div', undefined, 'bg3-video-hud-edit-controls');
@@ -289,6 +300,7 @@ export class VideoHUD {
     if (!actor) return;
     switch (action) {
       case 'disable': return this.onDisable();
+      case 'cancel-target': this.targeting.cancel(); this.status = '已取消目标选择。'; this.render(); return;
       case 'sheet': return actor.sheet?.render({ force: true });
       case 'edit': this.edit = !this.edit; this.render(); break;
       case 'filter-action': this.action = value; this.render(); break;
@@ -318,7 +330,7 @@ export class VideoHUD {
         if (this.actor?.uuid === actor.uuid) this.keepFocusVisible();
         return;
       }
-      case 'use': if (!this.edit) return this.perform(`${actor.uuid}:${itemId}`, () => useOwnedItem(actor, itemId, this.user, event)); break;
+      case 'use': if (!this.edit && !this.busy.size) return this.perform(`${actor.uuid}:${itemId}`, () => this.targeting.use(actor, itemId, event)); break;
       case 'rest': return this.perform(`${actor.uuid}:rest`, () => restActor(actor, value, this.user));
     }
   }

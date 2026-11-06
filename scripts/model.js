@@ -90,11 +90,11 @@ export function slotPools(actor) {
     const slot = spells[`spell${level}`];
     if (!slot) continue;
     if ((numberOrNull(slot.max) ?? 0) <= 0 && (numberOrNull(slot.value) ?? 0) <= 0) continue;
-    pools.push({ key: `spell${level}`, level, value: numberOrNull(slot.value), max: numberOrNull(slot.max), label: `L${level}` });
+    pools.push({ key: `spell${level}`, level, value: numberOrNull(slot.value), max: numberOrNull(slot.max), label: `${level}环` });
   }
   if (spells.pact && ((numberOrNull(spells.pact.max) ?? 0) > 0 || (numberOrNull(spells.pact.value) ?? 0) > 0)) {
     pools.push({ key: 'pact', level: numberOrNull(spells.pact.level), value: numberOrNull(spells.pact.value),
-      max: numberOrNull(spells.pact.max), label: `Pact L${numberOrNull(spells.pact.level) ?? '?'}` });
+      max: numberOrNull(spells.pact.max), label: `契约${numberOrNull(spells.pact.level) ?? '?'}环` });
   }
   return pools;
 }
@@ -110,7 +110,7 @@ export function usesLabel(item) {
   const max = numberOrNull(uses?.max);
   if (max === null || max <= 0) return '';
   const remaining = numberOrNull(uses.value) ?? (uses.spent != null ? max - Number(uses.spent) : null);
-  return `${remaining === null ? '?' : Math.max(0, remaining)}/${max} uses`;
+  return `${remaining === null ? '?' : Math.max(0, remaining)}/${max} 次`;
 }
 
 export function actorStats(actor) {

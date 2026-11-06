@@ -36,8 +36,8 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 
 1. Install Foundry v14 Stable, D&D5e **6.0.6**, `bg3-hud-core` **0.8.0** and `bg3-hud-dnd5e` **0.8.0** separately. No upstream code is bundled here.
 2. Run `npm run package` from this checkout (Node >=22.8 and Python 3 required). Extract `dist/bg3-video-hud.zip` into `<Foundry User Data>/Data/modules/bg3-video-hud/`, with `module.json` directly inside that directory. Alternatively copy `module.json`, `scripts/`, and `styles/` into that directory.
-3. Restart Foundry if needed, then enable both public HUD modules and **BG3 Video HUD** in the test world's module management.
-4. Each player opts in using **Game Settings → Configure Settings → BG3 Video HUD → Use BG3 Video HUD**, or the **Toggle BG3 Video HUD** token scene tool. It is off by default. A keybinding can be assigned in Foundry's controls configuration.
+3. Restart Foundry if needed, then enable both public HUD modules and **BG3 视频界面** in the test world's module management.
+4. Each player opts in using **Game Settings → Configure Settings → BG3 视频界面 → Use BG3 Video HUD**, or the **切换 BG3 视频界面** token scene tool. It is off by default. A keybinding can be assigned in Foundry's controls configuration.
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
 Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) in Foundry package management. Version **0.1.1** includes the compact icon dock and automatic 720P–4K sizing. Tagged releases provide the ZIP, manifest, standalone installer and checksums; ordinary branch pushes and PRs do not publish a release. Full live HUD acceptance remains incomplete; see [the live report](docs/MODSTEST_LIVE_REPORT.md).
@@ -46,13 +46,15 @@ For Linux server installation or upgrades, use the [deployment guide](docs/DEPLO
 
 ## Use
 
-- The bottom dock automatically scales its width, height, icons, text and spacing with the available CSS viewport: about 188px high at 720P, 230px at 1080P, 273px at 1440P and 348px at 4K, with upper/lower bounds. Zoomed or short viewports keep a compact side layout. Each group scrolls independently; names/details remain available in tooltips and accessible names. Spell levels, slots and activation filters share the top strip. **Edit** reveals names and editing controls within the same height. See the [adaptive layout guide and five-resolution previews](docs/COMPACT_HUD.md).
+中文化为尚未发布的代码改动，当前安装地址仍提供 v0.1.1。模组自身控件、设置、提示与可访问名称现使用中文。角色、物品名及系统弹窗采用 Foundry／D&D5e 提供的内容，不自动修改世界语言或重命名数据。目标选择交互等待范例确认；详见[中文界面与视频提供说明](docs/CHINESE_UI.md)。
+
+- The bottom dock automatically scales its width, height, icons, text and spacing with the available CSS viewport: about 188px high at 720P, 230px at 1080P, 273px at 1440P and 348px at 4K, with upper/lower bounds. Zoomed or short viewports keep a compact side layout. Each group scrolls independently; names/details remain available in tooltips and accessible names. Spell levels, slots and activation filters share the top strip. **编辑** reveals names and editing controls within the same height. See the [adaptive layout guide and five-resolution previews](docs/COMPACT_HUD.md).
 - Click an item cell to call D&D5e's `Item5e.use({event})`. The system chooses among activities and owns targeting, spell-slot choice/upcasting, limited uses, concentration, templates and chat cards. An item without activities may display its system chat card. No slot/resource values are manually decremented, and canceled dialogs do not produce a success notification.
-- **Equipment / Features / Spells** show owned embedded items. Level tabs include cantrips (0). Regular and pact slots are separate read-only pools, including zero remaining slots. Innate/unprepared spells are not silently removed: the system remains responsible for eligibility and consumption.
-- **Action / Bonus Action / Reaction** are activity filters, not invented turn-resource counters. Multi-activity items match every relevant activation type. They do not change combat state.
-- In **Edit**, show/hide items, pin spells and reorder within each group by dragging or the accessible ↑/↓ buttons. Hidden and unpinned items remain visible for editing; item use is disabled there. **Pinned only** filters spells. Short/long rests call the official system dialogs.
+- **装备 / 特性 / 法术** show owned embedded items. Level tabs include cantrips (0). Regular and pact slots are separate read-only pools, including zero remaining slots. Innate/unprepared spells are not silently removed: the system remains responsible for eligibility and consumption.
+- **动作 / 附赠动作 / 反应** are activity filters, not invented turn-resource counters. Multi-activity items match every relevant activation type. They do not change combat state.
+- In **编辑**, show/hide items, pin spells and reorder within each group by dragging or the accessible ↑/↓ buttons. Hidden and unpinned items remain visible for editing; item use is disabled there. **仅固定** filters spells. Short/long rests call the official system dialogs.
 - Settings are stored on the current **User**, under `flags.bg3-video-hud.layouts`, keyed by full actor UUID. Players can configure their own layout without permission to modify another user's document. Synthetic token actors have separate identities. Same-client edits are serialized; simultaneous sessions for the same user use last-write-wins semantics.
-- **Original HUD** turns this module's client setting off. The module temporarily hides only the public HUD's DOM shell while the replacement is actually mounted. Original HUD settings, flags, order and source files remain unchanged, including an originally disabled public HUD.
+- **原版界面** turns this module's client setting off. The module temporarily hides only the public HUD's DOM shell while the replacement is actually mounted. Original HUD settings, flags, order and source files remain unchanged, including an originally disabled public HUD.
 - Optional macro: `await game.modules.get("bg3-video-hud").api.toggle()`.
 
 ## Development and checks

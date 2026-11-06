@@ -2,7 +2,7 @@ import { MODULE_ID, normalizeLayout } from './model.js';
 
 // Hex encoding avoids dots and UUID collisions in Foundry's dotted flag paths.
 export function actorKey(actor) {
-  if (!actor?.uuid) throw new Error('The actor has no persistent UUID.');
+  if (!actor?.uuid) throw new Error('该角色缺少可保存的 UUID。');
   return Array.from(new TextEncoder().encode(actor.uuid), n => n.toString(16).padStart(2, '0')).join('');
 }
 

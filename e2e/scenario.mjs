@@ -123,8 +123,8 @@ async function select(page, tokenId) {
       max: token.actor.system.attributes.hp.max, ac: token.actor.system.attributes.ac.value };
   }, { tokenId, moduleId });
   await expect(page.locator('#bg3-video-hud .bg3-video-hud-summary strong')).toHaveText(actor.name);
-  await expect(page.locator('#bg3-video-hud .bg3-video-hud-summary span')).toContainText(`HP ${actor.hp}/${actor.max}`);
-  await expect(page.locator('#bg3-video-hud .bg3-video-hud-summary span')).toContainText(`AC ${actor.ac}`);
+  await expect(page.locator('#bg3-video-hud .bg3-video-hud-summary span')).toContainText(`生命 ${actor.hp}/${actor.max}`);
+  await expect(page.locator('#bg3-video-hud .bg3-video-hud-summary span')).toContainText(`护甲 ${actor.ac}`);
 }
 
 export async function cleanup(live) {
@@ -203,8 +203,8 @@ export async function runScenario(live, info) {
       return { hp, max: actor.system.attributes.hp.max, slot, slotsMax: actor.system.spells.spell1.max };
     }, { tokens: config.tokens });
     for (const page of [gm, player]) {
-      await expect(page.locator('#bg3-video-hud .bg3-video-hud-summary span')).toContainText(`HP ${changed.hp}/${changed.max}`);
-      await expect(page.locator('#bg3-video-hud .bg3-video-hud-spells small')).toContainText(`L1: ${changed.slot}/${changed.slotsMax}`);
+      await expect(page.locator('#bg3-video-hud .bg3-video-hud-summary span')).toContainText(`生命 ${changed.hp}/${changed.max}`);
+      await expect(page.locator('#bg3-video-hud .bg3-video-hud-spells small')).toContainText(`1环：${changed.slot}/${changed.slotsMax}`);
     }
     verified('Both roles: live HP and L1 slot display after GM resource edit (does not prove spell consumption)');
     for (const [role, page] of [['Gamemaster', gm], ['Player1', player]]) {

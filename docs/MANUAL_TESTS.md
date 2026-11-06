@@ -1,8 +1,8 @@
 # Foundry v14 / D&D5e 6.0.6 acceptance
 
-Status: **Full live acceptance remains incomplete.** The existing ModsTest instance has the module installed; automated live document reads are currently blocked by missing Socket acknowledgements. See [the current live report](MODSTEST_LIVE_REPORT.md). The compact UI revision below is verified with local Chromium fixtures, not yet installed or certified in Foundry; see [the 720P report](COMPACT_HUD.md). Earlier proxy failures in [the historical test report](TEST_REPORT.md) are not the current diagnosis.
+Status: **Full live acceptance remains incomplete.** The existing ModsTest instance has the module installed; automated live document reads are currently blocked by missing Socket acknowledgements. See [the current live report](MODSTEST_LIVE_REPORT.md). The current Chinese UI, cast/source manager and coordinated attacks are verified with local Chromium fixtures, not yet installed or certified in Foundry; see [the 720P report](COMPACT_HUD.md). Earlier proxy failures in [the historical test report](TEST_REPORT.md) are not the current diagnosis.
 
-Use a backed-up disposable world with two player-owned characters (martial and spellcaster, including a pact caster or multiclass test actor), a separate GM account, and Core/D&D5e HUD 0.8.0. Record exact Foundry build, system/module versions, browser, user role, steps, expected/observed result and console errors for every failure. Do not include credentials, private videos or player data in reports.
+Use only the existing ModsTest world and uniquely marked temporary test characters (never a second Foundry instance or another world), with two player-owned characters (martial and spellcaster, including a pact caster or multiclass test actor), a separate GM account, and Core/D&D5e HUD 0.8.0. Record exact Foundry build, system/module versions, browser, user role, steps, expected/observed result and console errors for every failure. Do not include credentials, private videos or player data in reports.
 
 ## Installation and first load
 
@@ -39,12 +39,22 @@ Map-targeting behavior is implemented but not live-certified. Follow the additio
 - [ ] With many equipment items, features and spells, wheel-scroll each group to its last item. Updates from another client should preserve each group's scroll position; switching actors should start at the top. Check full bilingual names in hover hints, keyboard accessible names, missing images and use-count badges.
 - [ ] Verify spell levels through level 9, pact/regular slot summaries and Edit controls remain reachable without increasing the dock height. Explicit editing may require scrolling; no item should be usable while editing.
 - [ ] All owned items appear in Equipment/Features/Spells with stable IDs even when names collide. Levels 0–highest and separate regular/pact slot counts match the character sheet, including depleted pools.
-- [ ] Action/Bonus Action/Reaction filter activities, including multi-activity items, without spending turn resources. Filters reset on actor change.
-- [ ] Enter Edit: hide/show items, pin/unpin spells, reorder via drag and both arrow buttons. Hidden and unpinned items stay discoverable there. Exiting Edit enables use again. Pinned-only and level filters compose correctly.
+- [ ] Action/Bonus Action/Reaction filter activities, including multi-activity items. Observed-use counts update from native uses and reset with combat position, without enforcing invented remaining actions. Filters reset on actor change.
+- [ ] Enter Edit: hide/show items, pin/unpin spells, reorder via drag and both arrow buttons. Hidden and unpinned items stay discoverable there. Save commits the whole draft; Cancel discards every pending visibility/pin/order change. Repeated arrows must follow draft order, not the old saved order. Exiting Edit enables use again. Pinned-only and level filters compose correctly.
 - [ ] Reload/logout/login and switch actors/users: each user's layout persists independently; linked/unlinked token identities behave as documented. Add/delete/rename items without remapping IDs or corrupting order.
 - [ ] Reject cross-actor, foreign UUID, malformed and cross-group drag payloads. None creates or consumes an item.
-- [ ] Snapshot public HUD settings and actor/user flags before edits, rests, token switches, disabling and reloading. Verify this module writes only its own User flags and its own client toggle; public layouts and settings are unchanged.
+- [ ] Snapshot public HUD settings and actor/user flags before edits, rests, token switches, disabling and reloading. Verify layout edits write only this module's User flags and client toggle; only an explicit source-editor Save creates/updates the marked native source feature on the current actor. Original spells, unrelated features, public HUD layouts and other-world settings are unchanged.
 - [ ] Navigate controls with keyboard only; inspect focus, accessible names, tooltips, arrow-order controls and errors. Resize below 650px and use browser zoom; all groups remain reachable by scrolling and no control is stranded.
+
+## Added video feature acceptance
+
+- [ ] Inline activity/casting panels: Back and Cancel do not activate anything; normal weapons/cantrips have a coordinated entry; native-only mode remains usable even if custom repetition fields are invalid. Compare normal, pact and final native upcast choices to the sheet.
+- [ ] Source editor: Cancel creates nothing; explicit Save creates exactly one marked native feat. Verify limited/unlimited sources, depleted/disabled rejection, preserved original spell/material costs, source-only charge, short/long-rest and daily recovery through native routines. Snapshot and restore only uniquely marked temporary test sources.
+- [ ] Scorching Ray and Eldritch Blast: one native activation, correct final count, one attack/damage per allocated ray, repeated targets, criticals, native known misses, cancellation and errors. Match native ability/ammo/weapon mode choices. No second activation or automatic HP application. Custom/magic-missile/shared-roll rules require separate native comparison.
+- [ ] Default range auto-selection and optional manual repeat/undo allocation; cancellation before use versus after native consumption; stopping during a native dialog, changing actors/scenes or revoking ownership prevents later steps and false completion feedback.
+- [ ] Search/IME, safe rich tooltip by hover and keyboard, complete names, classification bulk select/clear/reset/count, draft Save/Cancel and concurrent-client change guard. At 640×360 effective CSS space, scroll to every option and return/close control without losing focus.
+- [ ] HP/temp HP and slot pips match actual values. Aim line/icon/count and basic estimates do not expose hidden or non-observer HP/AC. Unknown formulas stay unknown; preview disagreements never override native rules.
+- [ ] Party overview and floating status obey observer/owner permissions and only select visible current-scene tokens. No scene/world switch. Test fallback VFX with reduced motion, AA on/off, Dice So Nice and other automation. Native-only mode should avoid duplicate roll/effect paths.
 
 ## Optional compatibility checks
 

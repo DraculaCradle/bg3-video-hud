@@ -2,29 +2,17 @@ import { MODULE_ID, GROUPS, actorStats, groupFor, itemsFor, normalizeLayout, reo
   spellLevels, spellLevel, toggleId, usesLabel, values } from './model.js';
 import { restActor } from './actions.js';
 import { TargetWorkflow } from './targeting.js';
+import { node, button, RichTooltip, modal } from './ui.js';
+import { castingPools, castingSources, usableActivities, bundledActivity, nativeCastingOptions,
+  saveCastingSource, RECOVERY, sequencePlan, requireActor } from './casting.js';
+import { TargetVisuals, partyRows, INTEGRATIONS } from './visuals.js';
+import { TurnLedger } from './turn-ledger.js';
 
 // Display labels only: stable model groups, item IDs and stored layouts are unchanged.
 const groupLabels = { Equipment: '装备', Features: '特性', Spells: '法术' };
 const itemLabels = { weapon: '武器', equipment: '装备', consumable: '消耗品', container: '容器',
   loot: '杂物', tool: '工具', feat: '特性', background: '背景', class: '职业',
   subclass: '子职业', race: '种族', species: '种族', facility: '设施' };
-
-function node(tag, text, className) {
-  const element = document.createElement(tag);
-  if (text !== undefined) element.textContent = String(text);
-  if (className) element.className = className;
-  return element;
-}
-
-function button(text, action, title, data = {}) {
-  const element = node('button', text);
-  element.type = 'button';
-  element.dataset.action = action;
-  element.title = title ?? text;
-  element.setAttribute('aria-label', title ?? text);
-  Object.assign(element.dataset, data);
-  return element;
-}
 
 export class VideoHUD {
   constructor({ store, user, onDisable, onError }) {
@@ -36,7 +24,22 @@ export class VideoHUD {
     this.busy = new Set();
     this.status = '';
     this.destroyed = false;
-    this.targeting = new TargetWorkflow({ user, current: actor => this.actor === actor && !this.destroyed,
+    this.queries = {};
+    this.tooltip = new RichTooltip();
+    this.ledger = new TurnLedger();
+    this.visuals = new TargetVisuals({ user, getOrigin: () => this.token
+      ?? values(globalThis.canvas?.tokens?.controlled).find(t => t.actor === this.actor) });
+    this.targeting = new TargetWorkflow({ user, visuals: this.visuals,
+      chooseUse: (actor, item, event) => this.chooseUse(actor, item, event),
+      allocate: options => this.allocate(options),
+      onProgress: progress => {
+        if (this.actor !== progress.item.actor) return;
+        this.progress = progress; this.visuals.mark(progress); this.render();
+        if (progress.stage === 'done') setTimeout(() => {
+          if (!this.destroyed && this.progress === progress && !this.busy.size) { this.progress = null; this.render(); }
+        }, 1200);
+      },
+      current: actor => this.actor === actor && !this.destroyed,
       onStatus: message => { this.status = message; this.render(); },
       onError: (message, { stale = false } = {}) => {
         this.onError?.(message);
@@ -55,6 +58,10 @@ export class VideoHUD {
 
   clear() {
     this.targeting.cancel();
+    this.pendingUse?.resolve(null); this.pendingUse = null;
+    this.pendingAllocation?.resolve(null); this.pendingAllocation = null;
+    this.tooltip.hide(); this.visuals.destroy(); this.dialog?.close();
+    this.edit = false; this.draft = null; this.editGroup = null; this.progress = null;
     this.root?.remove();
     this.root = null;
     this.actor = null;
@@ -73,6 +80,10 @@ export class VideoHUD {
     if (!actor) { this.clear(); return; }
     if (this.actor?.uuid !== actor.uuid || this.token?.id !== token?.id) this.targeting.cancel();
     if (this.actor?.uuid !== actor.uuid) {
+      this.pendingUse?.resolve(null); this.pendingUse = null;
+      this.pendingAllocation?.resolve(null); this.pendingAllocation = null;
+      this.dialog?.close(); this.tooltip.hide(); this.progress = null;
+      this.queries = {}; this.draft = null; this.editGroup = null;
       this.edit = false;
       this.level = 'all';
       this.action = 'all';
@@ -89,18 +100,44 @@ export class VideoHUD {
   render() {
     if (this.destroyed || !this.actor) return;
     const actor = this.actor;
-    const prefs = this.store.read(actor);
+    const prefs = this.edit && this.draft ? this.draft : this.store.read(actor);
     const active = this.root?.contains(document.activeElement) ? document.activeElement : null;
     const focusKey = active ? JSON.stringify(active.dataset) : null;
+    const selection = active?.tagName === 'INPUT' ? [active.selectionStart, active.selectionEnd] : null;
     const scroll = new Map([...(this.root?.querySelectorAll('[data-scroll-group]') ?? [])]
       .map(list => [list.dataset.scrollGroup, { top: list.scrollTop, left: list.scrollLeft }]));
     const root = node('aside', undefined, 'bg3-video-hud');
     root.classList.toggle('bg3-video-hud-editing', this.edit);
     root.id = MODULE_ID;
+    root.setAttribute('aria-busy', String(this.saving === true));
     root.setAttribute('aria-label', 'BG3 视频界面');
     root.addEventListener('click', event => {
       const control = event.target.closest('button[data-action]');
       if (control && !control.disabled) this.run(() => this.click(control, event));
+    });
+    root.addEventListener('input', event => {
+      if (event.isComposing) return;
+      const group = event.target.dataset.queryGroup;
+      if (group) { this.queries[group] = event.target.value; this.render(); }
+    });
+    root.addEventListener('compositionend', event => {
+      const group = event.target.dataset.queryGroup;
+      if (group) { this.queries[group] = event.target.value; this.render(); }
+    });
+    const explain = event => {
+      const use = event.target.closest('[data-action="use"]');
+      if (!use || this.edit || this.busy.size) return;
+      const item = values(actor.items).find(i => i.id === use.dataset.itemId);
+      if (item) this.tooltip.show(item, use, () => this.actor === actor && !this.destroyed);
+    };
+    root.addEventListener('mouseover', explain); root.addEventListener('focusin', explain);
+    root.addEventListener('mouseout', event => {
+      if (!event.relatedTarget?.closest?.('.bg3-video-hud-tooltip') && !event.relatedTarget?.closest?.('[data-action="use"]')) this.tooltip.hideSoon();
+    });
+    root.addEventListener('focusout', event => {
+      // A focused shell can lose focus during replacement. Removing an adjacent
+      // tooltip synchronously invalidates replaceWith's insertion reference.
+      if (!event.relatedTarget?.closest?.('.bg3-video-hud-tooltip')) this.tooltip.hideSoon();
     });
     root.addEventListener('dragstart', event => this.drag(event));
     root.addEventListener('dragover', event => {
@@ -126,6 +163,16 @@ export class VideoHUD {
     name.title = actor.name ?? '角色';
     summary.append(name, node('span',
       `生命 ${stats.hp}/${stats.maxHp}${stats.tempHp ? `（临时+${stats.tempHp}）` : ''} · 护甲 ${stats.ac}`));
+    if (Number.isFinite(Number(stats.hp)) && Number(stats.maxHp) > 0) {
+      const bar = node('div', undefined, 'bg3-video-hud-health');
+      bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-label', `生命 ${stats.hp}/${stats.maxHp}，临时生命 ${stats.tempHp || 0}`);
+      bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', stats.maxHp);
+      bar.setAttribute('aria-valuenow', Math.max(0, Math.min(stats.hp, stats.maxHp)));
+      bar.title = bar.getAttribute('aria-label');
+      bar.style.setProperty('--hp', `${Math.max(0, Math.min(100, stats.hp / stats.maxHp * 100))}%`);
+      bar.style.setProperty('--temp', `${Math.max(0, Math.min(100, (stats.tempHp || 0) / stats.maxHp * 100))}%`);
+      summary.append(bar);
+    }
     for (const resource of stats.resources) {
       const line = node('small', `${resource.label || '资源'} ${resource.value ?? '—'}/${resource.max ?? '—'}`);
       line.title = line.textContent;
@@ -134,7 +181,7 @@ export class VideoHUD {
     header.append(summary);
     const controls = node('div', undefined, 'bg3-video-hud-controls');
     const edit = button(this.edit ? '完成' : '编辑', 'edit', '编辑物品显示与排序');
-    edit.disabled = this.busy.size > 0;
+    edit.disabled = this.busy.size > 0 || this.saving === true;
     edit.setAttribute('aria-pressed', String(this.edit));
     controls.append(edit, button('原版界面', 'disable', '返回原版 BG3 界面'));
     header.append(controls);
@@ -147,26 +194,45 @@ export class VideoHUD {
     for (const [key, label] of [['all', '全部'], ['action', '动作'], ['bonus', '附赠动作'], ['reaction', '反应']]) {
       const control = button(label, 'filter-action', label, { value: key });
       control.setAttribute('aria-pressed', String(this.action === key));
+      if (key !== 'all') {
+        const state = this.ledger.state(actor, key, globalThis.game?.combat);
+        const indicator = node('small', state.used === null ? '○' : state.used ? `●${state.used}` : '○', 'bg3-video-hud-action-state');
+        indicator.title = `${state.label}；记录原生使用，不限制额外动作或代替系统规则。`;
+        control.append(indicator);
+      }
       control.disabled = this.edit;
       activations.append(control);
     }
     filters.append(activations, this.spellControls(prefs));
     root.append(filters);
-    if (this.edit) root.append(node('p', '编辑：显示/隐藏、固定法术、拖动或用箭头排序；编辑时无法使用物品。', 'bg3-video-hud-help'));
+    if (this.edit) root.append(this.editToolbar(prefs));
 
     const panels = node('div', undefined, 'bg3-video-hud-panels');
     const items = itemsFor(actor, prefs, { edit: this.edit, level: this.level, action: this.action });
     for (const group of GROUPS) {
       const section = node('section', undefined, 'bg3-video-hud-panel');
       section.dataset.group = group;
-      section.append(node('h3', groupLabels[group]));
-      const groupItems = items.filter(i => groupFor(i) === group);
+      const heading = node('div', undefined, 'bg3-video-hud-panel-heading');
+      heading.append(node('h3', groupLabels[group]));
+      const search = node('input'); search.type = 'search'; search.placeholder = '搜索…';
+      search.dataset.queryGroup = group; search.value = this.queries[group] ?? '';
+      search.setAttribute('aria-label', `搜索${groupLabels[group]}`); heading.append(search);
+      const gear = button('⚙', 'edit-group', `编辑${groupLabels[group]}栏位`, { value: group });
+      gear.disabled = this.busy.size > 0; heading.append(gear); section.append(heading);
+      const groupItems = items.filter(i => groupFor(i) === group
+        && String(i.name ?? '').toLocaleLowerCase().includes((this.queries[group] ?? '').trim().toLocaleLowerCase()));
       const list = node('ul', undefined, 'bg3-video-hud-items');
       list.dataset.scrollGroup = group;
       list.setAttribute('aria-label', `${groupLabels[group]}列表`);
       if (groupItems.length) list.tabIndex = 0;
-      for (const item of groupItems) list.append(this.itemRow(item, prefs));
-      if (!groupItems.length) section.append(node('p', this.edit ? '此分类没有角色物品。' : '没有符合筛选条件的物品。', 'bg3-video-hud-empty'));
+      const pending = this.pendingUse?.group === group ? this.pendingUse : null;
+      const allocation = this.pendingAllocation && groupFor(this.pendingAllocation.item) === group ? this.pendingAllocation : null;
+      const progress = this.progress && groupFor(this.progress.item) === group ? this.progress : null;
+      if (pending || allocation || progress) {
+        list.classList.add('bg3-video-hud-choice-list');
+        list.append(this.choicePanel(pending, allocation, progress));
+      } else for (const item of groupItems) list.append(this.itemRow(item, prefs));
+      if (!groupItems.length && !pending && !allocation && !progress) section.append(node('p', this.edit ? '此分类没有角色物品。' : '没有符合筛选条件的物品。', 'bg3-video-hud-empty'));
       section.append(list);
       panels.append(section);
     }
@@ -177,13 +243,14 @@ export class VideoHUD {
       control.disabled = this.busy.size > 0;
       footer.append(control);
     }
+    footer.append(button('队伍', 'party', '查看可访问的队伍角色'), button('联动', 'integrations', '动画、骰子与自动化状态'));
     if (this.targeting.picking) footer.append(button('取消选目标', 'cancel-target', '取消目标选择，不使用技能'));
     const status = node('span', this.status, 'bg3-video-hud-status');
     status.title = this.status;
     status.setAttribute('role', 'status');
     footer.append(status);
     root.append(footer);
-    if (this.root?.isConnected) this.root.replaceWith(root);
+    if (this.root?.isConnected) this.root.parentNode.replaceChild(root, this.root);
     else document.body.append(root);
     this.root = root;
     for (const list of root.querySelectorAll('[data-scroll-group]')) {
@@ -193,8 +260,14 @@ export class VideoHUD {
     // Hide only the upstream DOM shell, after our replacement is mounted.
     // Never toggle upstream settings or touch its persistent player flags.
     document.body.classList.add('bg3-video-hud-active');
-    if (focusKey) [...root.querySelectorAll('button, [data-scroll-group][tabindex]')]
-      .find(b => JSON.stringify(b.dataset) === focusKey)?.focus({ preventScroll: true });
+    if (focusKey) {
+      const focused = [...root.querySelectorAll('button, input, select, [data-scroll-group][tabindex]')]
+        .find(b => JSON.stringify(b.dataset) === focusKey);
+      focused?.focus({ preventScroll: true });
+      if (focused?.tagName === 'INPUT' && selection?.[0] !== null && selection?.[0] !== undefined) {
+        try { focused.setSelectionRange(...selection); } catch { /* Numeric input has no selection API. */ }
+      }
+    }
   }
 
   spellControls(prefs) {
@@ -220,8 +293,239 @@ export class VideoHUD {
     slots.title = slots.textContent;
     slots.dataset.scrollGroup = 'spell-pools';
     slots.tabIndex = 0;
-    box.append(slots);
+    const pips = node('span', undefined, 'bg3-video-hud-slot-pips'); pips.setAttribute('aria-hidden', 'true');
+    for (const pool of pools) {
+      const group = node('span'); group.title = `${pool.label}：${pool.value}/${pool.max}`;
+      for (let i = 0; i < Math.min(Number(pool.max) || 0, 12); i++) {
+        const pip = node('i'); if (i < pool.value) pip.className = 'available'; group.append(pip);
+      }
+      pips.append(group);
+    }
+    slots.append(pips); box.append(slots);
     return box;
+  }
+
+  beginEdit(group = null) {
+    if (this.busy.size) return;
+    if (this.edit) { if (group) this.editGroup = group; this.render(); return; }
+    this.tooltip.hide(); this.progress = null;
+    this.draft = normalizeLayout(this.store.read(this.actor));
+    this.editBase = JSON.stringify(this.draft); this.editGroup = group;
+    this.edit = true; this.render();
+  }
+
+  async commitEdit() {
+    if (!this.edit || !this.draft || this.saving) return;
+    const actor = this.actor; requireActor(actor, this.user);
+    if (JSON.stringify(this.store.read(actor)) !== this.editBase) throw new Error('布局已在其他窗口更改，请取消编辑后重试。');
+    const draft = normalizeLayout(this.draft);
+    this.saving = true; this.render();
+    try {
+      await this.store.update(actor, () => draft);
+      if (this.actor === actor) { this.edit = false; this.draft = null; this.editGroup = null; }
+    } finally { this.saving = false; this.render(); }
+  }
+
+  editToolbar(prefs) {
+    const bar = node('div', undefined, 'bg3-video-hud-help');
+    bar.dataset.scrollGroup = 'edit-toolbar'; bar.setAttribute('aria-label', '快捷栏编辑工具');
+    const items = values(this.actor.items).filter(i => !this.editGroup || groupFor(i) === this.editGroup);
+    bar.append(node('span', `编辑${this.editGroup ? groupLabels[this.editGroup] : '全部'}：已显示 ${items.filter(i => !prefs.hidden.includes(i.id)).length}/${items.length}`));
+    for (const [value, label] of [['all', '全选'], ['none', '清空'], ['reset', '恢复自动全部']]) {
+      const control = button(label, 'bulk-edit', value === 'reset' ? '恢复此分类的自动显示和排序' : `${label}当前分类搜索结果`, { value });
+      control.disabled = this.saving; bar.append(control);
+    }
+    for (const [action, label] of [['save-edit', '保存'], ['cancel-edit', '取消']]) {
+      const control = button(label, action, label === '取消' ? '丢弃本次尚未保存的布局改动' : '保存本次布局');
+      control.disabled = this.saving; bar.append(control);
+    }
+    return bar;
+  }
+
+  bulkEdit(value) {
+    if (!this.edit || this.saving) return;
+    const all = values(this.actor.items).filter(i => !this.editGroup || groupFor(i) === this.editGroup);
+    const selected = value === 'reset' ? all : all.filter(i => String(i.name ?? '').toLocaleLowerCase()
+      .includes((this.queries[groupFor(i)] ?? '').trim().toLocaleLowerCase()));
+    const ids = new Set(selected.map(i => i.id));
+    return this.save(p => ({ ...p,
+      hidden: value === 'none' ? [...new Set([...p.hidden, ...ids])] : p.hidden.filter(id => !ids.has(id)),
+      ...(value === 'reset' ? { order: p.order.filter(id => !ids.has(id)),
+        pinned: p.pinned.filter(id => !ids.has(id)), pinnedOnly: this.editGroup && this.editGroup !== 'Spells' ? p.pinnedOnly : false } : {})
+    }));
+  }
+
+  chooseUse(actor, item) {
+    this.tooltip.hide(); this.progress = null;
+    return new Promise(resolve => {
+      this.pendingUse = { actor, item, group: groupFor(item), phase: 'activity', resolve, manual: false, count: '' };
+      this.render();
+    });
+  }
+
+  chooseActivity(id) {
+    const state = this.pendingUse;
+    if (!state || state.actor !== this.actor) return;
+    const activity = usableActivities(state.item).find(a => a.id === id);
+    if (!activity) throw new Error('此活动已不可用，请重新选择。');
+    state.activityId = id; state.phase = 'casting'; this.render();
+  }
+
+  finishChoice(data) {
+    const state = this.pendingUse;
+    if (!state || state.actor !== this.actor) return;
+    const choice = { activityId: state.activityId, slot: data.slot || null,
+      sourceId: data.sourceId || null, count: state.count === '' ? null : Number(state.count), manual: state.manual,
+      nativeOnly: data.nativeOnly === 'true' };
+    const activity = usableActivities(state.item).find(a => a.id === state.activityId);
+    nativeCastingOptions(this.actor, state.item, activity, choice);
+    if (!choice.nativeOnly) sequencePlan(state.item, activity, { count: choice.count,
+      level: Number(state.item.system.level || 0) + (nativeCastingOptions(this.actor, state.item, activity, choice).scaling || 0) });
+    this.pendingUse = null; state.resolve(choice); this.render();
+  }
+
+  choicePanel(pending, allocation, progress) {
+    const row = node('li', undefined, 'bg3-video-hud-choice');
+    row.dataset.scrollGroup = 'use-options';
+    if (allocation) {
+      row.append(node('strong', `${allocation.item.name} · 分配 ${allocation.allocation.length}/${allocation.count}`));
+      if (allocation.consumed) row.append(node('small', '系统已调整施放参数；消耗以原生记录为准。'));
+      for (const target of allocation.selected) {
+        const line = node('div', undefined, 'bg3-video-hud-allocation-row');
+        line.append(node('span', `${target.document?.name ?? target.name ?? '目标'} ×${allocation.allocation.filter(t => t === target).length}`),
+          button('−', 'allocate-minus', '减少一次分配', { value: target.id }), button('+', 'allocate-plus', '分配一次给此目标', { value: target.id }));
+        row.append(line);
+      }
+      row.append(button('撤回一次', 'allocate-undo'), button('取消', 'allocate-cancel'));
+      const confirm = button(`施放（${allocation.allocation.length}/${allocation.count}）`, 'allocate-confirm');
+      confirm.disabled = allocation.allocation.length !== allocation.count; row.append(confirm); return row;
+    }
+    if (progress) {
+      const labels = { attack: '攻击掷骰', damage: '伤害掷骰', done: '已完成', stopped: '已停止', error: '结算中断' };
+      row.append(node('strong', `${progress.item.name} · ${labels[progress.stage] ?? '结算'} ${Math.min(progress.index + 1, progress.total)}/${progress.total}`));
+      for (const [index, target] of progress.allocation.entries()) {
+        row.append(node('span', `${index < progress.index ? '✓' : index === progress.index ? '›' : '·'} ${index + 1}. ${target.document?.name ?? target.name ?? '目标'}`));
+      }
+      row.append(button(this.busy.size ? '停止后续' : '返回', this.busy.size ? 'stop-sequence' : 'close-choice'));
+      return row;
+    }
+    const navigation = node('div');
+    if (pending.phase !== 'activity') navigation.append(button('返回', 'back-choice'));
+    navigation.append(button('取消', 'close-choice')); row.append(navigation);
+    row.append(node('strong', pending.item.name ?? '使用物品'));
+    const cards = node('div', undefined, 'bg3-video-hud-option-cards');
+    if (pending.phase === 'activity') {
+      const bundle = bundledActivity(pending.item);
+      for (const activity of usableActivities(pending.item)) {
+        const control = button(bundle?.id === activity.id ? `施放并结算 · ${activity.name || '施放'}` : (activity.name || '使用'),
+          'choose-activity', '选择此原生活动', { value: activity.id });
+        if (activity.img) { const img = node('img'); img.src = activity.img; img.alt = ''; control.prepend(img); }
+        cards.append(control);
+      }
+    } else {
+      const activity = usableActivities(pending.item).find(a => a.id === pending.activityId);
+      const pools = castingPools(this.actor, pending.item, activity);
+      for (const pool of pools) {
+        const control = button(`${pool.label} · ${pool.value}/${pool.max}`, 'choose-cast', `用${pool.label}进入原生施放流程`, { slot: pool.key });
+        control.disabled = pool.value === 0; cards.append(control);
+      }
+      for (const source of castingSources(this.actor, pending.item)) {
+        const control = button(`${source.item.name} · ${source.max ? `${source.remaining}/${source.max}` : '不限次数'}`,
+          'choose-cast', `${source.level}环来源，消耗与恢复由系统处理`, { sourceId: source.item.id });
+        control.disabled = !source.enabled || (source.max && !source.remaining); cards.append(control);
+      }
+      if (!pools.length) cards.append(button('使用并结算', 'choose-cast', '选择目标后使用本次原生活动'));
+      cards.append(button('原生使用／其他方式', 'choose-cast', '使用原生自动化，不启动本界面的重复结算', { nativeOnly: 'true' }));
+      if (pending.item.type === 'spell') cards.append(button('管理免费来源', 'source-manager'));
+      if (['attack', 'damage'].includes(activity?.type) || bundledActivity(pending.item)) {
+        const settings = node('div', undefined, 'bg3-video-hud-sequence-options');
+        const countLabel = node('label', '结算次数（空白为自动）：');
+        const count = node('input'); count.type = 'number'; count.min = '1'; count.max = '20'; count.value = pending.count;
+        count.setAttribute('aria-label', '自定义重复结算次数');
+        count.oninput = () => { pending.count = count.value; }; countLabel.append(count);
+        const modeLabel = node('label', '手动分配／撤回');
+        const manual = node('input'); manual.type = 'checkbox'; manual.checked = pending.manual;
+        manual.onchange = () => { pending.manual = manual.checked; }; modeLabel.prepend(manual);
+        settings.append(countLabel, modeLabel); row.append(settings);
+      }
+    }
+    row.append(cards); return row;
+  }
+
+  allocate({ item, selected, count, consumed }) {
+    return new Promise(resolve => {
+      this.pendingAllocation = { item, selected, count, consumed, allocation: [], resolve };
+      this.render();
+    });
+  }
+
+  changeAllocation(id, direction) {
+    const state = this.pendingAllocation; if (!state) return;
+    const target = state.selected.find(t => t.id === id); if (!target) return;
+    if (direction > 0 && state.allocation.length < state.count) state.allocation.push(target);
+    else if (direction < 0) { const at = state.allocation.lastIndexOf(target); if (at >= 0) state.allocation.splice(at, 1); }
+    this.render();
+  }
+
+  sourceManager() {
+    const state = this.pendingUse;
+    if (!state || state.actor !== this.actor || state.item.type !== 'spell') return;
+    this.dialog?.close();
+    const dialog = modal('免费施法来源', () => { if (this.dialog === dialog) this.dialog = null; }); this.dialog = dialog;
+    const form = node('form'), selector = node('select'); selector.setAttribute('aria-label', '编辑已有来源');
+    const add = node('option', '新建来源'); add.value = ''; selector.append(add);
+    const sources = castingSources(this.actor, state.item).filter(s => s.managed);
+    for (const source of sources) { const opt = node('option', source.item.name); opt.value = source.item.id; selector.append(opt); }
+    form.append(selector);
+    const fields = {};
+    for (const [key, label, type] of [['name', '来源名称', 'text'], ['max', '次数上限（0 为不限）', 'number'],
+      ['remaining', '剩余次数', 'number'], ['level', '施法环阶', 'number']]) {
+      const box = node('label', label), input = node('input'); input.type = type; input.name = key; input.required = true;
+      if (type === 'number') { input.min = key === 'level' ? String(state.item.system.level || 0) : '0'; input.max = key === 'level' ? '9' : '999'; input.step = '1'; }
+      fields[key] = input; box.append(input); form.append(box);
+    }
+    const recovery = node('label', '恢复方式'), period = node('select');
+    for (const [value, label] of Object.entries(RECOVERY)) { const opt = node('option', label); opt.value = value; period.append(opt); }
+    recovery.append(period); form.append(recovery);
+    const enabledLabel = node('label', '启用来源'), enabled = node('input'); enabled.type = 'checkbox'; enabledLabel.prepend(enabled); form.append(enabledLabel);
+    const load = () => {
+      const source = sources.find(s => s.item.id === selector.value);
+      fields.name.value = source?.item.name ?? '免费施法'; fields.max.value = source?.max ?? 1;
+      fields.remaining.value = source ? (source.remaining ?? 0) : 1; fields.level.value = source?.level ?? Number(state.item.system.level || 0);
+      period.value = source?.item.system?.uses?.recovery?.[0]?.period ?? 'lr'; enabled.checked = source?.enabled ?? true;
+    };
+    const refreshRemaining = () => {
+      const max = Number(fields.max.value); fields.remaining.disabled = max === 0;
+      fields.remaining.max = String(Math.max(0, max));
+      if (!max || Number(fields.remaining.value) > max) fields.remaining.value = Math.max(0, max);
+    };
+    selector.onchange = () => { load(); refreshRemaining(); }; fields.max.oninput = refreshRemaining;
+    load(); refreshRemaining();
+    const error = node('p'); error.setAttribute('role', 'alert');
+    const save = node('button', '保存来源'); save.type = 'submit';
+    form.append(node('small', '保存会创建或编辑此角色上的专用原生来源特性；实际施放、扣次和恢复交由系统。'), error, save);
+    form.onsubmit = async event => {
+      event.preventDefault(); if (save.disabled) return; save.disabled = true;
+      try {
+        if (this.actor !== state.actor || this.pendingUse !== state) throw new Error('角色或物品已改变，请重新打开来源管理。');
+        const input = Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value]));
+        await saveCastingSource(state.actor, state.item.id, this.user, { ...input, period: period.value, enabled: enabled.checked }, selector.value || null);
+        dialog.close(); if (this.actor === state.actor) this.render();
+      } catch (e) { error.textContent = e.message; }
+      finally { save.disabled = false; }
+    };
+    dialog.append(form); fields.name.focus();
+  }
+
+  openParty() {
+    this.dialog?.close(); const dialog = modal('队伍概览', () => { if (this.dialog === dialog) this.dialog = null; });
+    this.dialog = dialog; dialog.append(partyRows(globalThis.game, this.user, () => dialog.close()));
+  }
+
+  openIntegrations() {
+    this.dialog?.close(); const dialog = modal('骰子与动画联动', () => { if (this.dialog === dialog) this.dialog = null; }); this.dialog = dialog;
+    for (const [id, label] of INTEGRATIONS) dialog.append(node('p', `${label}：${globalThis.game?.modules?.get(id)?.active ? '已启用' : '未启用'}`));
+    dialog.append(node('p', '原生聊天／掷骰事件交给已安装的模组；不重复请求 3D 骰子或自动应用伤害。自动动画未启用时使用本界面的轻量投射与目标反馈。'));
   }
 
   itemRow(item, prefs) {
@@ -249,9 +553,9 @@ export class VideoHUD {
     if (usesLabel(item)) {
       use.append(node('small', usesLabel(item).replace(/ 次$/, ''), 'bg3-video-hud-uses'));
     }
-    use.disabled = this.edit || this.busy.size > 0;
+    use.disabled = this.edit || this.busy.size > 0 || item.flags?.[MODULE_ID]?.castingSource?.enabled === false;
     row.append(use);
-    if (this.edit) {
+    if (this.edit && (!this.editGroup || groupFor(item) === this.editGroup)) {
       const buttons = node('div', undefined, 'bg3-video-hud-edit-controls');
       const hidden = prefs.hidden.includes(item.id);
       const visibility = button(hidden ? '显示' : '隐藏', 'visibility', `${hidden ? '显示' : '隐藏'} ${item.name}`, { itemId: item.id });
@@ -282,6 +586,9 @@ export class VideoHUD {
 
   async save(transform) {
     const actor = this.actor;
+    if (this.edit && this.draft) {
+      this.draft = normalizeLayout(transform(this.draft)); this.render(); return;
+    }
     await this.store.update(actor, transform);
     if (this.actor?.uuid === actor.uuid) this.render();
   }
@@ -302,7 +609,26 @@ export class VideoHUD {
       case 'disable': return this.onDisable();
       case 'cancel-target': this.targeting.cancel(); this.status = '已取消目标选择。'; this.render(); return;
       case 'sheet': return actor.sheet?.render({ force: true });
-      case 'edit': this.edit = !this.edit; this.render(); break;
+      case 'edit': return this.edit ? this.commitEdit() : this.beginEdit();
+      case 'edit-group': return this.beginEdit(value);
+      case 'save-edit': return this.commitEdit();
+      case 'cancel-edit': this.edit = false; this.draft = null; this.editGroup = null; this.render(); return;
+      case 'bulk-edit': return this.bulkEdit(value);
+      case 'close-choice': this.pendingUse?.resolve(null); this.pendingUse = null; this.progress = null; this.render(); return;
+      case 'choose-activity': return this.chooseActivity(value);
+      case 'choose-cast': return this.finishChoice(control.dataset);
+      case 'source-manager': return this.sourceManager();
+      case 'back-choice': if (this.pendingUse) { this.pendingUse.phase = 'activity'; this.render(); } return;
+      case 'allocate-plus': return this.changeAllocation(value, 1);
+      case 'allocate-minus': return this.changeAllocation(value, -1);
+      case 'allocate-undo': this.pendingAllocation?.allocation.pop(); this.render(); return;
+      case 'allocate-confirm': if (this.pendingAllocation?.allocation.length === this.pendingAllocation?.count) {
+        const state = this.pendingAllocation; this.pendingAllocation = null; state.resolve(state.allocation); this.render();
+      } return;
+      case 'allocate-cancel': { const state = this.pendingAllocation; this.pendingAllocation = null; state?.resolve(null); this.render(); return; }
+      case 'stop-sequence': this.targeting.cancel(); this.status = '已请求停止后续结算，当前原生窗口请自行取消。'; this.render(); return;
+      case 'party': this.openParty(); return;
+      case 'integrations': this.openIntegrations(); return;
       case 'filter-action': this.action = value; this.render(); break;
       case 'filter-level': this.level = value === 'all' ? 'all' : Number(value); this.render(); break;
       case 'pinned-only': return this.save(p => ({ ...p, pinnedOnly: !p.pinnedOnly }));
@@ -310,7 +636,7 @@ export class VideoHUD {
       case 'pin': if (this.edit) return this.save(p => ({ ...p, pinned: toggleId(p.pinned, itemId) })); break;
       case 'move': {
         if (!this.edit) return;
-        const all = itemsFor(actor, this.store.read(actor), { edit: true });
+        const all = itemsFor(actor, this.draft ?? this.store.read(actor), { edit: true });
         const item = all.find(i => i.id === itemId);
         if (!item) return;
         const siblings = all.filter(i => groupFor(i) === groupFor(item));

@@ -18,6 +18,19 @@ function persist(path, value) {
 export async function createDocuments({ lease }) {
   let phase = 'source-selection';
   const moduleId = 'bg3-video-hud';
+  const progress = async value => {
+    phase = value;
+    if (typeof globalThis.bg3FixtureProgress === 'function') {
+      await globalThis.bg3FixtureProgress({ marker: lease.marker, phase });
+    }
+  };
+  const readSource = async promise => {
+    let timer;
+    try {
+      return await Promise.race([promise,
+        new Promise((_resolve, reject) => { timer = setTimeout(() => reject(Error('fixture-source-read-timeout')), 30_000); })]);
+    } finally { clearTimeout(timer); }
+  };
   const assertSafe = () => {
     if (!game.user.isGM || game.user.name !== 'Gamemaster' || game.world.id !== lease.world
         || game.world.title !== 'ModsTest' || !game.socket.connected
@@ -31,11 +44,13 @@ export async function createDocuments({ lease }) {
     if (!packs.length) throw Error('fixture-srd-actor-pack-unavailable');
     let caster, martial, fallback;
     for (const pack of packs) {
-      const index = [...(await pack.getIndex()).values()];
+      await progress('actor-pack-index');
+      const index = [...(await readSource(pack.getIndex())).values()];
       const prioritized = index.sort((a, b) => Number(/mage|priest|acolyte|druid|wizard|guard|bandit/i.test(b.name))
         - Number(/mage|priest|acolyte|druid|wizard|guard|bandit/i.test(a.name)));
       for (const entry of prioritized.slice(0, 50)) {
-        const actor = await pack.getDocument(entry._id);
+        await progress('actor-source-document');
+        const actor = await readSource(pack.getDocument(entry._id));
         if (!(actor?.system?.attributes?.hp?.max > 0) || actor.items.size < 2) continue;
         const choice = { pack: pack.collection, id: actor.id };
         fallback ??= choice;
@@ -53,27 +68,33 @@ export async function createDocuments({ lease }) {
     for (const level of [0, 1]) {
       let spell;
       for (const pack of spellPacks) {
-        const index = [...(await pack.getIndex({ fields: ['type', 'system.level'] })).values()];
+        await progress('spell-pack-index');
+        const index = [...(await readSource(pack.getIndex({ fields: ['type', 'system.level'] }))).values()];
         const entry = index.find(i => i.type === 'spell' && Number(i.system?.level ?? i['system.level']) === level);
-        if (entry) { spell = await pack.getDocument(entry._id); break; }
+        if (entry) { await progress('spell-source-document'); spell = await readSource(pack.getDocument(entry._id)); break; }
       }
       if (!spell) throw Error('fixture-srd-spells-unavailable');
       spells.push(spell.toObject());
     }
-    phase = 'actor-import';
     const actors = [];
     for (const [position, source] of [caster, martial].entries()) {
+      await progress('actor-import');
       assertSafe();
       const role = position === 0 ? 'caster' : 'martial';
       const actor = await game.actors.importFromCompendium(game.packs.get(source.pack), source.id, {
         name: `BG3 HUD Test ${role} ${lease.marker.slice(-6)}`, folder: null,
-        ownership: { default: 0, [player.id]: 3 },
         flags: { [moduleId]: { testFixture: { marker: lease.marker, role } } }
       }, { keepId: false, renderSheet: false });
       if (actor.getFlag(moduleId, 'testFixture')?.marker !== lease.marker) throw Error('fixture-import-marker-missing');
+      // V14 clears source ownership during import and grants the importer OWNER.
+      // Grant Player1 only after the uniquely marked world actor exists.
+      await progress('actor-ownership');
+      assertSafe();
+      await actor.update({ [`ownership.${player.id}`]: 3 });
+      if (actor.ownership[player.id] !== 3) throw Error('fixture-player-ownership-failed');
       actors.push(actor);
     }
-    phase = 'spell-fixture-setup';
+    await progress('spell-fixture-setup');
     const additions = spells.filter(spell => !actors[0].items.some(i => i.type === 'spell' && i.system.level === spell.system.level));
     if (additions.length) {
       assertSafe();
@@ -86,7 +107,7 @@ export async function createDocuments({ lease }) {
       await actors[0].update({ 'system.spells.spell1.override': 2, 'system.spells.spell1.max': 2, 'system.spells.spell1.value': 2 });
     }
     if (!(actors[0].system.spells?.spell1?.max > 0)) throw Error('fixture-slot-setup-unsupported');
-    phase = 'scene-setup';
+    await progress('scene-setup');
     let scene = game.scenes.active;
     if (!scene) {
       assertSafe();
@@ -97,7 +118,7 @@ export async function createDocuments({ lease }) {
       assertSafe();
       await scene.activate();
     }
-    phase = 'token-placement';
+    await progress('token-placement');
     const placed = [...scene.tokens.values()].map(t => ({ x: t.x, y: t.y, width: t.width, height: t.height }));
     const size = scene.grid.size || 100;
     const originX = scene.dimensions?.sceneX ?? 0, originY = scene.dimensions?.sceneY ?? 0;
@@ -228,6 +249,16 @@ export async function prepareCreatedFixtures(live, info) {
       return { id: user.id, layouts: user.getFlag('bg3-video-hud', 'layouts') ?? null };
     })) };
   persist(live.config.fixtureJournal, lease); // Durable intent precedes the first document write.
+  let lastPhase;
+  const phases = new Set(['actor-pack-index', 'actor-source-document', 'spell-pack-index', 'spell-source-document',
+    'actor-import', 'actor-ownership', 'spell-fixture-setup', 'scene-setup', 'token-placement']);
+  await live.gm.exposeBinding('bg3FixtureProgress', async (_source, update) => {
+    if (update.marker !== lease.marker || !phases.has(update.phase)) throw Error('Invalid fixture progress');
+    if (lastPhase === update.phase) return;
+    lastPhase = update.phase;
+    persist(live.config.fixtureJournal, { ...lease, phase: update.phase });
+    info.annotations.push({ type: 'stage', description: `Prepare temporary SRD fixtures: ${update.phase}` });
+  });
   const result = await live.gm.evaluate(createDocuments, { lease });
   if (!result.ok) throw new GuardError('blocked', `${result.reason}:${result.phase}`);
   live.config.tokens = result.tokens;

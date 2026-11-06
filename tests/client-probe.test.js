@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { inspectClient, observeStatusFrames, statusFrame } from '../e2e/client-probe.mjs';
+import { inspectClient, observeControlFrames, controlFrame } from '../e2e/client-probe.mjs';
 
 async function clientFixture(callback, run) {
   const names = ['game', 'foundry', 'CONFIG'];
@@ -8,7 +8,7 @@ async function clientFixture(callback, run) {
   const calls = [];
   const socket = { connected: true, sendBuffer: [], flags: {},
     io: { engine: { readyState: 'open', transport: { name: 'websocket', writable: true }, writeBuffer: [] } },
-    emit: (event, reply) => { calls.push(event); assert.equal(event, 'getWorldStatus'); callback?.(reply); } };
+    emit: (event, reply) => { calls.push(event); assert.equal(event, 'time'); callback?.(reply); } };
   const backend = { get() {}, _getDocuments() {} };
   const game = { world: { id: 'modstest', title: 'ModsTest' },
     user: { name: 'Gamemaster', isGM: true, id: 'PRIVATE_USER_ID' },
@@ -25,11 +25,12 @@ async function clientFixture(callback, run) {
   finally { names.forEach((name, i) => saved[i] ? Object.defineProperty(globalThis, name, saved[i]) : delete globalThis[name]); }
 }
 
-test('client inspection emits exactly one boolean status read and exports only interface fingerprints', async () => {
-  await clientFixture(reply => reply(true), async ({ calls }) => {
+test('client inspection emits exactly one native clock read and exports only interface fingerprints', async () => {
+  await clientFixture(reply => reply({ serverTime: 10, worldTime: 20 }), async ({ calls }) => {
     const result = await inspectClient();
-    assert.deepEqual(calls, ['getWorldStatus']);
-    assert.equal(result.status.status, 'ok'); assert.equal(result.status.worldActive, true);
+    assert.deepEqual(calls, ['time']);
+    assert.equal(result.status.status, 'ok'); assert.equal(result.status.validTime, true);
+    assert.ok(!Object.hasOwn(result.status, 'serverTime')); assert.ok(!Object.hasOwn(result.status, 'worldTime'));
     assert.match(result.api.databaseGet.sha256, /^[a-f0-9]{64}$/);
     assert.equal(result.before.transport, 'websocket'); assert.equal(result.before.configuredBackendMatches, true);
     const json = JSON.stringify(result);
@@ -51,18 +52,18 @@ test('unexpected acknowledgement data and timeouts stay sanitized and never retr
 });
 
 test('foreign users and context changes block inspection without a document or status retry', async () => {
-  await clientFixture(reply => reply(true), async ({ game, calls }) => {
+  await clientFixture(reply => reply({ serverTime: 10, worldTime: 20 }), async ({ game, calls }) => {
     game.users.push({ name: 'Other', active: true });
     await assert.rejects(inspectClient(), /client-probe-guard-denied/); assert.equal(calls.length, 0);
   });
-  await clientFixture(reply => { game.world.id = 'other-world'; reply(true); }, async ({ calls }) => {
+  await clientFixture(reply => { game.world.id = 'other-world'; reply({ serverTime: 10, worldTime: 20 }); }, async ({ calls }) => {
     await assert.rejects(inspectClient(), /client-probe-guard-denied/); assert.equal(calls.length, 1);
   });
 });
 
 test('CDP status correlation ignores unrelated frames and never exports payloads or socket IDs', async () => {
   const handlers = new Map(); let detached = 0;
-  const observer = await observeStatusFrames({ context: () => ({ newCDPSession: async () => ({
+  const observer = await observeControlFrames({ context: () => ({ newCDPSession: async () => ({
     on: (name, cb) => handlers.set(name, cb), send: async name => assert.equal(name, 'Network.enable'),
     detach: async () => { detached++; }
   }) }) });
@@ -70,13 +71,14 @@ test('CDP status correlation ignores unrelated frames and never exports payloads
   const received = (id, payload) => handlers.get('Network.webSocketFrameReceived')({ requestId: id, response: { opcode: 1, payloadData: payload } });
   sent('PRIVATE_SOCKET', '421["modifyDocument",{"secret":"PRIVATE_SENTINEL"}]');
   received('PRIVATE_SOCKET', '431[true]'); assert.equal(observer.read().matchingAckFrames, 0);
-  sent('PRIVATE_SOCKET', '422["getWorldStatus"]'); received('OTHER_SOCKET', '432[true]');
+  sent('PRIVATE_SOCKET', '422["time"]'); received('OTHER_SOCKET', '432[{"serverTime":10,"worldTime":20}]');
   assert.equal(observer.read().matchingAckFrames, 0);
-  received('PRIVATE_SOCKET', '432[true]');
-  assert.deepEqual(observer.read(), { requestFrames: 1, matchingAckFrames: 1, booleanAckFrames: 1, worldActive: true });
-  observer.reset(); sent('PRIVATE_SOCKET', '423["getWorldStatus"]'); received('PRIVATE_SOCKET', '433[{"secret":"PRIVATE_SENTINEL"}]');
-  assert.deepEqual(observer.read(), { requestFrames: 1, matchingAckFrames: 1, booleanAckFrames: 0 });
+  received('PRIVATE_SOCKET', '432[{"serverTime":10,"worldTime":20}]');
+  assert.deepEqual(observer.read(), { requestFrames: 1, matchingAckFrames: 1, validTimeAckFrames: 1 });
+  observer.reset(); sent('PRIVATE_SOCKET', '423["time"]'); received('PRIVATE_SOCKET', '433[{"secret":"PRIVATE_SENTINEL"}]');
+  assert.deepEqual(observer.read(), { requestFrames: 1, matchingAckFrames: 1, validTimeAckFrames: 0 });
   assert.ok(!JSON.stringify(observer.read()).includes('PRIVATE'));
-  assert.equal(statusFrame('x'.repeat(5000)), null); assert.equal(statusFrame('43not-json'), null);
+  assert.ok(!JSON.stringify(observer.read()).includes('worldTime'));
+  assert.equal(controlFrame('x'.repeat(5000)), null); assert.equal(controlFrame('43not-json'), null);
   await observer.close(); assert.equal(detached, 1);
 });

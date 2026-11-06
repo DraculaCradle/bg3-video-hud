@@ -27,7 +27,7 @@ on:
         type: boolean
         default: false
       inspect_transport:
-        description: Inspect client interfaces and one read-only world-status acknowledgement, without document RPC
+        description: Inspect client interfaces and one native read-only clock acknowledgement, without document RPC
         type: boolean
         default: false
 permissions:

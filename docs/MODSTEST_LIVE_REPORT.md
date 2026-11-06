@@ -1,10 +1,29 @@
 # ModsTest 实机测试报告
 
-日期：2026-11-06。**v0.1.2 已发布，最新版 HUD 实机验收尚未开始／通过。**
+日期：2026-11-06。**线上已确认 v0.1.2；原生文档 RPC 仍超时，HUD 实机验收尚未开始／通过。**
 
 目标始终是现有 `https://redmagic.club/`、世界 `modstest`／`ModsTest`。仅使用既有测试账号；凭据来自 GitHub `modstest` Environment，Player1 空密码。自动文件部署继续关闭。
 
-## 最新结果：已装版本不同（15:40 UTC）
+## 最新结果：v0.1.2 已加载，RPC 超时（15:48 UTC）
+
+管理员确认更新后，[只读预检 42245807208](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42245807208) 于 `2026-11-06T15:48:15.748Z` 输出 `failed`，停止原因 `srd-source-inspection-unavailable`。脱敏断言明确记录：**Installed module matches checkout v0.1.2**。本轮通过 GM 认证、世界／账号／版本／依赖守卫后，只进行只读诊断。
+
+| 检查 | 结果 |
+| --- | --- |
+| 已安装版本 | 0.1.2，与 checkout 一致 |
+| 本地缓存合集索引 | 337 条，3ms；只说明缓存可用 |
+| Socket session 用户与 GM 匹配 | true |
+| 实际合集索引 RPC | 35,902ms 超时 |
+| 缓存中不存在的随机 Actor ID 查询 | 35,902ms 超时 |
+| 直接 Socket get 回调 | 35,902ms 超时，无可记录的回调参数 |
+| 原生 pack.getDocument | 38,531ms 超时 |
+| 客户端错误类别 | 未捕获 |
+
+没有登录 Player1、导入角色、创建 token／场景、修改角色资源或执行 HUD 验收。报告无 `cleanupReason`，流程完成了本次自有 GM 认证连接的原生登出与新匿名页面可选性检查；未对未知会话操作。启动前浏览器清单为空，不能代替结束后进程清单或今后的账号状态证明。
+
+失败阶段是受支持浏览器中的原生文档请求等待回调；不能据此断言请求是否到达服务器或根因在数据库、Node、代理还是客户端。此轮走服务器上的 self-hosted runner，**不是早期 Codex CONNECT 代理 403 的重现**。已停止相同请求重试，也没有因预检失败而直接创建临时文档。
+
+## 更新前的版本守卫（15:40 UTC）
 
 [只测试运行 42244683796](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42244683796) 于 `2026-11-06T15:40:19.482Z` 输出脱敏报告，模式 `source-inspection`、状态 `failed`。停止原因：
 
@@ -16,7 +35,7 @@ GM 认证、精确世界／账号／版本／依赖守卫完成后，测试读�
 
 流程结束未报告 `cleanupReason`：本次自有 GM 会话的原生登出及新匿名页面账号可选性检查没有报异常。启动前受限 runner 的浏览器清单为空；未另做结束后的进程清单检查，不把启动前清单作为结束后证明。此前恢复日志检查的历史结果见下文；本轮停在版本守卫，不能声称又检查了日志不存在。
 
-早先的文档 RPC 超时问题**本轮没有重新检测**；它也没有被本轮版本检查解决。当前阻碍首先是已装版本不同，需更新后再进行一次只读预检。
+这一轮未进入 RPC 诊断。管理员随后更新到 0.1.2，下一轮已确认版本一致，见上文最新结果。
 
 ## 发布与下载验证
 
@@ -27,11 +46,17 @@ GM 认证、精确世界／账号／版本／依赖守卫完成后，测试读�
 
 ## 下一步（仅现有实例）
 
-管理员在维护窗口通过原 module.json 地址**只更新 bg3-video-hud**，核对版本显示为 0.1.2，再重新载入 ModsTest。若界面要求服务重启，由管理员安排，不交给 runner 自动处理；不更改端口、dataPath、反向代理或其他模组／世界。
+版本更新已确认，**不再要求重新更新模组**。管理员先在现有服务器本地只读核查本轮时段的日志：
 
-退出 Gamemaster／Player1 并关闭相关页面后，先运行 main 的 `ModsTest live tests only`、`world_id=modstest`、`inspect_sources=true`。版本一致且原生文档读取正常，才运行 `create_fixtures=true` 完整测试。完整流程还会在创建临时角色前验证服务器实际 JS/CSS 的 SHA-256；恢复模式不因版本变化而被禁止。
+```sh
+sudo journalctl -u foundryvtt.service --since '2026-11-06 15:44:00 UTC' --until '2026-11-06 15:49:00 UTC' --no-pager --output=short-iso
+```
 
-若仍出现相同 RPC 超时，则停止重复请求，结合下面的历史诊断让管理员检查服务／代理日志。只测试或恢复绿色也不能代替实际 HUD 功能与原生消费验收。
+同时核对既有反向代理同一时段的 WebSocket／upstream 异常。仅提供时间、错误类别和有无对应请求的摘要，不发送原始日志、Cookie、账号 ID 或密码。没有相关日志应记为“未观察到”，不能推断请求未到服务器。runner 不增加日志／服务控制权限，不擅自停止、重启或切换世界。
+
+获得新的服务端证据并修复读取问题后，再运行一次 main 的 `ModsTest live tests only`、`world_id=modstest`、`inspect_sources=true`。版本一致、无其他会话且原生读取正常，才运行 `create_fixtures=true` 完整测试。完整流程会在创建唯一标记临时角色前核对服务器实际 JS/CSS 的 SHA-256，并严格恢复／登出；恢复模式不因版本变化被禁止。
+
+只读诊断或恢复绿色也不能代替 HUD 功能、真实资源消费和第三方组合验收。暂不发起相同 RPC 重试或完整验收。
 
 ## 之前的 RPC 诊断（05:49 UTC）
 

@@ -40,7 +40,7 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 4. Each player opts in using **Game Settings → Configure Settings → BG3 Video HUD → Use BG3 Video HUD**, or the **Toggle BG3 Video HUD** token scene tool. It is off by default. A keybinding can be assigned in Foundry's controls configuration.
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-The manifest's release URLs become usable after a maintainer publishes release `v0.1.0` with the built ZIP and `module.json` as assets. They are not pre-existing hosted downloads. The release workflow handles version-matching tags; ordinary branch pushes and PRs do not publish a release.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) in Foundry package management. Version **0.1.1** includes the compact icon dock and automatic 720P–4K sizing. Tagged releases provide the ZIP, manifest, standalone installer and checksums; ordinary branch pushes and PRs do not publish a release. Full live HUD acceptance remains incomplete; see [the live report](docs/MODSTEST_LIVE_REPORT.md).
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 

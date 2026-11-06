@@ -164,7 +164,7 @@ def main():
         environment = {**os.environ, 'FOUNDRY_URL': config['url'],
             'FOUNDRY_WORLD_ID': config['world_id'], 'MODSTEST_STATE_DIR': config['test_state_dir'],
             'MODSTEST_LIVE_ENABLED': 'true', 'MODSTEST_CREATE_FIXTURES': 'false', 'MODSTEST_RECOVER_ONLY': 'false',
-            'MODSTEST_SOURCE_PROBE': 'false'}
+            'MODSTEST_SOURCE_PROBE': 'false', 'MODSTEST_CLIENT_PROBE': 'false'}
         # Start only the client-side guard. No server command, service name, port
         # or dataPath is accepted here. The privileged peer starts after the gate.
         guard = Peer(['node', 'e2e/deployment-guard.mjs'], environment)

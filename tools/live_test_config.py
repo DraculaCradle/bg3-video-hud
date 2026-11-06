@@ -23,11 +23,15 @@ def test_metadata(environment, config=None):
     world = environment.get('FOUNDRY_WORLD_ID') or (config or {}).get('world_id', '')
     tokens = environment.get('MODSTEST_TOKEN_IDS', '').strip()
     probe = environment.get('MODSTEST_SOURCE_PROBE') == 'true'
+    client_probe = environment.get('MODSTEST_CLIENT_PROBE') == 'true'
+    if client_probe and any(environment.get(key) == 'true' for key in
+                            ('MODSTEST_SOURCE_PROBE', 'MODSTEST_RECOVER_ONLY', 'MODSTEST_CREATE_FIXTURES')):
+        raise ValueError('Client inspection cannot be combined with source reads, recovery or fixture creation')
     recover = environment.get('MODSTEST_RECOVER_ONLY') == 'true' and not probe
     create = environment.get('MODSTEST_CREATE_FIXTURES') == 'true' and not (recover or probe)
     if not re.fullmatch(r'[A-Za-z0-9_-]+', world):
         raise ValueError('Configure FOUNDRY_WORLD_ID in modstest Environment or workflow input')
-    if not create and not ((recover or probe) and not tokens) and (not re.fullmatch(r'[A-Za-z0-9]{16}\s*,\s*[A-Za-z0-9]{16}', tokens) or len(set(part.strip() for part in tokens.split(','))) != 2):
+    if not create and not ((recover or probe or client_probe) and not tokens) and (not re.fullmatch(r'[A-Za-z0-9]{16}\s*,\s*[A-Za-z0-9]{16}', tokens) or len(set(part.strip() for part in tokens.split(','))) != 2):
         raise ValueError('Configure MODSTEST_TOKEN_IDS: two different linked fixture token IDs, caster first')
     state = (config or {}).get('test_state_dir', '/srv/bg3deploy/modstest-state')
     path = Path(state)
@@ -40,6 +44,7 @@ def test_metadata(environment, config=None):
             'MODSTEST_CREATE_FIXTURES': 'true' if create else 'false',
             'MODSTEST_RECOVER_ONLY': 'true' if recover else 'false',
             'MODSTEST_SOURCE_PROBE': 'true' if probe else 'false',
+            'MODSTEST_CLIENT_PROBE': 'true' if client_probe else 'false',
             'MODSTEST_STATE_DIR': state}
 
 

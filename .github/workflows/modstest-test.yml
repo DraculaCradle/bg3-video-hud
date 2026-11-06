@@ -26,6 +26,10 @@ on:
         description: Read-only SRD Socket and document-wrapper diagnostics (no actor import or HUD test)
         type: boolean
         default: false
+      inspect_transport:
+        description: Inspect client interfaces and one read-only world-status acknowledgement, without document RPC
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -54,6 +58,7 @@ jobs:
           MODSTEST_CREATE_FIXTURES: ${{ inputs.create_fixtures }}
           MODSTEST_RECOVER_ONLY: ${{ inputs.recover_only }}
           MODSTEST_SOURCE_PROBE: ${{ inputs.inspect_sources }}
+          MODSTEST_CLIENT_PROBE: ${{ inputs.inspect_transport }}
         run: python3 tools/live_test_config.py
       - run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund
         if: ${{ !inputs.diagnostics_only }}

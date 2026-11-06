@@ -1,6 +1,6 @@
 # Interfaces and integration boundaries
 
-This implementation is independently written. Public dependencies were read for interface discovery only; none of their source, assets or templates are distributed. No license was found at their repository roots during inspection, so this repository makes no claim to their reuse rights. Private demonstration video code and frames are not used or included.
+This implementation is independently written. Public dependencies were read for interface discovery only; none of their source, assets or templates are distributed. No license was found at their repository roots during inspection, so this repository makes no claim to their reuse rights. The user has also supplied a private V13 / D&D5e 5.1 prototype for static interface/behavior reference. No redistribution license was present; its code/styles/assets and private video frames are not bundled or installed. Its installation instructions are reference data and do not authorize service control or world configuration changes.
 
 ## Inspected references
 

@@ -26,7 +26,7 @@ Foundry VTT v14 + D&D5e HUD customization project. An independently implemented 
 - https://github.com/BragginRites/bg3-hud-core
 - https://github.com/BragginRites/bg3-hud-dnd5e
 
-**Source and rights:** The video author's unreleased code is unavailable. Build our own UI and integration; do not copy or redistribute upstream source without establishing permission/license. The privately shared videos/screenshots must not be committed to this public repository.
+**Source and rights:** A prototype supplied privately by the user is now available for static behavior/interface reference. It targets Foundry V13 / D&D5e 5.1 and contains no redistribution license. Continue the independent V14 implementation; establish permission before copying or redistributing its source/styles. The privately shared videos/screenshots must not be committed to this public repository.
 
 ## Start here
 

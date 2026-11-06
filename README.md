@@ -46,6 +46,7 @@ For Linux server installation or upgrades, use the [deployment guide](docs/DEPLO
 
 ## Use
 
+- The compact bottom dock uses icon cells with full item names/details in tooltips and accessible names. At a 1280×720 viewport it is 188px high; each group scrolls independently instead of growing the HUD. Spell levels, slots and activation filters share the top strip. **Edit** reveals item names and editing controls within the same height. See the [720P layout guide and synthetic preview](docs/COMPACT_HUD.md).
 - Click an item cell to call D&D5e's `Item5e.use({event})`. The system chooses among activities and owns targeting, spell-slot choice/upcasting, limited uses, concentration, templates and chat cards. An item without activities may display its system chat card. No slot/resource values are manually decremented, and canceled dialogs do not produce a success notification.
 - **Equipment / Features / Spells** show owned embedded items. Level tabs include cantrips (0). Regular and pact slots are separate read-only pools, including zero remaining slots. Innate/unprepared spells are not silently removed: the system remains responsible for eligibility and consumption.
 - **Action / Bonus Action / Reaction** are activity filters, not invented turn-resource counters. Multi-activity items match every relevant activation type. They do not change combat state.

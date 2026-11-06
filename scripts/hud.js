@@ -49,6 +49,9 @@ export class VideoHUD {
       this.level = 'all';
       this.action = 'all';
       this.status = '';
+      for (const list of this.root?.querySelectorAll('[data-scroll-group]') ?? []) {
+        list.scrollTop = 0; list.scrollLeft = 0;
+      }
     }
     this.actor = actor;
     this.token = token;
@@ -61,8 +64,10 @@ export class VideoHUD {
     const prefs = this.store.read(actor);
     const active = this.root?.contains(document.activeElement) ? document.activeElement : null;
     const focusKey = active ? JSON.stringify(active.dataset) : null;
-    const scroll = this.root?.querySelector('.bg3-video-hud-panels')?.scrollTop ?? 0;
+    const scroll = new Map([...(this.root?.querySelectorAll('[data-scroll-group]') ?? [])]
+      .map(list => [list.dataset.scrollGroup, { top: list.scrollTop, left: list.scrollLeft }]));
     const root = node('aside', undefined, 'bg3-video-hud');
+    root.classList.toggle('bg3-video-hud-editing', this.edit);
     root.id = MODULE_ID;
     root.setAttribute('aria-label', 'BG3 Video HUD');
     root.addEventListener('click', event => {
@@ -89,10 +94,14 @@ export class VideoHUD {
     header.append(portrait);
     const stats = actorStats(actor);
     const summary = node('div', undefined, 'bg3-video-hud-summary');
-    summary.append(node('strong', actor.name ?? 'Character'), node('span',
+    const name = node('strong', actor.name ?? 'Character');
+    name.title = actor.name ?? 'Character';
+    summary.append(name, node('span',
       `HP ${stats.hp}/${stats.maxHp}${stats.tempHp ? ` (+${stats.tempHp} temp)` : ''} · AC ${stats.ac}`));
     for (const resource of stats.resources) {
-      summary.append(node('small', `${resource.label || 'Resource'} ${resource.value ?? '—'}/${resource.max ?? '—'}`));
+      const line = node('small', `${resource.label || 'Resource'} ${resource.value ?? '—'}/${resource.max ?? '—'}`);
+      line.title = line.textContent;
+      summary.append(line);
     }
     header.append(summary);
     const controls = node('div', undefined, 'bg3-video-hud-controls');
@@ -102,14 +111,16 @@ export class VideoHUD {
     header.append(controls);
     root.append(header);
 
-    const filters = node('nav', undefined, 'bg3-video-hud-filters');
-    filters.setAttribute('aria-label', 'Activation filters, not turn resource counters');
+    const filters = node('div', undefined, 'bg3-video-hud-filters');
+    const activations = node('nav', undefined, 'bg3-video-hud-activations');
+    activations.setAttribute('aria-label', 'Activation filters, not turn resource counters');
     for (const [key, label] of [['all', 'All actions'], ['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction']]) {
       const control = button(label, 'filter-action', label, { value: key });
       control.setAttribute('aria-pressed', String(this.action === key));
       control.disabled = this.edit;
-      filters.append(control);
+      activations.append(control);
     }
+    filters.append(activations, this.spellControls(prefs));
     root.append(filters);
     if (this.edit) root.append(node('p', 'Edit mode: show/hide, pin spells, drag items or use arrow buttons. Item use is disabled.', 'bg3-video-hud-help'));
 
@@ -117,10 +128,13 @@ export class VideoHUD {
     const items = itemsFor(actor, prefs, { edit: this.edit, level: this.level, action: this.action });
     for (const group of GROUPS) {
       const section = node('section', undefined, 'bg3-video-hud-panel');
+      section.dataset.group = group;
       section.append(node('h3', group));
-      if (group === 'Spells') section.append(this.spellControls(prefs));
       const groupItems = items.filter(i => groupFor(i) === group);
       const list = node('ul', undefined, 'bg3-video-hud-items');
+      list.dataset.scrollGroup = group;
+      list.setAttribute('aria-label', `${group} items`);
+      if (groupItems.length) list.tabIndex = 0;
       for (const item of groupItems) list.append(this.itemRow(item, prefs));
       if (!groupItems.length) section.append(node('p', this.edit ? 'No owned items in this group.' : 'No items match these filters.', 'bg3-video-hud-empty'));
       section.append(list);
@@ -134,17 +148,22 @@ export class VideoHUD {
       footer.append(control);
     }
     const status = node('span', this.status, 'bg3-video-hud-status');
+    status.title = this.status;
     status.setAttribute('role', 'status');
     footer.append(status);
     root.append(footer);
     if (this.root?.isConnected) this.root.replaceWith(root);
     else document.body.append(root);
     this.root = root;
-    panels.scrollTop = scroll;
+    for (const list of root.querySelectorAll('[data-scroll-group]')) {
+      const position = scroll.get(list.dataset.scrollGroup);
+      if (position) { list.scrollTop = position.top; list.scrollLeft = position.left; }
+    }
     // Hide only the upstream DOM shell, after our replacement is mounted.
     // Never toggle upstream settings or touch its persistent player flags.
     document.body.classList.add('bg3-video-hud-active');
-    if (focusKey) [...root.querySelectorAll('button')].find(b => JSON.stringify(b.dataset) === focusKey)?.focus();
+    if (focusKey) [...root.querySelectorAll('button, ul[tabindex]')]
+      .find(b => JSON.stringify(b.dataset) === focusKey)?.focus({ preventScroll: true });
   }
 
   spellControls(prefs) {
@@ -163,9 +182,11 @@ export class VideoHUD {
     nav.append(pinned);
     box.append(nav);
     const pools = slotPools(this.actor);
-    box.append(node('small', pools.length
+    const slots = node('small', pools.length
       ? pools.map(p => `${p.label}: ${p.value ?? '?'}/${p.max ?? '?'}`).join(' · ')
-      : 'No spell-slot pools. Cantrips and innate uses use system rules.'));
+      : 'No spell-slot pools. Cantrips and innate uses use system rules.');
+    slots.title = slots.textContent;
+    box.append(slots);
     return box;
   }
 
@@ -178,6 +199,9 @@ export class VideoHUD {
       usesLabel(item)].filter(Boolean).join(' · ');
     const use = button('', 'use', detail, { itemId: item.id });
     use.className = 'bg3-video-hud-use';
+    const initial = node('span', [...(item.name || '?')].slice(0, 2).join(''), 'bg3-video-hud-item-initial');
+    initial.setAttribute('aria-hidden', 'true');
+    use.append(initial);
     if (item.img) {
       const image = node('img');
       image.src = item.img;
@@ -186,9 +210,11 @@ export class VideoHUD {
       image.addEventListener('error', () => image.remove(), { once: true });
       use.append(image);
     }
-    const label = node('span', item.name ?? 'Unnamed item');
-    if (usesLabel(item)) label.append(node('small', usesLabel(item)));
+    const label = node('span', item.name ?? 'Unnamed item', 'bg3-video-hud-item-label');
     use.append(label);
+    if (usesLabel(item)) {
+      use.append(node('small', usesLabel(item).replace(/ uses$/, ''), 'bg3-video-hud-uses'));
+    }
     use.disabled = this.edit || this.busy.has(`${this.actor.uuid}:${item.id}`);
     row.append(use);
     if (this.edit) {

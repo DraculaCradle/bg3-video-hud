@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Compact HUD — synthetic layout preview</title>
+  <link rel="stylesheet" href="../styles/video-hud.css">
+  <style>
+    body { margin: 0; height: 100vh; overflow: hidden; background: radial-gradient(ellipse at 48% 35%, #38433c, #182121 65%, #11171c); color: #d4d7cd; font: 12px system-ui; }
+    .map { position: absolute; inset: 45px 280px 20px 45px; border: 1px solid #74837030; background-image: linear-gradient(#80998012 1px, transparent 1px), linear-gradient(90deg, #80998012 1px, transparent 1px); background-size: 48px 48px; }
+    .notice { position: absolute; top: 16px; left: 48px; font-size: 11px; color: #b7c1b1; letter-spacing: .08em; }
+    .room { position: absolute; border: 8px solid #77806b40; background: #273126; box-shadow: 0 10px 30px #0004; }
+    .room.one { top: 20%; left: 18%; width: 26%; height: 25%; }
+    .room.two { top: 30%; left: 52%; width: 25%; height: 30%; }
+    .token { position: absolute; top: 45%; left: 40%; width: 34px; height: 34px; border: 2px solid #d9bd7b; border-radius: 50%; background: #3a604b; display: grid; place-items: center; color: #e2cf9e; }
+    .sidebar { position: absolute; right: 12px; top: 45px; bottom: 14px; width: 250px; background: #10171b99; border: 1px solid #5a675744; padding: 14px; box-sizing: border-box; color: #8d9b8f; }
+    .sidebar p { padding-bottom: 12px; border-bottom: 1px solid #73816b20; }
+    @media (max-width: 700px) { .sidebar { display: none; } .map { right: 20px; } }
+  </style>
+</head>
+<body>
+  <div class="notice">本地布局预览 · 模拟角色与地图 · 非 Foundry 实机截图</div>
+  <div class="map"><div class="room one"></div><div class="room two"></div><div class="token">R</div></div>
+  <div class="sidebar">Foundry sidebar space<p>聊天与游戏侧栏预留区域</p><p>底栏不遮挡此区域</p></div>
+  <script type="module" src="compact-preview.js"></script>
+</body>
+</html>

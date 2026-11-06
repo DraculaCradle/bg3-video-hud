@@ -78,24 +78,81 @@ try {
       try { await callback(); outcomes.push({ name, passed: true }); }
       catch (error) { outcomes.push({ name, passed: false, error: error.message }); }
     };
-    for (const [width, height] of [[390, 844], [650, 900], [1440, 900]]) {
+    for (const [width, height] of [[390, 844], [650, 900], [1024, 576], [1024, 600], [1280, 600], [1280, 720], [1366, 720], [1440, 900], [1920, 1080]]) {
       await test(`HUD remains within ${width}x${height} viewport with reachable panels`, async () => {
         await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
         const layout = await evaluate(`new Promise(resolve => requestAnimationFrame(() => {
           const root = document.getElementById('bg3-video-hud');
           const rect = root.getBoundingClientRect();
-          const panels = root.querySelector('.bg3-video-hud-panels');
           resolve({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
-            width: root.clientWidth, scrollWidth: root.scrollWidth,
-            panelHeight: panels.clientHeight, panelOverflow: getComputedStyle(panels).overflowY,
-            columns: getComputedStyle(panels).gridTemplateColumns.split(' ').length });
+            height: rect.height, width: root.clientWidth, scrollWidth: root.scrollWidth,
+            lists: [...root.querySelectorAll('.bg3-video-hud-items')].map(list => {
+              const box = list.getBoundingClientRect(), first = list.querySelector('button')?.getBoundingClientRect();
+              return { height: box.height, left: box.left, right: box.right,
+                firstFits: !first || (first.top >= box.top && first.bottom <= box.bottom + 1) };
+            }),
+            controlsFit: [...root.querySelectorAll('.bg3-video-hud-controls button, footer button')].every(button => {
+              const b = button.getBoundingClientRect();
+              return b.left >= rect.left && b.right <= rect.right && b.top >= rect.top && b.bottom <= rect.bottom;
+            }) });
         }))`);
         assert.ok(layout.left >= 0 && layout.right <= width && layout.top >= 0 && layout.bottom <= height, JSON.stringify(layout));
         assert.ok(layout.scrollWidth <= layout.width + 1, 'HUD overflows horizontally');
-        assert.ok(layout.panelHeight > 0 && layout.panelOverflow === 'auto', 'Panels must have a reachable scroll area');
-        assert.equal(layout.columns, width <= 650 ? 1 : 3);
+        assert.ok(layout.controlsFit, 'Edit, Original HUD and rests must stay within the dock');
+        assert.equal(layout.lists.length, 3);
+        assert.ok(layout.lists.every(list => list.height > 0 && list.firstFits && list.left >= layout.left && list.right <= layout.right), JSON.stringify(layout));
+        if (height <= 720 && width > 650) assert.ok(layout.height <= 190, '720P HUD must leave at least 530px of map height');
       });
     }
+    await test('crowded 720P dock keeps fixed height and all three groups reachable by real wheel scrolling', async () => {
+      await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await evaluate('window.bg3LayoutTest.crowded()');
+      const lists = await evaluate(`[...document.querySelectorAll('#bg3-video-hud .bg3-video-hud-items')].map(list => {
+        const b = list.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2,
+          overflows: list.scrollHeight > list.clientHeight };
+      })`);
+      assert.ok(lists.every(list => list.overflows));
+      for (const { x, y } of lists) {
+        await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: 0, deltaY: 2000 }, sessionId);
+        await evaluate('new Promise(resolve => setTimeout(resolve, 80))');
+      }
+      const before = await evaluate('[...document.querySelectorAll("#bg3-video-hud .bg3-video-hud-items")].map(list => list.scrollTop)');
+      assert.ok(before.every(top => top > 0), JSON.stringify(before));
+      await evaluate('window.bg3LayoutTest.refresh()');
+      assert.deepEqual(await evaluate('[...document.querySelectorAll("#bg3-video-hud .bg3-video-hud-items")].map(list => list.scrollTop)'), before);
+      for (let index = 0; index < 3; index++) {
+        const reachable = await evaluate(`(() => {
+          const list = document.querySelectorAll('#bg3-video-hud .bg3-video-hud-items')[${index}];
+          const button = list.querySelector('li:last-child button');
+          button.focus(); const b = button.getBoundingClientRect();
+          return button.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2));
+        })()`);
+        assert.equal(reachable, true, `Last item in group ${index} must be clickable`);
+      }
+      assert.ok(await evaluate('document.getElementById("bg3-video-hud").getBoundingClientRect().height <= 190'));
+    });
+    await test('high-level spell filters remain keyboard reachable without enlarging the 720P dock', async () => {
+      await evaluate(`document.querySelector('#bg3-video-hud [data-action=filter-level][data-value="9"]').focus()`);
+      await press('Enter', 'Enter', 13);
+      assert.equal(await evaluate(`document.querySelector('#bg3-video-hud [data-action=filter-level][data-value="9"]').getAttribute('aria-pressed')`), 'true');
+      const hit = await evaluate(`(() => {
+        const button = document.querySelector('#bg3-video-hud [data-action=filter-level][data-value="9"]');
+        const b = button.getBoundingClientRect(); return button.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2));
+      })()`);
+      assert.equal(hit, true);
+    });
+    await test('720P edit controls remain reachable without returning to a tall item list', async () => {
+      await evaluate('document.querySelector("#bg3-video-hud [data-action=edit]").click()');
+      assert.ok(await evaluate('document.getElementById("bg3-video-hud").getBoundingClientRect().height <= 190'));
+      const controlsFit = await evaluate(`[...document.querySelectorAll('#bg3-video-hud .bg3-video-hud-items')].every(list => {
+        const controls = list.querySelector('.bg3-video-hud-edit-controls');
+        const a = controls.getBoundingClientRect(), b = list.getBoundingClientRect();
+        return a.left >= b.left && a.right <= b.right;
+      })`);
+      assert.equal(controlsFit, true);
+      await evaluate('window.bg3LayoutTest.reset()');
+      assert.ok(await evaluate('[...document.querySelectorAll("#bg3-video-hud .bg3-video-hud-items")].every(list => list.scrollTop === 0)'));
+    });
     await test('real Enter key activates the focused Edit button', async () => {
       await evaluate('document.querySelector("#bg3-video-hud button[data-action=edit]").focus()');
       await press('Enter', 'Enter', 13);
@@ -134,7 +191,7 @@ try {
   };
   await send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/tests/browser.html` }, sessionId);
   let result;
-  const deadline = Date.now() + 15000;
+  const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     const response = await send('Runtime.evaluate', { expression: `(() => {
       const element = document.getElementById('test-results');

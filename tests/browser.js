@@ -84,6 +84,18 @@ try {
   await test('document strings render as text rather than executable HTML', async () => {
     assert(root().textContent.includes(sword.name));
     assert(!root().querySelector('img[onerror]')); assert(!window.injected);
+    assert(find('use', 'sword').getAttribute('aria-label').includes(sword.name));
+    assert(find('use', 'sword').title.includes(sword.name));
+  });
+  await test('a missing item image leaves a visible fallback and the full accessible name', async () => {
+    sword.img = 'data:image/png;base64,invalid';
+    await Hooks.emit('updateActor', hero);
+    find('use', 'sword').querySelector('img')?.dispatchEvent(new Event('error'));
+    const initial = find('use', 'sword').querySelector('.bg3-video-hud-item-initial');
+    assert(initial.getBoundingClientRect().width > 0 && initial.getBoundingClientRect().height > 0);
+    assert(find('use', 'sword').getAttribute('aria-label').includes(sword.name));
+    delete sword.img;
+    await Hooks.emit('updateActor', hero);
   });
   await test('item/resource changes rerender without losing selected actor', async () => {
     hero.system.attributes.hp.value = 0;
@@ -235,6 +247,18 @@ try {
   });
   // The Node runner now drives actual viewport changes and keyboard events.
   await enable();
+  const crowded = actor('crowded', Array.from({ length: 180 }, (_, i) => item(`crowded-${i}`,
+    i < 60 ? 'weapon' : i < 120 ? 'feat' : 'spell', { level: i % 10 },
+    { name: `超长名称 Long equipment, feature or spell ${i}` })), {
+    name: '林间游侠（示例角色） Example Ranger — a very long character name',
+    system: { attributes: { hp: { value: 12, max: 12 }, ac: { value: 14 } },
+      spells: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`spell${i + 1}`, { value: 2, max: 3 }])),
+      resources: { primary: { label: 'Very long resource name', value: 2, max: 4 } } }
+  });
+  window.bg3LayoutTest = {
+    crowded: () => select(crowded), reset: () => select(hero),
+    refresh: () => Hooks.emit('updateActor', crowded)
+  };
   const interactions = await new Promise(resolve => {
     window.finishBG3BrowserInteractions = resolve;
     results.dataset.status = 'interactive';
@@ -245,6 +269,7 @@ try {
   }
   results.dataset.status = 'running';
   delete window.finishBG3BrowserInteractions;
+  delete window.bg3LayoutTest;
   await test('unload removes temporary suppression', async () => {
     await enable(); assert(root());
     window.dispatchEvent(new Event('beforeunload')); assert(!root()); assert(originalVisible());

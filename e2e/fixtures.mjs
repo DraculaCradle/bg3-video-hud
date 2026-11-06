@@ -40,7 +40,10 @@ export async function createDocuments({ lease }) {
     assertSafe();
     const player = game.users.find(u => u.name === 'Player1');
     if (!player || player.isGM) throw Error('fixture-player-unavailable');
-    const packs = [...game.packs.values()].filter(p => p.documentName === 'Actor' && p.collection.startsWith('dnd5e.'));
+    // The system lists fully advanced hero characters before its SRD monsters.
+    // Prefer the small NPC profiles for two disposable fixtures.
+    const packs = [...game.packs.values()].filter(p => p.documentName === 'Actor' && p.collection.startsWith('dnd5e.'))
+      .sort((a, b) => Number(b.collection === 'dnd5e.monsters') - Number(a.collection === 'dnd5e.monsters'));
     if (!packs.length) throw Error('fixture-srd-actor-pack-unavailable');
     let caster, martial, fallback;
     for (const pack of packs) {

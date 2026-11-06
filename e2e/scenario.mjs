@@ -162,6 +162,12 @@ export async function runScenario(live, info) {
     await cleanup(live);
     stage('Player1 login and exact world/version guard');
     await login(player, config, 'Player1', process.env.FOUNDRY_PLAYER_PASSWORD);
+    // V14 opens UserConfig for a player without an assigned character. The
+    // linked test tokens need no character assignment; close only our sheet.
+    await player.evaluate(async () => {
+      const sheet = game.user.sheet;
+      if (sheet?.rendered) await sheet.close();
+    });
     const actual = await guard(gm, config);
     verified(`Foundry ${await gm.evaluate(() => game.version)}; D&D5e ${actual.version}; ` + actual.modules.map(m => `${m.id} ${m.version}`).join('; '));
     stage('Validate fixtures and persist recovery snapshot');

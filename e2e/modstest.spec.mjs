@@ -22,7 +22,10 @@ test(process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'ModsTest fixture recovery o
         await prepareCreatedFixtures(guard, info);
       }
       await runScenario(guard, info);
-    } finally { await recoverCreatedFixtures(guard, cleanup); }
+    } finally {
+      await recoverOnlyFixtures(guard, cleanup);
+      info.annotations.push({ type: 'verified', description: 'Fixture recovery completed; both private recovery journals absent' });
+    }
   } catch (error) {
     if (error instanceof GuardError) info.annotations.push({ type: 'guard', description: error.reason });
     if (error.cleanupReason) info.annotations.push({ type: 'cleanup', description: error.cleanupReason });

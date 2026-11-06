@@ -26,17 +26,42 @@ export async function inspectSources() {
   const entries = [...index.value.values()];
   const entry = entries.find(i => /^(acolyte|mage|bandit|guard)$/i.test(i.name)) ?? entries[0];
   if (!/^[A-Za-z0-9]{16}$/.test(entry?._id ?? '')) return { index: 'no-valid-source-id' };
+  const missingId = crypto.randomUUID().replaceAll('-', '').slice(0, 16);
+  if (game.actors.has(missingId)) throw Error('source-probe-missing-id-collision');
   // Exact read-only request shape used by V14's native database backend.
-  const raw = await read(() => foundry.helpers.SocketInterface.dispatch('modifyDocument', {
+  // The empty world query uses an ID verified absent from this world's cache.
+  const request = operation => foundry.helpers.SocketInterface.dispatch('modifyDocument', {
     type: 'Actor', action: 'get', operation: { action: 'get', documentName: 'Actor',
-      query: { _id: entry._id }, pack: 'dnd5e.monsters', parent: null,
-      modifiedTime: Date.now(), broadcast: false }
-  }));
+      parent: null, modifiedTime: Date.now(), broadcast: false, ...operation }
+  });
+  const wireGet = () => new Promise(resolve => {
+    game.socket.emit('modifyDocument', { type: 'Actor', action: 'get', operation: {
+      action: 'get', documentName: 'Actor', parent: null, modifiedTime: Date.now(), broadcast: false,
+      query: { _id: entry._id }, pack: 'dnd5e.monsters'
+    } }, (...args) => resolve(args));
+  });
+  const [indexRpc, worldRead, raw] = await Promise.all([
+    read(() => request({ query: {}, pack: 'dnd5e.monsters', index: true, indexFields: ['name', 'type'] })),
+    read(() => request({ query: { _id: missingId } })),
+    read(wireGet)
+  ]);
   const wrapped = await read(() => pack.getDocument(entry._id));
   safe();
+  const kind = value => value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+  const rawArgs = raw.status === 'ok' ? raw.value : [];
+  const rawResponse = rawArgs.find(value => value && typeof value === 'object' && Array.isArray(value.result));
   return { index: 'ok', indexMs: index.durationMs, entryCount: entries.length,
+    socketSessionMatchesUser: game.socket.session?.userId === game.user.id,
+    indexRpc: indexRpc.status, indexRpcMs: indexRpc.durationMs,
+    indexRpcCount: indexRpc.status === 'ok' && Array.isArray(indexRpc.value?.result) ? indexRpc.value.result.length : null,
+    worldRead: worldRead.status, worldReadMs: worldRead.durationMs,
+    worldReadCount: worldRead.status === 'ok' && Array.isArray(worldRead.value?.result) ? worldRead.value.result.length : null,
     rawGet: raw.status, rawGetMs: raw.durationMs,
-    rawCount: raw.status === 'ok' && Array.isArray(raw.value?.result) ? raw.value.result.length : null,
+    rawAckArgs: raw.status === 'ok' ? rawArgs.length : null,
+    rawFirstKind: raw.status === 'ok' ? kind(rawArgs[0]) : null,
+    rawSecondKind: raw.status === 'ok' && rawArgs.length > 1 ? kind(rawArgs[1]) : null,
+    rawErrorPresent: raw.status === 'ok' ? rawArgs.some(value => !!value?.error) : null,
+    rawCount: rawResponse ? rawResponse.result.length : null,
     wrappedGet: wrapped.status, wrappedGetMs: wrapped.durationMs,
     wrappedFound: wrapped.status === 'ok' ? !!wrapped.value : null };
 }

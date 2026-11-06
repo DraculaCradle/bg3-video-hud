@@ -8,6 +8,8 @@
 
 [标准怪物合集验收运行 42143717040](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42143717040) 于 09:29:47 在同一只读文档阶段超时，报告明确通过断言 `Fixture recovery completed; both private recovery journals absent`，退出未报告异常。这次没有进入世界角色导入或 HUD 测试；仅调整合集优先级不足以解决读取障碍。下一步使用 `inspect_sources` 比较原始 Socket get 与 `pack.getDocument()`，不创建任何世界文档。
 
+[只读源诊断 42145551770](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42145551770) 于 09:46:18 报告本地索引 337 条、读取 1ms；原始 Actor Socket get 在约 34.8 秒超时，包装读取约 34.4 秒超时。缓存索引可读不能证明服务端索引 RPC 正常。下一步补测真实索引 RPC、空结果世界 Actor get、Socket 用户匹配布尔值及系统 Node 参考版本，仍不写世界文档。
+
 最新重试：[运行 42138235766](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42138235766) 已通过 GM 登录、世界身份、Foundry／D&D5e／依赖版本及启用状态守卫，进入临时规则书角色／token 准备阶段后在 10 分钟上限超时。报告于 08:48:45 生成，`lastStage=Import temporary SRD actors and create marked tokens`，超时后的会话守卫锁存，无法确认临时文档清理完成；不能宣称本轮未创建角色或已还原数据。公开账号状态随后核实 GM／Player1 均离线，非测试账号在线数为 0。
 
 已使用新增 `recover_only` 入口和原私有日志／唯一标记完成恢复验证。以下表格保留之前的诊断背景；关于旧轮次“未创建角色”的描述不适用于本次超时。

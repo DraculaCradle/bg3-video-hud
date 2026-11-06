@@ -2,6 +2,7 @@
 """Read only browser process metadata owned by this restricted runner account."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -35,7 +36,16 @@ def inventory():
             pass  # A process may exit while being inventoried.
         browsers.append({'pid': int(pid), 'parentPid': int(parent), 'name': name,
                          'ageSeconds': int(age), 'playwrightBrowser': marked})
-    return {'readOnly': True, 'runnerUid': uid, 'browsers': browsers}
+    version = None
+    try:
+        result = subprocess.run(['/usr/bin/node', '--version'], capture_output=True, text=True, timeout=5)
+        value = result.stdout.strip()
+        if result.returncode == 0 and re.fullmatch(r'v\d+\.\d+\.\d+', value):
+            version = value
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    # Reference version of the system binary, not proof of a running PID's version.
+    return {'readOnly': True, 'runnerUid': uid, 'systemNodeVersion': version, 'browsers': browsers}
 
 
 if __name__ == '__main__':

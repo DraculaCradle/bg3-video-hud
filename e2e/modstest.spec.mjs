@@ -20,7 +20,9 @@ test(process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only insp
       const result = await guard.gm.evaluate(inspectSources);
       info.annotations.push({ type: 'observation', description: JSON.stringify(result) });
       await guard.check();
-      if (result.rawGet !== 'ok' || result.wrappedGet !== 'ok' || result.rawCount !== 1 || !result.wrappedFound) {
+      if (result.indexRpc !== 'ok' || result.worldRead !== 'ok' || result.worldReadCount !== 0
+          || !result.socketSessionMatchesUser || result.rawGet !== 'ok' || result.wrappedGet !== 'ok'
+          || result.rawCount !== 1 || !result.wrappedFound) {
         throw new GuardError('blocked', 'srd-source-inspection-unavailable');
       }
       return;

@@ -26,15 +26,27 @@ export async function inspectSources() {
   const entries = [...index.value.values()];
   const entry = entries.find(i => /^(acolyte|mage|bandit|guard)$/i.test(i.name)) ?? entries[0];
   if (!/^[A-Za-z0-9]{16}$/.test(entry?._id ?? '')) return { index: 'no-valid-source-id' };
+  const missingId = crypto.randomUUID().replaceAll('-', '').slice(0, 16);
+  if (game.actors.has(missingId)) throw Error('source-probe-missing-id-collision');
   // Exact read-only request shape used by V14's native database backend.
-  const raw = await read(() => foundry.helpers.SocketInterface.dispatch('modifyDocument', {
+  // The empty world query uses an ID verified absent from this world's cache.
+  const request = operation => foundry.helpers.SocketInterface.dispatch('modifyDocument', {
     type: 'Actor', action: 'get', operation: { action: 'get', documentName: 'Actor',
-      query: { _id: entry._id }, pack: 'dnd5e.monsters', parent: null,
-      modifiedTime: Date.now(), broadcast: false }
-  }));
+      parent: null, modifiedTime: Date.now(), broadcast: false, ...operation }
+  });
+  const [indexRpc, worldRead, raw] = await Promise.all([
+    read(() => request({ query: {}, pack: 'dnd5e.monsters', index: true, indexFields: ['name', 'type'] })),
+    read(() => request({ query: { _id: missingId } })),
+    read(() => request({ query: { _id: entry._id }, pack: 'dnd5e.monsters' }))
+  ]);
   const wrapped = await read(() => pack.getDocument(entry._id));
   safe();
   return { index: 'ok', indexMs: index.durationMs, entryCount: entries.length,
+    socketSessionMatchesUser: game.socket.session?.userId === game.user.id,
+    indexRpc: indexRpc.status, indexRpcMs: indexRpc.durationMs,
+    indexRpcCount: indexRpc.status === 'ok' && Array.isArray(indexRpc.value?.result) ? indexRpc.value.result.length : null,
+    worldRead: worldRead.status, worldReadMs: worldRead.durationMs,
+    worldReadCount: worldRead.status === 'ok' && Array.isArray(worldRead.value?.result) ? worldRead.value.result.length : null,
     rawGet: raw.status, rawGetMs: raw.durationMs,
     rawCount: raw.status === 'ok' && Array.isArray(raw.value?.result) ? raw.value.result.length : null,
     wrappedGet: wrapped.status, wrappedGetMs: wrapped.durationMs,

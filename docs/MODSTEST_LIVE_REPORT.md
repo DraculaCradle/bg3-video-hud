@@ -2,6 +2,11 @@
 
 状态：**超时后的只恢复已通过；HUD 实机验收尚未通过**。日期：2026-11-06（中国标准时间 UTC+8）。
 
+现已核实服务器发布的 Foundry V14 客户端要求 Chromium 至少 146；旧 Playwright 1.56.1 自带 Chromium 141，低于要求。测试工具升级为固定 Playwright 1.65.0／Chromium 158.0.8127.18，登录前检查实际版本及 WebGL2。本地新版预检已通过，尚待 runner 实机验证，不能据此宣称解决了 RPC 超时。
+
+[只读回调诊断 42147966129](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42147966129) 于 10:09:25 报告 Socket 用户匹配；真实索引、空结果世界 Actor 查询及直接 Socket 回调均约 34.8 秒超时，原生包装读取约 34.3 秒超时；未捕获客户端错误类别。没有世界文档写入，报告无退出清理异常。系统 Node 二进制参考版本为 v24.18.0；这不是对运行中 Foundry PID 所加载版本的证明。旧浏览器结果不足以归因于服务器，先使用受支持浏览器复核。
+
+
 [只恢复运行 42140503885](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42140503885) 于 09:00:59 生成 `mode=recovery-only`、`status=passed` 报告，断言待恢复日志已处理并确认不存在，未创建新角色或开始 HUD 测试；正常退出确认也通过。此结果只证明本轮恢复成功，不能替代 HUD 验收。
 
 [后续验收运行 42142183072](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42142183072) 于 09:16:16 明确报告 `fixture-source-read-timeout:actor-source-document`，已定位到规则书角色文档的只读阶段，尚未进入世界角色导入或 HUD 测试，后续恢复／退出未报告异常。系统安装顺序将 heroes 排在 monsters 之前；准备代码现改为优先标准怪物合集，保留只读超时和所有守卫，待下一轮实机验证。

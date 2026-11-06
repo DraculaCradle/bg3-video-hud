@@ -29,7 +29,13 @@ jobs:
       - name: Upload complete assets before publishing
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/bg3-video-hud.zip dist/module.json dist/deploy_linux.py dist/SHA256SUMS --verify-tag --generate-notes --draft
+        run: |
+          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          notes_args=(--generate-notes)
+          if [ -f "$notes_file" ]; then
+            notes_args=(--notes-file "$notes_file")
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/bg3-video-hud.zip dist/module.json dist/deploy_linux.py dist/SHA256SUMS --verify-tag --title "BG3 Video HUD $GITHUB_REF_NAME" "${notes_args[@]}" --draft
       - name: Publish stable release
         env:
           GH_TOKEN: ${{ github.token }}

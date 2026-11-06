@@ -2,7 +2,7 @@
   "id": "bg3-video-hud",
   "title": "BG3 Video HUD",
   "description": "An independent, player-focused HUD alongside BG3 Inspired HUD.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "authors": [{ "name": "BG3 Video HUD contributors" }],
   "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
   "relationships": {
@@ -16,5 +16,5 @@
   "styles": ["styles/video-hud.css"],
   "url": "https://github.com/DraculaCradle/bg3-video-hud",
   "manifest": "https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json",
-  "download": "https://github.com/DraculaCradle/bg3-video-hud/releases/download/v0.1.0/bg3-video-hud.zip"
+  "download": "https://github.com/DraculaCradle/bg3-video-hud/releases/download/v0.1.1/bg3-video-hud.zip"
 }

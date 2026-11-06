@@ -161,13 +161,13 @@ V14 登录使用 `#join-game-form` 内大小写敏感的 `userId` 字段和提�
 
 2026-11-05 实机只读检查确认现有世界标题为 `ModsTest`、ID 为 `modstest`，配置 `FOUNDRY_WORLD_ID` 时使用后者。原生退出会发起异步跳转；测试等待 `/join` 请求完成后关闭自己的全部页面与连接，再从全新匿名上下文确认账号恢复可选，最后关闭匿名探测页。旧认证 Cookie 的 join 页面可能保持账号活动，不能在关闭该连接之前把其选项当作释放证明。未确认释放时报告 `test-session-release-unconfirmed`，不冒充退出成功，也不强制清除其他会话。
 
-浏览器预检还必须通过 WebGL2 canvas 创建，失败时在任何登录或部署之前停止。脱敏报告中的 `guardReason` 保留主失败原因，`cleanupReason` 单独记录退出失败阶段（`native-navigation`、`join-form` 或 `account-availability`）；退出异常不会覆盖更早的版本/世界/认证错误。若退出未确认，先检查已有 GM 页面，不反复提交登录或重启服务。
+Playwright 固定为 1.65.0；Foundry V14 发布的客户端要求 Chromium 至少 146，预检先检查实际浏览器版本，再通过 WebGL2 canvas 创建，失败时在任何登录或部署之前停止。脱敏报告中的 `guardReason` 保留主失败原因，`cleanupReason` 单独记录退出失败阶段（`native-navigation`、`join-form` 或 `account-availability`）；退出异常不会覆盖更早的版本/世界/认证错误。若退出未确认，先检查已有 GM 页面，不反复提交登录或重启服务。
 
 版本守卫失败还会报告 Foundry／D&D5e 及两个依赖的数字版本、依赖启用布尔值。只记录固定模组 ID 和经过校验的版本，不输出其他设置或世界文档；校验仍然要求 Foundry 14、D&D5e 6.0.6 和已启用的兼容依赖。
 
 若所有人工页面已关闭但 GM 仍显示在线，可在只测试工作流勾选 `diagnostics_only`。这只清点受限 runner 账号名下的 Chromium 进程，输出 PID、父 PID、运行时长及是否具有 Playwright 浏览器标记；不启动浏览器、不请求 Foundry、不使用测试密码、不终止任何进程，也不要求角色或 token 配置。原始命令参数不输出。结果保存在 `runner-browser-inventory.json`，它属于进程诊断，不是 HUD 实机验收通过证明。普通测试也会在启动浏览器前记录同样清单。
 
-名称检查必须包括固定 Playwright 1.56.1 实际使用的 `headless_shell`，以及 Chromium／Chrome 名称；只检查 chrome 字样会漏掉该版本的无界面浏览器，不能用这种空清单排除遗留进程。
+名称检查必须包括旧版 Playwright 1.56.1 使用的 `headless_shell` 及新版 `chrome-headless-shell`，以及 Chromium／Chrome 名称；只检查 chrome 字样会漏掉该版本的无界面浏览器，不能用这种空清单排除遗留进程。
 
 ## 实机超时后的只恢复入口
 

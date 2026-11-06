@@ -113,6 +113,7 @@ export class VideoHUD {
 
     const filters = node('div', undefined, 'bg3-video-hud-filters');
     const activations = node('nav', undefined, 'bg3-video-hud-activations');
+    activations.dataset.scrollGroup = 'activations';
     activations.setAttribute('aria-label', 'Activation filters, not turn resource counters');
     for (const [key, label] of [['all', 'All actions'], ['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction']]) {
       const control = button(label, 'filter-action', label, { value: key });
@@ -162,13 +163,14 @@ export class VideoHUD {
     // Hide only the upstream DOM shell, after our replacement is mounted.
     // Never toggle upstream settings or touch its persistent player flags.
     document.body.classList.add('bg3-video-hud-active');
-    if (focusKey) [...root.querySelectorAll('button, ul[tabindex]')]
+    if (focusKey) [...root.querySelectorAll('button, [data-scroll-group][tabindex]')]
       .find(b => JSON.stringify(b.dataset) === focusKey)?.focus({ preventScroll: true });
   }
 
   spellControls(prefs) {
     const box = node('div', undefined, 'bg3-video-hud-spells');
     const nav = node('nav');
+    nav.dataset.scrollGroup = 'spell-levels';
     nav.setAttribute('aria-label', 'Spell level');
     for (const level of ['all', ...spellLevels(this.actor)]) {
       const text = level === 'all' ? 'All' : level === 0 ? '0 · Cantrips' : String(level);
@@ -186,6 +188,8 @@ export class VideoHUD {
       ? pools.map(p => `${p.label}: ${p.value ?? '?'}/${p.max ?? '?'}`).join(' · ')
       : 'No spell-slot pools. Cantrips and innate uses use system rules.');
     slots.title = slots.textContent;
+    slots.dataset.scrollGroup = 'spell-pools';
+    slots.tabIndex = 0;
     box.append(slots);
     return box;
   }

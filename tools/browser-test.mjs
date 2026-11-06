@@ -56,6 +56,7 @@ try {
     pending.set(key, { resolve, reject, timer });
     socket.send(JSON.stringify({ id: key, method, params, ...(sessionId ? { sessionId } : {}) }));
   });
+  console.log(`Browser: ${(await send('Browser.getVersion')).product}`);
   const { targetInfos } = await send('Target.getTargets');
   const targetId = targetInfos.find(target => target.type === 'page')?.targetId;
   if (!targetId) throw new Error('Chromium created no page');

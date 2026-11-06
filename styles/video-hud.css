@@ -22,7 +22,7 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
   font: inherit; line-height: 1.2; box-shadow: none;
 }
 .bg3-video-hud button:hover { border-color: var(--video-gold); background: #3b3931; }
-.bg3-video-hud button:focus-visible, .bg3-video-hud ul:focus-visible { outline: 2px solid #f8d68b; outline-offset: -2px; }
+.bg3-video-hud button:focus-visible, .bg3-video-hud [data-scroll-group]:focus-visible { outline: 2px solid #f8d68b; outline-offset: -2px; }
 .bg3-video-hud button[aria-pressed='true'] { background: #55482e; border-color: var(--video-gold); }
 .bg3-video-hud button:disabled { opacity: .55; cursor: default; }
 .bg3-video-hud-header {

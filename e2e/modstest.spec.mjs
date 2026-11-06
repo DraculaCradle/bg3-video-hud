@@ -25,7 +25,10 @@ test(process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'ModsTest read-only client i
   try {
     const config = settings();
     guard = await openGuard(browser, config, { beforeLogin: async page => {
-      if (config.clientProbeOnly) observer = await observeStatusFrames(page);
+      if (config.clientProbeOnly) {
+        try { observer = await observeStatusFrames(page); }
+        catch { throw new GuardError('blocked', 'client-status-observer-unavailable'); }
+      }
     } });
     const installed = await guard.check();
     // Recovery must remain possible across upgrades. Diagnostics/acceptance may

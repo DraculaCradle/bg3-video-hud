@@ -29,6 +29,7 @@ export async function inspectClient({ timeoutMs = 10_000 } = {}) {
     databaseConstructor: backend?.constructor,
     compendiumGetDocument: packPrototype?.getDocument,
     compendiumGetDocuments: packPrototype?.getDocuments,
+    worldStatus: game.constructor?.getWorldStatus,
     socketEmit: socket.emit
   }).map(async ([name, fn]) => [name, await fingerprint(fn)])));
   safe();

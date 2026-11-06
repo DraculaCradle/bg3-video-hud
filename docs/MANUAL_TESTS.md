@@ -1,6 +1,6 @@
 # Foundry v14 / D&D5e 6.0.6 acceptance
 
-Status: **NOT RUN**. The administrator has identified a remote test server and the ModsTest world, but this task's cloud proxy rejects HTTPS CONNECT to the server with HTTP 403. No remote installation or in-game test has been performed. No in-game acceptance result is implied by the automated suite or manifest compatibility metadata. See [the test report](TEST_REPORT.md) for the completed local checks and remaining access prerequisites.
+Status: **Full live acceptance remains incomplete.** The existing ModsTest instance has the module installed; automated live document reads are currently blocked by missing Socket acknowledgements. See [the current live report](MODSTEST_LIVE_REPORT.md). The compact UI revision below is verified with local Chromium fixtures, not yet installed or certified in Foundry; see [the 720P report](COMPACT_HUD.md). Earlier proxy failures in [the historical test report](TEST_REPORT.md) are not the current diagnosis.
 
 Use a backed-up disposable world with two player-owned characters (martial and spellcaster, including a pact caster or multiclass test actor), a separate GM account, and Core/D&D5e HUD 0.8.0. Record exact Foundry build, system/module versions, browser, user role, steps, expected/observed result and console errors for every failure. Do not include credentials, private videos or player data in reports.
 
@@ -32,6 +32,9 @@ Use a backed-up disposable world with two player-owned characters (martial and s
 
 ## Filtering, persistence and accessibility
 
+- [ ] At 1280×720 and 1366×720, verify the compact HUD stays at 188 CSS px high, with the original-HUD control and both rest buttons visible. Also check 1280×600 and a 125% zoom/effective 1024×576 viewport. Confirm the real Foundry sidebar, toolbars, chat and system dialogs remain usable.
+- [ ] With many equipment items, features and spells, wheel-scroll each group to its last item. Updates from another client should preserve each group's scroll position; switching actors should start at the top. Check full bilingual names in hover hints, keyboard accessible names, missing images and use-count badges.
+- [ ] Verify spell levels through level 9, pact/regular slot summaries and Edit controls remain reachable without increasing the dock height. Explicit editing may require scrolling; no item should be usable while editing.
 - [ ] All owned items appear in Equipment/Features/Spells with stable IDs even when names collide. Levels 0–highest and separate regular/pact slot counts match the character sheet, including depleted pools.
 - [ ] Action/Bonus Action/Reaction filter activities, including multi-activity items, without spending turn resources. Filters reset on actor change.
 - [ ] Enter Edit: hide/show items, pin/unpin spells, reorder via drag and both arrow buttons. Hidden and unpinned items stay discoverable there. Exiting Edit enables use again. Pinned-only and level filters compose correctly.

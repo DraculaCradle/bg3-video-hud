@@ -1,9 +1,19 @@
 import { test } from '@playwright/test';
-import { openGuard, GuardError } from './live-guard.mjs';
+import { openGuard, GuardError, validateModuleVersion } from './live-guard.mjs';
 import { settings, cleanup, runScenario } from './scenario.mjs';
 import { prepareCreatedFixtures, recoverCreatedFixtures, recoverOnlyFixtures } from './fixtures.mjs';
 import { inspectSources } from './source-probe.mjs';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+
+const expectedVersion = JSON.parse(readFileSync(new URL('../module.json', import.meta.url))).version;
+function checkoutAssets() {
+  return Object.fromEntries(['scripts', 'styles'].flatMap(dir =>
+    readdirSync(new URL(`../${dir}/`, import.meta.url)).filter(name => /\.(js|css)$/.test(name)).map(name => {
+      const path = `${dir}/${name}`;
+      return [path, createHash('sha256').update(readFileSync(new URL(`../${path}`, import.meta.url))).digest('hex')];
+    })));
+}
 
 test(process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only inspection (no HUD acceptance)'
   : process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'ModsTest fixture recovery only (no HUD acceptance)'
@@ -12,6 +22,13 @@ test(process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only insp
   info.annotations.push({ type: 'stage', description: 'Authenticate existing GM and verify world/session guard' });
   try {
     guard = await openGuard(browser, settings());
+    const installed = await guard.check();
+    // Recovery must remain possible across upgrades. Diagnostics/acceptance may
+    // never turn an older installed module into a result for the new release.
+    if (!guard.config.recoveryOnly) {
+      validateModuleVersion(installed, expectedVersion);
+      info.annotations.push({ type: 'verified', description: `Installed module matches checkout v${expectedVersion}` });
+    }
     if (guard.config.sourceProbeOnly) {
       if (existsSync(guard.config.journal) || existsSync(guard.config.fixtureJournal)) {
         throw new GuardError('blocked', 'recover-pending-fixtures-before-source-inspection');
@@ -42,6 +59,8 @@ test(process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only insp
     }
     await recoverCreatedFixtures(guard, cleanup);
     try {
+      await guard.assets(checkoutAssets());
+      info.annotations.push({ type: 'verified', description: 'Served runtime JS/CSS match this checkout before fixture creation' });
       if (guard.config.createFixtures) {
         info.annotations.push({ type: 'stage', description: 'Import temporary SRD actors and create marked tokens' });
         await prepareCreatedFixtures(guard, info);

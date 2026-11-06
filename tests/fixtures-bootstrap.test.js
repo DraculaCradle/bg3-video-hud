@@ -142,6 +142,16 @@ test('a stalled source index times out before importing or mutating world docume
   assert.equal(s.writes.length, 0);
   assert.deepEqual([...s.actors.keys()], ['original-actor']);
 });
+test('standard SRD monsters are selected before unrelated advanced hero profiles', async t => {
+  const s = setup(t);
+  const hero = { collection: 'dnd5e.heroes', documentName: 'Actor',
+    getIndex: () => assert.fail('the two suitable NPC sources are already available') };
+  game.packs = new Map([[hero.collection, hero], ...game.packs]);
+  const result = await createDocuments({ lease: s.lease });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.sources, ['dnd5e.monsters', 'dnd5e.monsters']);
+  await removeDocuments({ lease: s.lease });
+});
 
 function recovery(t, state, lease) {
   const directory = mkdtempSync(join(tmpdir(), 'bg3-fixture-recovery-'));

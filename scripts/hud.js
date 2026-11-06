@@ -29,6 +29,15 @@ export class VideoHUD {
     this.busy = new Set();
     this.status = '';
     this.destroyed = false;
+    // A focused overflow control must remain visible when zoom/resizing changes
+    // the viewport. CSS performs the sizing; this never renders or writes flags.
+    this.keepFocusVisible = () => {
+      const active = document.activeElement;
+      if (this.root?.contains(active) && active.closest('[data-scroll-group]')) {
+        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    };
+    globalThis.addEventListener('resize', this.keepFocusVisible);
   }
 
   clear() {
@@ -39,7 +48,11 @@ export class VideoHUD {
     document.body.classList.remove('bg3-video-hud-active');
   }
 
-  destroy() { this.destroyed = true; this.clear(); }
+  destroy() {
+    this.destroyed = true;
+    globalThis.removeEventListener('resize', this.keepFocusVisible);
+    this.clear();
+  }
 
   setActor(actor, token = null) {
     if (this.destroyed) return;
@@ -287,13 +300,17 @@ export class VideoHUD {
         const target = siblings[index + Number(direction)];
         if (!target) return;
         // Moving down inserts after the following item; moving up inserts before it.
-        return this.save(p => {
+        await this.save(p => {
           const order = itemsFor(actor, p, { edit: true }).map(i => i.id);
           if (Number(direction) < 0) return { ...p, order: reorder(order, itemId, target.id) };
           const from = order.indexOf(itemId), to = order.indexOf(target.id);
           order.splice(from, 1); order.splice(to, 0, itemId);
           return { ...p, order };
         });
+        // Deliberate keyboard/button ordering reveals the moved control after
+        // all save-triggered renders. Unrelated updates preserve wheel position.
+        if (this.actor?.uuid === actor.uuid) this.keepFocusVisible();
+        return;
       }
       case 'use': if (!this.edit) return this.perform(`${actor.uuid}:${itemId}`, () => useOwnedItem(actor, itemId, this.user, event)); break;
       case 'rest': return this.perform(`${actor.uuid}:rest`, () => restActor(actor, value, this.user));

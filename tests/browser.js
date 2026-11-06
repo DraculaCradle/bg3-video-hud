@@ -257,7 +257,7 @@ try {
   });
   window.bg3LayoutTest = {
     crowded: () => select(crowded), reset: () => select(hero),
-    refresh: () => Hooks.emit('updateActor', crowded)
+    refresh: () => Hooks.emit('updateActor', crowded), writes: () => user.writes.length, enable
   };
   const interactions = await new Promise(resolve => {
     window.finishBG3BrowserInteractions = resolve;

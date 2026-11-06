@@ -13,6 +13,7 @@ files += sorted((root / 'scripts').glob('*.js'))
 files += sorted((root / 'styles').glob('*.css'))
 files += [root / 'docs' / name for name in ['MANUAL_TESTS.md', 'API_NOTES.md', 'DEPLOYMENT.md', 'TEST_REPORT.md', 'MODSTEST_SETUP.md', 'MODSTEST_LIVE_REPORT.md', 'COMPACT_HUD.md']]
 files += [root / 'docs' / 'images' / 'compact-720p.png']
+files += sorted((root / 'docs' / 'images').glob('responsive-*.jpg'))
 output = root / 'dist'
 output.mkdir(exist_ok=True)
 archive = output / 'bg3-video-hud.zip'

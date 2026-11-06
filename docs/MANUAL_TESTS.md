@@ -32,7 +32,8 @@ Use a backed-up disposable world with two player-owned characters (martial and s
 
 ## Filtering, persistence and accessibility
 
-- [ ] At 1280×720 and 1366×720, verify the compact HUD stays at 188 CSS px high, with the original-HUD control and both rest buttons visible. Also check 1280×600 and a 125% zoom/effective 1024×576 viewport. Confirm the real Foundry sidebar, toolbars, chat and system dialogs remain usable.
+- [ ] Resize continuously through 1280×720, 1366×768, 1920×1080, 2560×1440 and 3840×2160. Confirm the dock, icons, text, portrait and gaps grow smoothly and remain bounded; at 720P it should stay compact. Keep the original-HUD control and both rests visible. Check short browser windows and the real Foundry sidebar, toolbars, chat and system dialogs.
+- [ ] On actual displays, test browser zoom 100%/125%/150%/200%, OS scaling and moving between monitors. Record CSS viewport, DPR and observed results separately. Automated effective-viewport/DPR emulation does not certify these physical configurations. In particular, verify 640×360 effective CSS space still allows editing, sorting and returning to the original HUD, and a focused high-level spell remains visible after zoom/resize.
 - [ ] With many equipment items, features and spells, wheel-scroll each group to its last item. Updates from another client should preserve each group's scroll position; switching actors should start at the top. Check full bilingual names in hover hints, keyboard accessible names, missing images and use-count badges.
 - [ ] Verify spell levels through level 9, pact/regular slot summaries and Edit controls remain reachable without increasing the dock height. Explicit editing may require scrolling; no item should be usable while editing.
 - [ ] All owned items appear in Equipment/Features/Spells with stable IDs even when names collide. Levels 0–highest and separate regular/pact slot counts match the character sheet, including depleted pools.

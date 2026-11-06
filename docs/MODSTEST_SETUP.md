@@ -183,8 +183,11 @@ Player1 未分配角色时，V14 会自动打开账号配置窗口。测试只�
 
 ## 只读规则书读取诊断
 
-`inspect_sources` 模式保留同样的 GM／世界／会话／版本守卫，仅比较已安装 `dnd5e.monsters` 的索引、单条 Actor 原始 Socket get 响应和 `pack.getDocument()` 包装读取。每次请求上限 30 秒，报告只包含状态、时长和数量，不保存文档内容、用户 ID、Cookie 或错误原文。它不创建角色、不运行 HUD、不恢复或删除文档；若已有 pending journal，先停止，要求单独执行 `recover_only`。
+`inspect_sources` 模式保留同样的 GM／世界／会话／版本守卫，仅比较已安装 `dnd5e.monsters` 的索引、单条 Actor 原始 Socket get 响应和 `pack.getDocument()` 包装读取。每次请求上限 30 秒，报告只包含状态、时长、数量、直接回调参数的类型／个数和允许的客户端错误类别，不保存文档内容、用户 ID、Cookie 或错误原文。它不创建角色、不运行 HUD、不恢复或删除文档；若已有 pending journal，先停止，要求单独执行 `recover_only`。
 
 该模式另发起真实索引 RPC 和当前 ModsTest 世界中一个已确认不存在的随机 Actor ID 的空结果 get 查询，并仅记录 Socket 会话是否匹配 GM 的布尔值。这样可区分本地缓存、合集读取和通用文档接口。进程诊断中的 `systemNodeVersion` 仅为 `/usr/bin/node --version` 的只读参考值，不证明现有 Foundry PID 实际加载了该版本，也不自动升级 Node 或重启服务。
 
 模式优先级为纯 runner 诊断、规则书只读诊断、只恢复、正常验收。只读规则书模式会禁用创建和恢复开关，报告标为 `source-inspection`，不能用其绿色状态代表 HUD 通过。自动部署强制禁用所有诊断／只恢复模式。
+
+
+2026-11-06 新版浏览器复核仍在文档 RPC 读取阶段超时；详见 [实机报告](MODSTEST_LIVE_REPORT.md)。先由管理员只读核查既有服务／代理的对应时段日志，不重复创建 fixture、提升 runner 权限或自动重启。读取恢复后先跑 `inspect_sources`，再做完整验收。

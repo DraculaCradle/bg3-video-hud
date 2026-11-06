@@ -370,6 +370,18 @@ class ConfigurationPolicy(unittest.TestCase):
             with self.assertRaises(ValueError):
                 live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest', 'MODSTEST_TOKEN_IDS': tokens})
 
+    def test_recovery_only_needs_no_token_ids_and_overrides_creation(self):
+        result = live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',
+            'MODSTEST_RECOVER_ONLY': 'true', 'MODSTEST_CREATE_FIXTURES': 'true'})
+        self.assertEqual(result['MODSTEST_RECOVER_ONLY'], 'true')
+        self.assertEqual(result['MODSTEST_CREATE_FIXTURES'], 'false')
+        self.assertEqual(result['MODSTEST_TOKEN_IDS'], '')
+
+    def test_recovery_only_does_not_accept_malformed_provided_token_ids(self):
+        with self.assertRaises(ValueError):
+            live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',
+                'MODSTEST_RECOVER_ONLY': 'true', 'MODSTEST_TOKEN_IDS': 'bad'})
+
     def test_tests_only_metadata_rejects_snapshot_state_inside_checkout(self):
         with self.assertRaises(ValueError):
             live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',

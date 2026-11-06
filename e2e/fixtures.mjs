@@ -235,3 +235,15 @@ export async function prepareCreatedFixtures(live, info) {
   await live.gm.waitForFunction(id => globalThis.canvas?.ready && canvas.scene?.id === id, result.scene, { timeout: 30_000 });
   info.annotations.push({ type: 'verified', description: 'Two temporary actors imported from existing D&D5e SRD packs; Player1 ownership and linked tokens created' });
 }
+
+export async function recoverOnlyFixtures(live, restoreSnapshot) {
+  await recoverCreatedFixtures(live, restoreSnapshot);
+  await live.check();
+  if (existsSync(live.config.journal)) {
+    if (live.config.tokens?.length !== 2) throw new GuardError('blocked', 'recovery-token-metadata-required');
+    await restoreSnapshot(live);
+  }
+  if (existsSync(live.config.journal) || existsSync(live.config.fixtureJournal)) {
+    throw new GuardError('blocked', 'fixture-recovery-incomplete');
+  }
+}

@@ -1,13 +1,20 @@
 import { test } from '@playwright/test';
 import { openGuard, GuardError } from './live-guard.mjs';
 import { settings, cleanup, runScenario } from './scenario.mjs';
-import { prepareCreatedFixtures, recoverCreatedFixtures } from './fixtures.mjs';
+import { prepareCreatedFixtures, recoverCreatedFixtures, recoverOnlyFixtures } from './fixtures.mjs';
 
-test('Gamemaster and Player1: HUD, shared-instance safety and fixture restoration', async ({ browser }, info) => {
+test(process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'ModsTest fixture recovery only (no HUD acceptance)'
+  : 'Gamemaster and Player1: HUD, shared-instance safety and fixture restoration', async ({ browser }, info) => {
   let guard;
   info.annotations.push({ type: 'stage', description: 'Authenticate existing GM and verify world/session guard' });
   try {
     guard = await openGuard(browser, settings());
+    if (guard.config.recoveryOnly) {
+      info.annotations.push({ type: 'stage', description: 'Recover marked temporary documents and saved fixture data only' });
+      await recoverOnlyFixtures(guard, cleanup);
+      info.annotations.push({ type: 'verified', description: 'Pending fixture journals recovered and absent; no new actors or HUD test started' });
+      return;
+    }
     await recoverCreatedFixtures(guard, cleanup);
     try {
       if (guard.config.createFixtures) {

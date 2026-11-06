@@ -17,11 +17,18 @@ test(process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only insp
         throw new GuardError('blocked', 'recover-pending-fixtures-before-source-inspection');
       }
       info.annotations.push({ type: 'stage', description: 'Inspect installed SRD sources without world writes' });
-      const result = await guard.gm.evaluate(inspectSources);
+      const names = new Set(), allowedNames = new Set(['Error', 'TypeError', 'RangeError', 'SyntaxError', 'ReferenceError']);
+      const onError = error => names.add(allowedNames.has(error.name) ? error.name : 'OtherError');
+      guard.gm.on('pageerror', onError);
+      let result;
+      try { result = await guard.gm.evaluate(inspectSources); }
+      finally { guard.gm.off('pageerror', onError); }
+      result.clientErrorNames = [...names];
       info.annotations.push({ type: 'observation', description: JSON.stringify(result) });
       await guard.check();
       if (result.indexRpc !== 'ok' || result.worldRead !== 'ok' || result.worldReadCount !== 0
           || !result.socketSessionMatchesUser || result.rawGet !== 'ok' || result.wrappedGet !== 'ok'
+          || result.rawAckArgs !== 1 || result.rawFirstKind !== 'object' || result.rawErrorPresent
           || result.rawCount !== 1 || !result.wrappedFound) {
         throw new GuardError('blocked', 'srd-source-inspection-unavailable');
       }

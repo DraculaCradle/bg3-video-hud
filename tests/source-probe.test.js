@@ -13,7 +13,9 @@ function setup(t) {
     getDocument: async () => { reads.push('wrapped'); return { name: 'PRIVATE_SOURCE_TEXT' }; } };
   globalThis.game = { world: { id: 'modstest', title: 'ModsTest' },
     user: { id: 'gm', isGM: true, name: 'Gamemaster' }, users: [], actors: new Map(),
-    socket: { connected: true, session: { userId: 'gm' } },
+    socket: { connected: true, session: { userId: 'gm' }, emit: (event, request, callback) => {
+      requests.push({ event, request }); callback({ result: [{ _id: id, name: 'PRIVATE_SOURCE_TEXT' }] });
+    } },
     packs: new Map([['dnd5e.monsters', pack]]) };
   globalThis.foundry = { helpers: { SocketInterface: { dispatch: async (event, request) => {
     requests.push({ event, request });
@@ -44,4 +46,12 @@ test('a foreign active session prevents source inspection before any query', asy
   game.users.push({ name: 'Other', active: true });
   await assert.rejects(inspectSources(), /source-probe-guard-denied/);
   assert.deepEqual(s.reads, []); assert.deepEqual(s.requests, []);
+});
+test('wire callback shape is observed without interpreting or exposing an error-first payload', async t => {
+  setup(t);
+  game.socket.emit = (_event, _request, callback) => callback(null, { result: [{ name: 'PRIVATE_SOURCE_TEXT' }] });
+  const result = await inspectSources();
+  assert.equal(result.rawGet, 'ok'); assert.equal(result.rawAckArgs, 2);
+  assert.equal(result.rawFirstKind, 'null'); assert.equal(result.rawSecondKind, 'object');
+  assert.equal(JSON.stringify(result).includes('PRIVATE_SOURCE_TEXT'), false);
 });

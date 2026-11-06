@@ -79,7 +79,11 @@ try {
     await Hooks.emit('getSceneControlButtons', controls);
     await controls.tokens.tools.bg3VideoHUD.onChange({}, true); await flush();
     assert(root()); assert(!originalVisible());
-    for (const label of ['Equipment', 'Features', 'Spells', 'HP 9/12', 'AC 15', 'Pact L2: 1/1', 'L1: 0/2']) assert(root().textContent.includes(label), label);
+    for (const label of ['装备', '特性', '法术', '生命 9/12', '护甲 15', '契约2环：1/1', '1环：0/2']) assert(root().textContent.includes(label), label);
+    for (const label of ['编辑', '原版界面', '附赠动作', '反应', '仅固定', '短休', '长休']) assert(root().textContent.includes(label), label);
+    equal(definitions.get(`${MODULE_ID}.enabled`).name, '启用 BG3 视频界面');
+    equal([...root().querySelectorAll('[data-group]')].map(section => section.dataset.group), ['Equipment', 'Features', 'Spells']);
+    equal(root().querySelector('.bg3-video-hud-summary strong').textContent, hero.name);
   });
   await test('document strings render as text rather than executable HTML', async () => {
     assert(root().textContent.includes(sword.name));
@@ -100,7 +104,7 @@ try {
   await test('item/resource changes rerender without losing selected actor', async () => {
     hero.system.attributes.hp.value = 0;
     await Hooks.emit('updateActor', hero);
-    assert(root().textContent.includes('HP 0/12'));
+    assert(root().textContent.includes('生命 0/12'));
     hero.items.set('new', item('new'));
     await Hooks.emit('createItem', hero.items.get('new'));
     assert(find('use', 'new'));
@@ -193,7 +197,7 @@ try {
   await test('permission revoked immediately before use prevents the action', async () => {
     hero.isOwner = false; const previous = uses;
     await click('use', 'sword'); equal(uses, previous);
-    assert(root().textContent.includes('you own'));
+    assert(root().textContent.includes('拥有权限'));
     await Hooks.emit('updateActor', hero); assert(!root()); assert(originalVisible());
     hero.isOwner = true; await select(hero);
   });
@@ -204,8 +208,8 @@ try {
   });
   await test('missing actor stats and portrait are safe; actor switches reset edit/filters', async () => {
     await click('edit');
-    await select(actor('empty')); assert(root().textContent.includes('HP —/—')); assert(root().textContent.includes('AC —'));
-    equal(find('edit').textContent, 'Edit');
+    await select(actor('empty')); assert(root().textContent.includes('生命 —/—')); assert(root().textContent.includes('护甲 —'));
+    equal(find('edit').textContent, '编辑');
     await select(hero);
   });
   await test('unsupported system fails open to original HUD', async () => {

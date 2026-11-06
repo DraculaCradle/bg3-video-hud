@@ -74,7 +74,7 @@ test('slot pools display depleted regular slots and pact slots separately', () =
   const pools = slotPools(hero);
   assert.deepEqual(pools.map(p => p.key), ['spell1', 'spell2', 'pact']);
   assert.equal(pools[0].value, 0);
-  assert.equal(pools[2].label, 'Pact L3');
+  assert.equal(pools[2].label, '契约3环');
   assert.deepEqual(spellLevels(hero), [0, 1, 2, 3]);
   assert.deepEqual(slotPools(null), []);
   assert.deepEqual(spellLevels(null), [0]);
@@ -86,8 +86,8 @@ test('spell tabs include known high-level spells even without slots', () => {
 
 test('limited uses read modern spent and legacy value without consumption', () => {
   const feature = item('feature', 'feat', { uses: { spent: 1, max: 3 } });
-  assert.equal(usesLabel(feature), '2/3 uses');
+  assert.equal(usesLabel(feature), '2/3 次');
   assert.equal(feature.system.uses.spent, 1);
-  assert.equal(usesLabel(item('x', 'feat', { uses: { value: 0, max: 2 } })), '0/2 uses');
+  assert.equal(usesLabel(item('x', 'feat', { uses: { value: 0, max: 2 } })), '0/2 次');
   assert.equal(usesLabel(item('x')), '');
 });

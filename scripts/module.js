@@ -27,7 +27,7 @@ function refresh() {
       hud.clear();
       if (!compatibilityWarning) {
         compatibilityWarning = true;
-        ui.notifications.warn('BG3 Video HUD requires Foundry v14, D&D5e 6.0.6 and both BG3 HUD modules. The original HUD is unchanged.');
+        ui.notifications.warn('请使用 Foundry VTT V14、D&D5e 6.0.6，并启用 BG3 HUD Core 和 D&D5e 依赖。');
       }
       return;
     }
@@ -37,7 +37,7 @@ function refresh() {
     hud.setActor(actor, token);
   } catch (error) {
     hud.clear(); // Fail open to upstream HUD rather than stranding the player.
-    ui.notifications.error(`BG3 Video HUD: ${error.message}`);
+    ui.notifications.error(`BG3 视频界面：${error.message}`);
   }
 }
 
@@ -50,12 +50,12 @@ function scheduleRefresh() {
 Hooks.once('init', () => {
   if (!testWorld()) return;
   game.settings.register(MODULE_ID, 'enabled', {
-    name: 'Use BG3 Video HUD',
-    hint: 'Client-only. Disable to restore the original HUD without changing its settings or layout.',
+    name: '启用 BG3 视频界面',
+    hint: '仅对当前客户端生效。关闭后恢复原版界面，不修改原版设置或布局。',
     scope: 'client', config: true, type: Boolean, default: false, onChange: scheduleRefresh
   });
   game.keybindings.register(MODULE_ID, 'toggle', {
-    name: 'Toggle BG3 Video HUD', editable: [],
+    name: '切换 BG3 视频界面', editable: [],
     onDown: () => { toggle().catch(e => ui.notifications.error(e.message)); return true; }
   });
 });
@@ -71,7 +71,7 @@ Hooks.once('ready', () => {
   hud = new VideoHUD({
     user: game.user, store: new LayoutStore(game.user),
     onDisable: () => game.settings.set(MODULE_ID, 'enabled', false),
-    onError: message => ui.notifications.error(`BG3 Video HUD: ${message}`)
+    onError: message => ui.notifications.error(`BG3 视频界面：${message}`)
   });
   // Small public API for macros; no upstream source imports or monkey patches.
   game.modules.get(MODULE_ID).api = Object.freeze({ toggle, refresh: scheduleRefresh });
@@ -82,7 +82,7 @@ Hooks.on('getSceneControlButtons', controls => {
   if (!testWorld()) return;
   if (!controls.tokens?.tools) return;
   controls.tokens.tools.bg3VideoHUD = {
-    name: 'bg3VideoHUD', title: 'Toggle BG3 Video HUD', icon: 'fas fa-table-cells',
+    name: 'bg3VideoHUD', title: '切换 BG3 视频界面', icon: 'fas fa-table-cells',
     // A momentary button reads the current setting each click. A cached toggle's
     // active state could become stale after the HUD button or a macro disables it.
     button: true, order: 101,

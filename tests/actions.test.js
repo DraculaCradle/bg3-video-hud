@@ -31,15 +31,15 @@ test('system error is propagated with no fallback or manual mutation', async () 
 
 test('ownership is checked at action time, including revoked permission', async () => {
   const hero = actor('a', [item('blade', 'weapon', {}, { use: () => assert.fail('unowned item used') })], { isOwner: false });
-  await assert.rejects(useOwnedItem(hero, 'blade', {}), /own/);
-  await assert.rejects(restActor(hero, 'short', {}), /own/);
-  await assert.rejects(useOwnedItem(null, 'blade', {}), /own/);
+  await assert.rejects(useOwnedItem(hero, 'blade', {}), /拥有权限/);
+  await assert.rejects(restActor(hero, 'short', {}), /拥有权限/);
+  await assert.rejects(useOwnedItem(null, 'blade', {}), /拥有权限/);
 });
 
 test('deleted, foreign and unsupported items produce actionable errors', async () => {
   const hero = actor('a', [item('bag')]);
-  await assert.rejects(useOwnedItem(hero, 'foreign', {}), /no longer belongs/);
-  await assert.rejects(useOwnedItem(hero, 'bag', {}), /no system use workflow/);
+  await assert.rejects(useOwnedItem(hero, 'foreign', {}), /不属于/);
+  await assert.rejects(useOwnedItem(hero, 'bag', {}), /系统使用流程/);
 });
 
 test('explicit activity delegates to current embedded activity only', async () => {
@@ -48,7 +48,7 @@ test('explicit activity delegates to current embedded activity only', async () =
   const weapon = item('blade', 'weapon', { activities: new Map([['attack', activity]]) });
   const hero = actor('a', [weapon]);
   assert.equal(await useOwnedItem(hero, 'blade', {}, event, 'attack'), 'attack-result');
-  await assert.rejects(useOwnedItem(hero, 'blade', {}, event, 'foreign'), /cannot be used/);
+  await assert.rejects(useOwnedItem(hero, 'blade', {}, event, 'foreign'), /无法使用/);
 });
 
 test('rest delegates to official methods and preserves dialogs/cancellation', async () => {
@@ -57,6 +57,6 @@ test('rest delegates to official methods and preserves dialogs/cancellation', as
   assert.equal(await restActor(hero, 'short', {}), undefined);
   assert.equal(await restActor(hero, 'long', {}), 'rest-result');
   assert.equal(short, 1); assert.equal(long, 1);
-  await assert.rejects(restActor(hero, 'fake', {}), /Unsupported/);
-  await assert.rejects(restActor(actor(), 'short', {}), /does not support/);
+  await assert.rejects(restActor(hero, 'fake', {}), /不支持/);
+  await assert.rejects(restActor(actor(), 'short', {}), /不支持休息/);
 });

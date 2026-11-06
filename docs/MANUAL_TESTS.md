@@ -9,7 +9,7 @@ Use a backed-up disposable world with two player-owned characters (martial and s
 - [ ] Build `npm run package`; extract the ZIP with `module.json` directly in `Data/modules/bg3-video-hud/`. Foundry discovers the module and enforces system/dependency requirements.
 - [ ] Enable all required modules. Reload as GM and as an ordinary player. No console errors occur. This module is opt-in and original HUD initially looks unchanged.
 - [ ] Enable the client option or token toolbar toggle. Exactly one HUD appears. Reload with it enabled to check persistence and late upstream rendering. Assign a toggle keybinding and exercise it.
-- [ ] Disable this module entirely, reload and confirm the public HUD still works. Re-enable and toggle off with **Original HUD**. Check an originally hidden/minimized upstream HUD retains its own preference.
+- [ ] Disable this module entirely, reload and confirm the public HUD still works. Re-enable and toggle off with **原版界面**. Check an originally hidden/minimized upstream HUD retains its own preference.
 
 ## Actors, permissions and display
 

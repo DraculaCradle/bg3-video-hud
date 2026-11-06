@@ -1,7 +1,7 @@
 {
   "id": "bg3-video-hud",
-  "title": "BG3 Video HUD",
-  "description": "An independent, player-focused HUD alongside BG3 Inspired HUD.",
+  "title": "BG3 视频界面",
+  "description": "搭配 BG3 Inspired HUD 使用的独立玩家操作界面。",
   "version": "0.1.1",
   "authors": [{ "name": "BG3 Video HUD contributors" }],
   "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },

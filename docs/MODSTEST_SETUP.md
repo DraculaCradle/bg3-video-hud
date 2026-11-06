@@ -168,3 +168,9 @@ V14 登录使用 `#join-game-form` 内大小写敏感的 `userId` 字段和提�
 若所有人工页面已关闭但 GM 仍显示在线，可在只测试工作流勾选 `diagnostics_only`。这只清点受限 runner 账号名下的 Chromium 进程，输出 PID、父 PID、运行时长及是否具有 Playwright 浏览器标记；不启动浏览器、不请求 Foundry、不使用测试密码、不终止任何进程，也不要求角色或 token 配置。原始命令参数不输出。结果保存在 `runner-browser-inventory.json`，它属于进程诊断，不是 HUD 实机验收通过证明。普通测试也会在启动浏览器前记录同样清单。
 
 名称检查必须包括固定 Playwright 1.56.1 实际使用的 `headless_shell`，以及 Chromium／Chrome 名称；只检查 chrome 字样会漏掉该版本的无界面浏览器，不能用这种空清单排除遗留进程。
+
+## 实机超时后的只恢复入口
+
+在 **ModsTest live tests only** 中选择 main、`world_id=modstest`、勾选 `recover_only`，不要勾选 `diagnostics_only`。`recover_only` 优先于角色创建开关：仅登录 GM，通过同样的世界、账号、版本及会话守卫，恢复已有私有快照、清理带原意向日志唯一标记的临时文档，并确认恢复日志已清除；不创建新角色、不登录 Player1、不执行 HUD 验收，也不触及模组文件或服务。
+
+恢复临时规则书角色不需要预先提供 token ID；恢复既有未标记测试角色的 HP／法术槽快照仍必须提供原来的两个 token ID，缺失时停止并保留快照。恢复失败会保留日志；不得手工删 journal 来宣称成功。报告的 `mode=recovery-only` 和对应测试标题明确区分只恢复成功与 HUD 验收通过。自动文件部署强制使用正常验收模式，不能用只恢复结果替代部署后的测试。

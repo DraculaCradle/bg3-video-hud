@@ -18,6 +18,10 @@ on:
         description: Inventory this runner account's browser processes without Foundry login or changes
         type: boolean
         default: false
+      recover_only:
+        description: Restore pending fixture journals only, without importing actors or running HUD tests
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -44,6 +48,7 @@ jobs:
           FOUNDRY_WORLD_ID: ${{ inputs.world_id || vars.FOUNDRY_WORLD_ID }}
           MODSTEST_TOKEN_IDS: ${{ inputs.token_ids || vars.MODSTEST_TOKEN_IDS }}
           MODSTEST_CREATE_FIXTURES: ${{ inputs.create_fixtures }}
+          MODSTEST_RECOVER_ONLY: ${{ inputs.recover_only }}
         run: python3 tools/live_test_config.py
       - run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund
         if: ${{ !inputs.diagnostics_only }}

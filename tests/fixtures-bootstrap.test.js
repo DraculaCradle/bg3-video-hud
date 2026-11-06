@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDocuments, removeDocuments, recoverCreatedFixtures } from '../e2e/fixtures.mjs';
+import { createDocuments, removeDocuments, recoverCreatedFixtures, recoverOnlyFixtures } from '../e2e/fixtures.mjs';
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, unlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -185,4 +185,24 @@ test('normal recovery restores the actor snapshot before removing temporary docu
   });
   assert.equal(restored, true);
   assert.deepEqual([...s.actors.keys()], ['original-actor']);
+});
+test('recovery-only removes a partial import without creating replacement documents', async t => {
+  const s = setup(t, { failImport: 2 });
+  await createDocuments({ lease: s.lease });
+  const live = recovery(t, s, s.lease);
+  const before = s.writes.length;
+  await recoverOnlyFixtures(live, async () => assert.fail('no actor snapshot exists'));
+  assert.deepEqual([...s.actors.keys()], ['original-actor']);
+  assert.ok(s.writes.slice(before).every(write => write.startsWith('delete-')));
+  assert.equal(existsSync(live.config.fixtureJournal), false);
+  assert.equal(existsSync(live.config.journal), false);
+});
+test('recovery-only preserves an unmarked actor snapshot when token metadata is missing', async t => {
+  const s = setup(t), live = recovery(t, s, s.lease);
+  unlinkSync(live.config.fixtureJournal);
+  writeFileSync(live.config.journal, '{}');
+  await assert.rejects(recoverOnlyFixtures(live, async () => assert.fail('must not guess actors')),
+    error => error.reason === 'recovery-token-metadata-required');
+  assert.equal(existsSync(live.config.journal), true);
+  assert.equal(s.writes.length, 0);
 });

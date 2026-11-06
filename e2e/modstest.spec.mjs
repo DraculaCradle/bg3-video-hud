@@ -3,6 +3,7 @@ import { openGuard, GuardError, validateModuleVersion } from './live-guard.mjs';
 import { settings, cleanup, runScenario } from './scenario.mjs';
 import { prepareCreatedFixtures, recoverCreatedFixtures, recoverOnlyFixtures } from './fixtures.mjs';
 import { inspectSources } from './source-probe.mjs';
+import { inspectClient, observeStatusFrames } from './client-probe.mjs';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
@@ -15,19 +16,38 @@ function checkoutAssets() {
     })));
 }
 
-test(process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only inspection (no HUD acceptance)'
+test(process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'ModsTest read-only client inspection (no document RPC or HUD acceptance)'
+  : process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only inspection (no HUD acceptance)'
   : process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'ModsTest fixture recovery only (no HUD acceptance)'
   : 'Gamemaster and Player1: HUD, shared-instance safety and fixture restoration', async ({ browser }, info) => {
-  let guard;
+  let guard, observer;
   info.annotations.push({ type: 'stage', description: 'Authenticate existing GM and verify world/session guard' });
   try {
-    guard = await openGuard(browser, settings());
+    const config = settings();
+    guard = await openGuard(browser, config, { beforeLogin: async page => {
+      if (config.clientProbeOnly) observer = await observeStatusFrames(page);
+    } });
     const installed = await guard.check();
     // Recovery must remain possible across upgrades. Diagnostics/acceptance may
     // never turn an older installed module into a result for the new release.
     if (!guard.config.recoveryOnly) {
       validateModuleVersion(installed, expectedVersion);
       info.annotations.push({ type: 'verified', description: `Installed module matches checkout v${expectedVersion}` });
+    }
+    if (guard.config.clientProbeOnly) {
+      if (existsSync(guard.config.journal) || existsSync(guard.config.fixtureJournal)) {
+        throw new GuardError('blocked', 'recover-pending-fixtures-before-client-inspection');
+      }
+      info.annotations.push({ type: 'stage', description: 'Inspect client interfaces and one read-only status acknowledgement; no document request' });
+      observer.reset();
+      const result = await guard.gm.evaluate(inspectClient);
+      result.frames = observer.read();
+      info.annotations.push({ type: 'observation', description: JSON.stringify(result) });
+      await guard.check();
+      if (result.status.status !== 'ok' || result.status.worldActive !== true) {
+        throw new GuardError('blocked', 'readonly-world-status-ack-unavailable');
+      }
+      return;
     }
     if (guard.config.sourceProbeOnly) {
       if (existsSync(guard.config.journal) || existsSync(guard.config.fixtureJournal)) {
@@ -79,6 +99,6 @@ test(process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only insp
     catch (error) {
       info.annotations.push({ type: 'cleanup', description: error instanceof GuardError ? error.reason : 'test-session-release-unconfirmed' });
       throw error;
-    }
+    } finally { await observer?.close(); }
   }
 });

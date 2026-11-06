@@ -22,7 +22,8 @@ export default class SafeReporter {
     mkdirSync('results', { recursive: true });
     writeFileSync('results/report.json', JSON.stringify({
       status: this.results.length ? result.status : 'not-run', executedAt: new Date().toISOString(),
-      mode: process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'source-inspection'
+      mode: process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'client-inspection'
+        : process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'source-inspection'
         : process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'recovery-only' : 'acceptance',
       commit: process.env.GITHUB_SHA ?? null, runId: process.env.GITHUB_RUN_ID ?? null,
       runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,

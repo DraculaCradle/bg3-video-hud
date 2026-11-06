@@ -390,6 +390,35 @@ class ConfigurationPolicy(unittest.TestCase):
         self.assertEqual(result['MODSTEST_CREATE_FIXTURES'], 'false')
         self.assertEqual(result['MODSTEST_TOKEN_IDS'], '')
 
+    def test_client_inspection_needs_no_tokens_and_remains_read_only(self):
+        result = live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest', 'MODSTEST_CLIENT_PROBE': 'true'})
+        self.assertEqual(result['MODSTEST_CLIENT_PROBE'], 'true')
+        self.assertEqual(result['MODSTEST_SOURCE_PROBE'], 'false')
+        self.assertEqual(result['MODSTEST_CREATE_FIXTURES'], 'false')
+        self.assertEqual(result['MODSTEST_RECOVER_ONLY'], 'false')
+        self.assertEqual(result['MODSTEST_TOKEN_IDS'], '')
+
+    def test_client_inspection_rejects_combined_write_recovery_or_document_modes(self):
+        for key in ['MODSTEST_SOURCE_PROBE', 'MODSTEST_RECOVER_ONLY', 'MODSTEST_CREATE_FIXTURES']:
+            with self.assertRaises(ValueError):
+                live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',
+                    'MODSTEST_CLIENT_PROBE': 'true', key: 'true'})
+
+    def test_deployment_forces_acceptance_modes_even_if_diagnostic_environment_is_inherited(self):
+        config = {**self.config, 'enabled': True, 'other_worlds_disabled_reviewed': True,
+                  'test_state_dir': str(self.base)}
+        with patch.object(orchestrator, 'load_config', return_value=config), \
+             patch.object(orchestrator.os, 'geteuid', return_value=1000), \
+             patch.object(sys, 'argv', ['deploy_modstest.py', '--recover-only']), \
+             patch.dict(os.environ, {'MODSTEST_CLIENT_PROBE': 'true', 'MODSTEST_SOURCE_PROBE': 'true'}), \
+             patch.object(orchestrator, 'Peer') as peer, \
+             patch.object(orchestrator, 'run_transaction', return_value={'status': 'no-pending-deployment', 'reason': 'none'}), \
+             patch.object(orchestrator, 'report'):
+            self.assertEqual(orchestrator.main(), 0)
+            environment = peer.call_args_list[0].args[1]
+            self.assertEqual(environment['MODSTEST_CLIENT_PROBE'], 'false')
+            self.assertEqual(environment['MODSTEST_SOURCE_PROBE'], 'false')
+
     def test_tests_only_metadata_rejects_snapshot_state_inside_checkout(self):
         with self.assertRaises(ValueError):
             live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',

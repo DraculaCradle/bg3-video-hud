@@ -78,11 +78,12 @@ export async function login(page, config, name, password) {
   }
 }
 
-export async function openGuard(browser, config) {
+export async function openGuard(browser, config, { beforeLogin } = {}) {
   const context = await browser.newContext({ serviceWorkers: 'block' });
   await freshModuleRequests(context);
   const gm = await context.newPage();
   try {
+    await beforeLogin?.(gm);
     await login(gm, config, 'Gamemaster', process.env.FOUNDRY_GM_PASSWORD);
     await gm.evaluate(() => {
       const allowed = new Set(game.users.filter(u => ['Gamemaster', 'Player1'].includes(u.name)).map(u => u.id));

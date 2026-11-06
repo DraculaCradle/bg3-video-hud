@@ -47,12 +47,19 @@ function setup(t, { noScene = false, failImport = 0, failToken = 0 } = {}) {
     getDocument: async id => ({ toObject: () => ({ _id: id, type: 'spell', system: { level: Number(id) } }) }) };
   actors.importFromCompendium = async (_pack, id, update) => {
     if (++imports === failImport) throw Error('injected import failure');
-    const actor = withFlags({ ...source(id, update.name, id === 'mage'), ...update, id: `actor${imports}` });
+    const actor = withFlags({ ...source(id, update.name, id === 'mage'), ...update, id: `actor${imports}`,
+      ownership: { default: 0, gm: 3 } }); // V14's default clearOwnership import behavior.
     actor.items.some = callback => [...actor.items.values()].some(callback);
     actor.delete = async () => { actors.delete(actor.id); writes.push(`delete-actor:${actor.id}`); };
     actor.getTokenDocument = async () => ({ toObject: () => ({ width: 1, height: 1 }) });
     actor.createEmbeddedDocuments = async () => {};
-    actor.update = async () => { actor.system.spells.spell1 = { max: 2, value: 2 }; };
+    actor.update = async update => {
+      for (const [key, value] of Object.entries(update)) {
+        const parts = key.split('.'); let target = actor;
+        for (const part of parts.slice(0, -1)) target = target[part] ??= {};
+        target[parts.at(-1)] = value;
+      }
+    };
     actors.set(actor.id, actor); writes.push(`import:${actor.id}`); return actor;
   };
   globalThis.game = { world: { id: 'modstest', title: 'ModsTest' }, user: users[0], users, socket: { connected: true }, actors, scenes,
@@ -124,6 +131,16 @@ test('missing rulebook packs fail without creating homemade replacement actors',
   const s = setup(t); game.packs.clear();
   assert.equal((await createDocuments({ lease: s.lease })).reason, 'fixture-srd-actor-pack-unavailable');
   assert.equal(s.writes.length, 0);
+});
+test('a stalled source index times out before importing or mutating world documents', async t => {
+  const s = setup(t);
+  game.packs.get('dnd5e.monsters').getIndex = () => new Promise(() => {});
+  const schedule = globalThis.setTimeout;
+  t.mock.method(globalThis, 'setTimeout', (callback, delay) => schedule(callback, delay === 30_000 ? 1 : delay));
+  const result = await createDocuments({ lease: s.lease });
+  assert.deepEqual(result, { ok: false, reason: 'fixture-source-read-timeout', phase: 'actor-pack-index' });
+  assert.equal(s.writes.length, 0);
+  assert.deepEqual([...s.actors.keys()], ['original-actor']);
 });
 
 function recovery(t, state, lease) {

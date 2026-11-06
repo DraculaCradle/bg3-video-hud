@@ -1,10 +1,12 @@
 # ModsTest 实机测试报告
 
-状态：**临时角色准备超时，恢复结果待确认；HUD 实机验收尚未通过**。日期：2026-11-06（中国标准时间 UTC+8）。
+状态：**超时后的只恢复已通过；HUD 实机验收尚未通过**。日期：2026-11-06（中国标准时间 UTC+8）。
+
+[只恢复运行 42140503885](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42140503885) 于 09:00:59 生成 `mode=recovery-only`、`status=passed` 报告，断言待恢复日志已处理并确认不存在，未创建新角色或开始 HUD 测试；正常退出确认也通过。此结果只证明本轮恢复成功，不能替代 HUD 验收。
 
 最新重试：[运行 42138235766](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42138235766) 已通过 GM 登录、世界身份、Foundry／D&D5e／依赖版本及启用状态守卫，进入临时规则书角色／token 准备阶段后在 10 分钟上限超时。报告于 08:48:45 生成，`lastStage=Import temporary SRD actors and create marked tokens`，超时后的会话守卫锁存，无法确认临时文档清理完成；不能宣称本轮未创建角色或已还原数据。公开账号状态随后核实 GM／Player1 均离线，非测试账号在线数为 0。
 
-先执行新增 `recover_only` 入口，使用原私有日志和唯一标记恢复并验证，不开始新一轮角色导入。以下表格保留之前的诊断背景；关于旧轮次“未创建角色”的描述不适用于本次超时。最新只恢复结果尚待执行。
+已使用新增 `recover_only` 入口和原私有日志／唯一标记完成恢复验证。以下表格保留之前的诊断背景；关于旧轮次“未创建角色”的描述不适用于本次超时。
 
 目标是现有 `https://redmagic.club/`、世界标题 `ModsTest`、准确 world ID `modstest`、现有 Gamemaster 和无密码 Player1。没有创建第二实例、部署模组文件、停止或重启 Foundry、切换世界或修改其他世界。
 

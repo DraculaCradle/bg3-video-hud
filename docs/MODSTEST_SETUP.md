@@ -174,3 +174,5 @@ V14 登录使用 `#join-game-form` 内大小写敏感的 `userId` 字段和提�
 在 **ModsTest live tests only** 中选择 main、`world_id=modstest`、勾选 `recover_only`，不要勾选 `diagnostics_only`。`recover_only` 优先于角色创建开关：仅登录 GM，通过同样的世界、账号、版本及会话守卫，恢复已有私有快照、清理带原意向日志唯一标记的临时文档，并确认恢复日志已清除；不创建新角色、不登录 Player1、不执行 HUD 验收，也不触及模组文件或服务。
 
 恢复临时规则书角色不需要预先提供 token ID；恢复既有未标记测试角色的 HP／法术槽快照仍必须提供原来的两个 token ID，缺失时停止并保留快照。恢复失败会保留日志；不得手工删 journal 来宣称成功。报告的 `mode=recovery-only` 和对应测试标题明确区分只恢复成功与 HUD 验收通过。自动文件部署强制使用正常验收模式，不能用只恢复结果替代部署后的测试。
+
+规则书准备会将固定阶段名写入私有意向日志及脱敏报告，例如 `actor-pack-index`、`actor-source-document`、`actor-import`、`actor-ownership`、`scene-setup` 和 `token-placement`。只读索引／文档请求各有 30 秒上限，超时返回明确阶段；不对可能仍在服务端写入的创建／删除操作做独立超时后继续写入。V14 导入默认清除所有权，所以导入标记角色后再通过原生角色更新明确授予 Player1 OWNER 并核实，不继承规则书中的其他用户权限。

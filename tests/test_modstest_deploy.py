@@ -382,6 +382,14 @@ class ConfigurationPolicy(unittest.TestCase):
             live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',
                 'MODSTEST_RECOVER_ONLY': 'true', 'MODSTEST_TOKEN_IDS': 'bad'})
 
+    def test_read_only_source_inspection_suppresses_creation_and_recovery(self):
+        result = live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',
+            'MODSTEST_SOURCE_PROBE': 'true', 'MODSTEST_RECOVER_ONLY': 'true', 'MODSTEST_CREATE_FIXTURES': 'true'})
+        self.assertEqual(result['MODSTEST_SOURCE_PROBE'], 'true')
+        self.assertEqual(result['MODSTEST_RECOVER_ONLY'], 'false')
+        self.assertEqual(result['MODSTEST_CREATE_FIXTURES'], 'false')
+        self.assertEqual(result['MODSTEST_TOKEN_IDS'], '')
+
     def test_tests_only_metadata_rejects_snapshot_state_inside_checkout(self):
         with self.assertRaises(ValueError):
             live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',

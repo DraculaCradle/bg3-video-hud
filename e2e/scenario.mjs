@@ -11,10 +11,11 @@ export function settings() {
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw Error('Invalid URL');
   if (!url.pathname.endsWith('/')) url.pathname += '/';
   const world = process.env.FOUNDRY_WORLD_ID;
-  const recoveryOnly = process.env.MODSTEST_RECOVER_ONLY === 'true';
-  const createFixtures = process.env.MODSTEST_CREATE_FIXTURES === 'true' && !recoveryOnly;
+  const sourceProbeOnly = process.env.MODSTEST_SOURCE_PROBE === 'true';
+  const recoveryOnly = process.env.MODSTEST_RECOVER_ONLY === 'true' && !sourceProbeOnly;
+  const createFixtures = process.env.MODSTEST_CREATE_FIXTURES === 'true' && !recoveryOnly && !sourceProbeOnly;
   const tokens = createFixtures ? [] : process.env.MODSTEST_TOKEN_IDS?.split(',').map(v => v.trim()).filter(Boolean) ?? [];
-  if (!world || (!createFixtures && !(recoveryOnly && !tokens.length) && (tokens.length !== 2 || tokens.some(v => !/^[a-zA-Z0-9]{16}$/.test(v)) || tokens[0] === tokens[1]))) {
+  if (!world || (!createFixtures && !((recoveryOnly || sourceProbeOnly) && !tokens.length) && (tokens.length !== 2 || tokens.some(v => !/^[a-zA-Z0-9]{16}$/.test(v)) || tokens[0] === tokens[1]))) {
     throw Error('Configure the exact ModsTest world ID and two fixture token IDs');
   }
   const state = process.env.MODSTEST_STATE_DIR;
@@ -24,7 +25,8 @@ export function settings() {
   }
   mkdirSync(state, { recursive: true, mode: 0o700 });
   if (lstatSync(state).isSymbolicLink() || (lstatSync(state).mode & 0o077)) throw Error('Private state directory required');
-  return { url: url.href, world, tokens, createFixtures, recoveryOnly, journal: join(state, 'hud-snapshot.json'), fixtureJournal: join(state, 'created-fixtures.json') };
+  return { url: url.href, world, tokens, createFixtures, recoveryOnly, sourceProbeOnly,
+    journal: join(state, 'hud-snapshot.json'), fixtureJournal: join(state, 'created-fixtures.json') };
 }
 
 async function guard(page, config) {

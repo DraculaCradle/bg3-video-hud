@@ -22,6 +22,10 @@ on:
         description: Restore pending fixture journals only, without importing actors or running HUD tests
         type: boolean
         default: false
+      inspect_sources:
+        description: Read-only SRD Socket and document-wrapper diagnostics (no actor import or HUD test)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -49,6 +53,7 @@ jobs:
           MODSTEST_TOKEN_IDS: ${{ inputs.token_ids || vars.MODSTEST_TOKEN_IDS }}
           MODSTEST_CREATE_FIXTURES: ${{ inputs.create_fixtures }}
           MODSTEST_RECOVER_ONLY: ${{ inputs.recover_only }}
+          MODSTEST_SOURCE_PROBE: ${{ inputs.inspect_sources }}
         run: python3 tools/live_test_config.py
       - run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund
         if: ${{ !inputs.diagnostics_only }}

@@ -2,13 +2,29 @@ import { test } from '@playwright/test';
 import { openGuard, GuardError } from './live-guard.mjs';
 import { settings, cleanup, runScenario } from './scenario.mjs';
 import { prepareCreatedFixtures, recoverCreatedFixtures, recoverOnlyFixtures } from './fixtures.mjs';
+import { inspectSources } from './source-probe.mjs';
+import { existsSync } from 'node:fs';
 
-test(process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'ModsTest fixture recovery only (no HUD acceptance)'
+test(process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'ModsTest SRD read-only inspection (no HUD acceptance)'
+  : process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'ModsTest fixture recovery only (no HUD acceptance)'
   : 'Gamemaster and Player1: HUD, shared-instance safety and fixture restoration', async ({ browser }, info) => {
   let guard;
   info.annotations.push({ type: 'stage', description: 'Authenticate existing GM and verify world/session guard' });
   try {
     guard = await openGuard(browser, settings());
+    if (guard.config.sourceProbeOnly) {
+      if (existsSync(guard.config.journal) || existsSync(guard.config.fixtureJournal)) {
+        throw new GuardError('blocked', 'recover-pending-fixtures-before-source-inspection');
+      }
+      info.annotations.push({ type: 'stage', description: 'Inspect installed SRD sources without world writes' });
+      const result = await guard.gm.evaluate(inspectSources);
+      info.annotations.push({ type: 'observation', description: JSON.stringify(result) });
+      await guard.check();
+      if (result.rawGet !== 'ok' || result.wrappedGet !== 'ok' || result.rawCount !== 1 || !result.wrappedFound) {
+        throw new GuardError('blocked', 'srd-source-inspection-unavailable');
+      }
+      return;
+    }
     if (guard.config.recoveryOnly) {
       info.annotations.push({ type: 'stage', description: 'Recover marked temporary documents and saved fixture data only' });
       await recoverOnlyFixtures(guard, cleanup);

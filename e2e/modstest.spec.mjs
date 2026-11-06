@@ -3,7 +3,7 @@ import { openGuard, GuardError, validateModuleVersion } from './live-guard.mjs';
 import { settings, cleanup, runScenario } from './scenario.mjs';
 import { prepareCreatedFixtures, recoverCreatedFixtures, recoverOnlyFixtures } from './fixtures.mjs';
 import { inspectSources } from './source-probe.mjs';
-import { inspectClient, observeStatusFrames } from './client-probe.mjs';
+import { inspectClient, observeControlFrames } from './client-probe.mjs';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
@@ -26,8 +26,8 @@ test(process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'ModsTest read-only client i
     const config = settings();
     guard = await openGuard(browser, config, { beforeLogin: async page => {
       if (config.clientProbeOnly) {
-        try { observer = await observeStatusFrames(page); }
-        catch { throw new GuardError('blocked', 'client-status-observer-unavailable'); }
+        try { observer = await observeControlFrames(page); }
+        catch { throw new GuardError('blocked', 'client-control-observer-unavailable'); }
       }
     } });
     const installed = await guard.check();
@@ -41,14 +41,26 @@ test(process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'ModsTest read-only client i
       if (existsSync(guard.config.journal) || existsSync(guard.config.fixtureJournal)) {
         throw new GuardError('blocked', 'recover-pending-fixtures-before-client-inspection');
       }
-      info.annotations.push({ type: 'stage', description: 'Inspect client interfaces and one read-only status acknowledgement; no document request' });
+      info.annotations.push({ type: 'stage', description: 'Wait for native canvas readiness when a scene is active; no document request' });
+      const readyStart = Date.now();
+      try { await guard.gm.waitForFunction(() => globalThis.canvas?.ready === true || !game.scenes?.active, undefined, { timeout: 60_000 }); }
+      catch { throw new GuardError('blocked', 'client-canvas-initialization-unfinished'); }
+      const readyWaitMs = Date.now() - readyStart;
+      await guard.check();
+      info.annotations.push({ type: 'stage', description: 'Inspect client interfaces and one native read-only clock acknowledgement; no document request' });
       observer.reset();
       const result = await guard.gm.evaluate(inspectClient);
+      result.readyWaitMs = readyWaitMs;
+      result.canvasState = await guard.gm.evaluate(() => ({ ready: globalThis.canvas?.ready === true, activeScene: !!game.scenes?.active }));
+      result.framesAtResolution = observer.read();
+      // Passive drain only: an expired page timer may have run late under load.
+      // Preserve timeout status and expose late frames instead of retrying.
+      await guard.gm.waitForTimeout(1000);
       result.frames = observer.read();
       info.annotations.push({ type: 'observation', description: JSON.stringify(result) });
       await guard.check();
-      if (result.status.status !== 'ok' || result.status.worldActive !== true) {
-        throw new GuardError('blocked', 'readonly-world-status-ack-unavailable');
+      if (result.status.status !== 'ok' || result.status.validTime !== true) {
+        throw new GuardError('blocked', 'readonly-native-clock-ack-unavailable');
       }
       return;
     }

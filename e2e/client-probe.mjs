@@ -1,5 +1,5 @@
 // This function is serialized into the guarded GM page. Inspect interfaces;
-// emit one documented read-only boolean request, never a document operation.
+// emit one documented read-only clock query, never a document operation.
 export async function inspectClient({ timeoutMs = 10_000 } = {}) {
   const safe = () => {
     if (game.world.id !== 'modstest' || game.world.title !== 'ModsTest'
@@ -19,6 +19,7 @@ export async function inspectClient({ timeoutMs = 10_000 } = {}) {
       sha256: [...new Uint8Array(digest)].map(n => n.toString(16).padStart(2, '0')).join(''),
       mentionsDocumentEvent: /["']modifyDocument["']/.test(source),
       mentionsStatusEvent: /["']getWorldStatus["']/.test(source),
+      mentionsTimeEvent: /["']time["']/.test(source),
       mentionsSocketEmit: /\.emit\s*\(/.test(source) };
   };
   const backend = CONFIG.Actor?.documentClass?.database;
@@ -30,6 +31,7 @@ export async function inspectClient({ timeoutMs = 10_000 } = {}) {
     compendiumGetDocument: packPrototype?.getDocument,
     compendiumGetDocuments: packPrototype?.getDocuments,
     worldStatus: game.constructor?.getWorldStatus,
+    timeSync: game.time?.sync,
     socketEmit: socket.emit
   }).map(async ([name, fn]) => [name, await fingerprint(fn)])));
   safe();
@@ -48,48 +50,51 @@ export async function inspectClient({ timeoutMs = 10_000 } = {}) {
     const finish = result => { if (!complete) { complete = true; clearTimeout(timer); resolve(result); } };
     timer = setTimeout(() => finish({ status: 'timeout' }), Math.max(1, Math.min(15_000, timeoutMs)));
     try {
-      socket.emit('getWorldStatus', value => finish(typeof value === 'boolean'
-        ? { status: 'ok', worldActive: value } : { status: 'unexpected-type' }));
+      socket.emit('time', value => finish(value && typeof value === 'object' && !Array.isArray(value)
+        && Number.isFinite(value.serverTime) && Number.isFinite(value.worldTime)
+        ? { status: 'ok', validTime: true } : { status: 'unexpected-type' }));
     } catch { finish({ status: 'error' }); }
   });
   safe();
-  return { api, before, status: { ...status, durationMs: Date.now() - started },
+  return { control: 'time', api, before, status: { ...status, durationMs: Date.now() - started },
     integrations: Object.fromEntries(['lib-wrapper', 'socketlib', 'midi-qol', 'dae'].map(id =>
       [id, game.modules.get(id)?.active === true])) };
 }
 
 // Engine.IO message + Socket.IO event/ack, default namespace only. Unknown or
 // oversized payloads never enter the report. IDs are internal correlation only.
-export function statusFrame(payload) {
+export function controlFrame(payload) {
   if (typeof payload !== 'string' || payload.length > 4096) return null;
-  const sent = /^42(\d{1,12})\["getWorldStatus"\]$/.exec(payload);
+  const sent = /^42(\d{1,12})\["time"\]$/.exec(payload);
   if (sent) return { kind: 'request', id: sent[1] };
   const ack = /^43(\d{1,12})(\[.*\])$/.exec(payload);
   if (!ack) return null;
   try {
     const args = JSON.parse(ack[2]);
-    return { kind: 'ack', id: ack[1], boolean: args.length === 1 && typeof args[0] === 'boolean',
-      ...(args.length === 1 && typeof args[0] === 'boolean' ? { value: args[0] } : {}) };
+    const time = args[0];
+    return { kind: 'ack', id: ack[1], validTime: args.length === 1 && !!time
+      && typeof time === 'object' && !Array.isArray(time)
+      && Number.isFinite(time.serverTime) && Number.isFinite(time.worldTime) };
   } catch { return null; }
 }
 
-export async function observeStatusFrames(page) {
+export async function observeControlFrames(page) {
   const session = await page.context().newCDPSession(page);
   let summary, pending;
   const reset = () => {
-    summary = { requestFrames: 0, matchingAckFrames: 0, booleanAckFrames: 0 };
+    summary = { requestFrames: 0, matchingAckFrames: 0, validTimeAckFrames: 0 };
     pending = new Set();
   };
   reset();
   const receive = (event, direction) => {
     if (event.response.opcode !== 1) return;
-    const frame = statusFrame(event.response.payloadData);
+    const frame = controlFrame(event.response.payloadData);
     if (!frame) return;
     const key = `${event.requestId}:${frame.id}`;
     if (direction === 'sent' && frame.kind === 'request') { summary.requestFrames++; pending.add(key); }
     if (direction === 'received' && frame.kind === 'ack' && pending.delete(key)) {
       summary.matchingAckFrames++;
-      if (frame.boolean) { summary.booleanAckFrames++; summary.worldActive = frame.value; }
+      if (frame.validTime) summary.validTimeAckFrames++;
     }
   };
   session.on('Network.webSocketFrameSent', event => receive(event, 'sent'));

@@ -28,6 +28,14 @@ jobs:
         run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund && cd e2e && npx --no-install playwright test --list
       - name: Chromium fixture integration
         run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
+      - name: Upload synthetic viewport measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hud-layout-metrics-${{ github.run_attempt }}
+          path: e2e/results/layout-metrics.json
+          if-no-files-found: warn
+          retention-days: 7
       - run: npm run package
       - uses: actions/upload-artifact@v4
         with:

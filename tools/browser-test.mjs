@@ -258,6 +258,60 @@ try {
       await press('Enter', 'Enter', 13);
       assert.equal(await evaluate('document.getElementById("bg3-video-hud") === null && getComputedStyle(document.getElementById("bg3-hotbar")).display !== "none"'), true);
     });
+    const mouse = async (type, x, y, button = 'left') => {
+      await send('Input.dispatchMouseEvent', { type, x, y, button,
+        buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1 }, sessionId);
+      await evaluate('new Promise(resolve => setTimeout(resolve, 0))');
+    };
+    await test('trusted map click targets once without controlling the clicked token', async () => {
+      await setViewport({ width: 1280, height: 720 });
+      await evaluate('window.bg3TargetTest.start("single")');
+      assert.equal((await evaluate('window.bg3TargetTest.snapshot()')).calls, 0);
+      await mouse('mousePressed', 260, 240); await mouse('mouseReleased', 260, 240);
+      const state = await evaluate('window.bg3TargetTest.snapshot()');
+      assert.equal(state.calls, 1); assert.deepEqual(state.targets, ['one']);
+      assert.equal(state.actor, 'Actor.target-caster'); assert.equal(state.nativePresses, 0);
+      assert.equal(state.picking, false); assert.equal(state.box, false); assert.equal(state.writes, 0);
+      await evaluate('window.bg3TargetTest.dispose()');
+    });
+    await test('trusted drag with pointer capture selects the visible range and automatically delegates once', async () => {
+      await evaluate('window.bg3TargetTest.start("multi")');
+      await mouse('mousePressed', 160, 140); await mouse('mouseMoved', 560, 340);
+      const preview = await evaluate('window.bg3TargetTest.snapshot()');
+      assert.equal(preview.calls, 0); assert.equal(preview.picking, true); assert.equal(preview.box, true);
+      if (process.env.BG3_CAPTURE_TARGETING === 'true') {
+        await evaluate('document.body.style.background = "#101916"');
+        const shot = await send('Page.captureScreenshot', { format: 'jpeg', quality: 85 }, sessionId);
+        mkdirSync('e2e/results', { recursive: true });
+        writeFileSync('e2e/results/targeting-range.jpg', Buffer.from(shot.data, 'base64'));
+      }
+      await mouse('mouseReleased', 560, 340);
+      const state = await evaluate('window.bg3TargetTest.snapshot()');
+      assert.equal(state.calls, 1); assert.deepEqual(state.targets, ['one', 'two']);
+      assert.equal(state.nativePresses, 0); assert.equal(state.picking, false); assert.equal(state.box, false);
+      await evaluate('window.bg3TargetTest.dispose()');
+    });
+    await test('trusted Escape cancels a dragged selection with no use or target mutation', async () => {
+      await evaluate('window.bg3TargetTest.start("multi")');
+      await mouse('mousePressed', 160, 140); await mouse('mouseMoved', 560, 340);
+      await press('Escape', 'Escape', 27); await mouse('mouseReleased', 560, 340);
+      const state = await evaluate('window.bg3TargetTest.snapshot()');
+      assert.equal(state.calls, 0); assert.equal(state.selections, 0); assert.equal(state.box, false);
+      assert.equal(state.picking, false); assert.equal(state.cursor, 'grab');
+      await evaluate('window.bg3TargetTest.dispose()');
+    });
+    await test('trusted targeting works at 200% effective 720P, DPR 2 and CSS-scaled canvas', async () => {
+      await setViewport({ width: 640, height: 360, deviceScaleFactor: 2 });
+      // Emulation sends a real resize event. Finish it before starting a new
+      // selection, which correctly cancels if resized while already pending.
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      await evaluate('window.bg3TargetTest.start("single"); document.getElementById("board").style.width="400px"; document.getElementById("board").style.height="200px"');
+      await mouse('mousePressed', 140, 130); await mouse('mouseReleased', 140, 130);
+      const state = await evaluate('window.bg3TargetTest.snapshot()');
+      assert.equal(state.calls, 1); assert.deepEqual(state.targets, ['one']);
+      assert.equal(state.nativePresses, 0); assert.equal(state.box, false);
+      await evaluate('window.bg3TargetTest.dispose()');
+    });
     await evaluate(`window.finishBG3BrowserInteractions(${JSON.stringify(outcomes)})`);
   };
   await send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/tests/browser.html` }, sessionId);

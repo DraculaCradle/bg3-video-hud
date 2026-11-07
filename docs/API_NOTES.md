@@ -52,3 +52,9 @@ Node tests exercise real module logic with small document doubles. Chromium test
 - Optional Midi-QOL [Activity mixin](https://github.com/tposney/midi-qol/blob/master/src/module/activities/MidiActivityMixin.ts), inspected 2026-11-07, awaits `midi-qol.preItemRollV2` before consumption and accepts false to abort. Shield source choice only augments the per-use native `cause`/`consume` configuration; the owned spell, macros, targets and dialog flags are untouched. This is a source-inspected contract, not certification against every installed Midi-QOL version.
 - Native save estimate reads `D20RollModificationField.combineFields`, prepared ability proficiency and save DC. Unknown formulas/permissions remain unknown. No rolls, workflow creation or effect-expression evaluation during hover.
 - Layout ratios add an optional validated leaf to version-1 user layouts; missing/invalid ratios use 2:3:5. Other actors/users/upstream flags are preserved.
+
+## v0.1.6 输入与玩家状态
+
+PIXI/Foundry 的画布事件可能先在 document 捕获阶段处理；在 `#board` 上捕获已太迟。本 HUD 在 window 捕获，仅拦截地图及正在拖动的指针，不拦截弹窗或侧栏。完成时立即解除 pointer 监听，只将同次兼容鼠标点击的拦截保留到下个任务；取消、场景切换、销毁会清理监听。最终仍通过原生活动使用／掷骰，不控制敌方 Token，也不改角色权限。
+
+`game.modules.get('bg3-video-hud').api.status()` 只读返回 enabled、compatible、canvasReady、controlled/owned 数量、assignedOwner、hudVisible、version、reason。原因码为 disabled / incompatible / canvas-not-ready / selected-not-owned / no-owned-character / render-error / ready，不包含角色或账号名称、ID、凭据。ready 表示选择门槛满足，hudVisible 单独反映挂载；不表示武器攻击或实机验收通过。

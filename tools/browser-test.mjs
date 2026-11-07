@@ -295,7 +295,18 @@ try {
           const after = await evaluate('window.bg3ChoiceTest.snapshot()');
           if (height <= 768) assert.ok(after.bodyScrollTop > 0, 'long choices must scroll inside the window');
           await press('Escape', 'Escape', 27);
-          assert.equal((await evaluate('window.bg3ChoiceTest.snapshot()')).result, 'cancelled');
+          // Native dialog cancel is queued by Chromium after key dispatch.
+          // Observe completion with a bound; never send a second Escape.
+          const cancelled = await evaluate(`new Promise(resolve => {
+            const deadline = performance.now() + 1000;
+            const poll = () => {
+              const state = window.bg3ChoiceTest.snapshot();
+              if (state.result !== 'waiting' || performance.now() >= deadline) resolve(state);
+              else setTimeout(poll, 10);
+            };
+            poll();
+          })`);
+          assert.equal(cancelled.result, 'cancelled'); assert.equal(cancelled.open, false);
         }
       });
     }

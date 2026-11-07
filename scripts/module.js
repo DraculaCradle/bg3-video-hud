@@ -8,19 +8,13 @@ let canvasReady = false;
 let refreshQueued = false;
 let compatibilityWarning = false;
 
-// This test module is intentionally inert outside ModsTest, even if an
-// administrator accidentally enables it elsewhere. Deployment also checks the
-// exact world id; no other world's enablement/settings/documents are changed.
-function testWorld() { return game.world?.title === 'ModsTest'; }
-
 function compatible() {
-  return testWorld() && game.system?.id === 'dnd5e' && String(game.version).split('.')[0] === '14'
+  return game.system?.id === 'dnd5e' && String(game.version).split('.')[0] === '14'
     && game.system.version === '6.0.6';
 }
 
 function refresh() {
   if (!hud) return;
-  if (!testWorld()) { hud.clear(); return; }
   try {
     if (!game.settings.get(MODULE_ID, 'enabled')) { hud.clear(); return; }
     if (!compatible()) {
@@ -48,10 +42,9 @@ function scheduleRefresh() {
 }
 
 Hooks.once('init', () => {
-  if (!testWorld()) return;
   game.settings.register(MODULE_ID, 'enabled', {
     name: '启用 BG3 视频界面',
-    hint: '仅对当前客户端生效。关闭后恢复原版界面，不修改原版设置或布局。',
+    hint: '默认关闭。可在任意世界手动开启，仅对当前客户端生效；需 Foundry VTT V14 与 D&D5e 6.0.6。关闭后恢复原版界面。',
     scope: 'client', config: true, type: Boolean, default: false, onChange: scheduleRefresh
   });
   game.keybindings.register(MODULE_ID, 'toggle', {
@@ -61,12 +54,10 @@ Hooks.once('init', () => {
 });
 
 async function toggle() {
-  if (!testWorld()) return;
   await game.settings.set(MODULE_ID, 'enabled', !game.settings.get(MODULE_ID, 'enabled'));
 }
 
 Hooks.once('ready', () => {
-  if (!testWorld()) return;
   canvasReady = globalThis.canvas?.ready === true;
   hud = new VideoHUD({
     user: game.user, store: new LayoutStore(game.user),
@@ -79,7 +70,6 @@ Hooks.once('ready', () => {
 });
 
 Hooks.on('getSceneControlButtons', controls => {
-  if (!testWorld()) return;
   if (!controls.tokens?.tools) return;
   controls.tokens.tools.bg3VideoHUD = {
     name: 'bg3VideoHUD', title: '切换 BG3 视频界面', icon: 'fas fa-table-cells',

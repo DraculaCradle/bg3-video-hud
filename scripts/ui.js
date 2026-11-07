@@ -73,12 +73,13 @@ export class RichTooltip {
   }
 }
 
-export function modal(title, onClose) {
+export function modal(title, onClose, { restoreFocus = true } = {}) {
   const dialog = node('dialog', undefined, 'bg3-video-hud-dialog');
+  dialog.setAttribute('aria-label', title);
   const header = node('header'); header.append(node('h2', title));
   const close = button('×', 'close-modal', '关闭窗口'); header.append(close); dialog.append(header);
   const previous = document.activeElement;
-  const finish = () => { dialog.remove(); onClose?.(); if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+  const finish = () => { dialog.remove(); onClose?.(); if (restoreFocus && previous?.isConnected) previous.focus({ preventScroll: true }); };
   close.onclick = () => dialog.close(); dialog.addEventListener('close', finish, { once: true });
   dialog.addEventListener('click', event => { if (event.target === dialog) {
     const r = dialog.getBoundingClientRect();

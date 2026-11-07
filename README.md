@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。开发版无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **开发版变更尚未发布。** 当前公开 Release v0.1.2 仍声明 BG3 依赖。下面的独立运行与快捷交互适用于当前源码；本轮不发布、不部署、不登录服务器，实机验收由用户手动进行。[原作者半成品对照与改动](docs/PROTOTYPE_COMPARISON.md)。
+> **v0.1.3：独立运行、快捷使用与弹窗确认。** 不再要求 BG3 模组；活动、环阶／来源和手动目标分配在可滚动弹窗中选择，不占用 HUD 三栏。实机验收由用户手动进行，自动部署与自动实机测试仍关闭。[原作者半成品对照与改动](docs/PROTOTYPE_COMPARISON.md)。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Not yet verified in a running Foundry VTT v14 / D&D5e 6.0.6 world. Manifest compatibility declares the intended target, not a completed in-game certification.
 
@@ -41,7 +41,7 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 4. Each player opts in using **Game Settings → Configure Settings → BG3 视频界面 → 启用 BG3 视频界面**, or the **切换 BG3 视频界面** token scene tool. It is off by default. A keybinding can be assigned in Foundry's controls configuration.
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-The stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) still serves **v0.1.2**, which requires the two BG3 modules. The standalone changes here require a future release or an explicitly installed development build. Tagged releases provide the ZIP, manifest, standalone installer and checksums; branch pushes and PRs do not publish or install updates. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.3. It includes standalone operation, quick use and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 
@@ -50,7 +50,7 @@ For Linux server installation or upgrades, use the [deployment guide](docs/DEPLO
 中文化与本轮功能由 v0.1.2 发布。模组自身控件、设置、提示与可访问名称现使用中文。角色、物品名及系统弹窗采用 Foundry／D&D5e 提供的内容，不自动修改世界语言或重命名数据。地图目标选择已按用户确认的单体点选／多目标范围选择实现，尚待 Foundry 实机验收；详见[中文界面与视频提供说明](docs/CHINESE_UI.md)。
 
 - The bottom dock automatically scales its width, height, icons, text and spacing with the available CSS viewport: about 188px high at 720P, 230px at 1080P, 273px at 1440P and 348px at 4K, with upper/lower bounds. Zoomed or short viewports keep a compact side layout. Each group scrolls independently; names/details remain available in tooltips and accessible names. Spell levels, slots and activation filters share the top strip. **编辑** reveals names and editing controls within the same height. See the [adaptive layout guide and five-resolution previews](docs/COMPACT_HUD.md).
-- 普通单一活动和无来源选择的戏法点击后直接进入目标／原生流程；单一活动的等级法术直接显示环阶和来源；多活动物品仍明确选择。底栏 **详细** 可打开完整活动、重复次数、手动分配和原生模式选项；栏内选择支持 Esc，系统弹窗保留自己的 Esc 行为。单体点选／多目标框选保持原设计，实际配置、掷骰及消费仍由系统处理。See [targeting and cancellation boundaries](docs/TARGETING.md).
+- 普通单一活动和无来源选择的戏法点击后直接进入目标／原生流程；单一活动的等级法术直接显示环阶和来源；多活动物品仍明确选择。底栏 **详细** 可打开完整活动、重复次数、手动分配和原生模式选项；需要选择的活动、环阶／来源和手动分配都在独立弹窗中；Esc、关闭按钮和取消均可退出，系统流程开始前会关闭自有弹窗。单体点选／多目标框选保持原设计，实际配置、掷骰及消费仍由系统处理。See [targeting and cancellation boundaries](docs/TARGETING.md).
 - **装备 / 特性 / 法术** show owned embedded items. Level tabs include cantrips (0). Regular and pact slots are separate read-only pools, including zero remaining slots. Innate/unprepared spells are not silently removed: the system remains responsible for eligibility and consumption.
 - **动作 / 附赠动作 / 反应** filter activities and show locally observed native uses in the current combat turn position. They are not authoritative remaining-action limits and never enforce combat rules.
 - Search each category; hover or focus an item for a safe rich description. **编辑** or category gears open a staged layout draft: show/hide, pin, drag/arrow order, bulk select/clear/reset, then Save or Cancel. Short/long rests still call official dialogs.

@@ -63,6 +63,20 @@ try {
   await page.locator('[data-action="allocate-plus"][data-value="preview-a"]').click();
   await page.locator('[data-action="allocate-plus"][data-value="preview-b"]').click();
   await page.screenshot({ path: join(output, 'complete-allocation-720p.jpg'), type: 'jpeg', quality: 85 });
+  await page.setViewportSize({ width: 640, height: 360 });
+  await fresh();
+  await page.evaluate(() => {
+    const { hud, hero } = window.compactPreview, spell = hero.items.get('spell-2');
+    for (let i = 0; i < 50; i++) hero.items.set(`preview-source-${i}`, {
+      id: `preview-source-${i}`, name: `模拟来源 ${i} · 长名称独立滚动预览`, type: 'feat',
+      system: { uses: { max: 2, spent: 0 }, activities: new Map([['source', {
+        type: 'cast', spell: { uuid: spell.uuid, level: 2 }, canUse: true
+      }]]) }
+    });
+    hud.busy.add(`${hero.uuid}:spell-2`); void hud.chooseUse(hero, spell);
+  });
+  await page.locator('.bg3-video-hud-choice-body').evaluate(body => { body.scrollTop = body.scrollHeight; });
+  await page.screenshot({ path: join(output, 'choice-dialog-640x360.jpg'), type: 'jpeg', quality: 85 });
   await writeFile(join(output, 'measurements.json'), JSON.stringify({
     scope: 'Original synthetic preview; not Foundry or physical display acceptance', browser: browser.version(), measurements
   }, null, 2) + '\n');

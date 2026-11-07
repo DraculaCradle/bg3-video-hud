@@ -3,6 +3,7 @@ import { MODULE_ID } from '../scripts/model.js';
 import { LayoutStore } from '../scripts/persistence.js';
 import { targetingBrowserTests, createTargetingFixture } from './targeting-browser.js';
 import { completeFeatureBrowserTests } from './complete-features-browser.js';
+import { createChoiceDialogFixture } from './choice-dialog-browser.js';
 
 const results = document.querySelector('#test-results');
 const lines = [];
@@ -299,6 +300,14 @@ try {
     notifications: () => notifications.slice(-5), enable
   };
   let targetingFixture;
+  let choiceFixture;
+  window.bg3ChoiceTest = {
+    start(kind) { choiceFixture ??= createChoiceDialogFixture(); choiceFixture.start(kind); },
+    snapshot: () => choiceFixture.snapshot(), refresh: () => choiceFixture.refresh(),
+    closeAndRefresh: () => choiceFixture.closeAndRefresh(), switchToken: () => choiceFixture.switchToken(),
+    revealLast: () => choiceFixture.revealLast(), switchActor: () => choiceFixture.switchActor(),
+    dispose() { choiceFixture?.dispose(); choiceFixture = null; }
+  };
   window.bg3TargetTest = {
     async start(kind) {
       targetingFixture?.dispose();
@@ -319,6 +328,7 @@ try {
   results.dataset.status = 'running';
   delete window.finishBG3BrowserInteractions;
   delete window.bg3LayoutTest;
+  window.bg3ChoiceTest.dispose(); delete window.bg3ChoiceTest;
   window.bg3TargetTest.dispose();
   delete window.bg3TargetTest;
   await test('unload removes temporary suppression', async () => {

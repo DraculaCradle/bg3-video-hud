@@ -25,6 +25,8 @@ export default class SafeReporter {
       mode: process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'client-inspection'
         : process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'source-inspection'
         : process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'recovery-only' : 'acceptance',
+      connectionRoute: !process.env.MODSTEST_ROUTE ? 'public'
+        : ['public', 'server-loopback'].includes(process.env.MODSTEST_ROUTE) ? process.env.MODSTEST_ROUTE : 'unknown',
       commit: process.env.GITHUB_SHA ?? null, runId: process.env.GITHUB_RUN_ID ?? null,
       runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
       scope: 'Existing Foundry instance / ModsTest / Gamemaster and Player1', tests: this.results

@@ -404,13 +404,23 @@ class ConfigurationPolicy(unittest.TestCase):
                 live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest',
                     'MODSTEST_CLIENT_PROBE': 'true', key: 'true'})
 
+    def test_test_routes_default_public_and_accept_only_fixed_loopback_option(self):
+        env = {'FOUNDRY_WORLD_ID': 'modstest', 'MODSTEST_CLIENT_PROBE': 'true'}
+        self.assertEqual(live_test_config.test_metadata(env)['MODSTEST_ROUTE'], 'public')
+        self.assertEqual(live_test_config.test_metadata({**env, 'MODSTEST_ROUTE': 'server-loopback'})['MODSTEST_ROUTE'], 'server-loopback')
+
+    def test_arbitrary_test_routes_are_rejected_without_echoing_the_value(self):
+        with self.assertRaisesRegex(ValueError, '^Invalid test connection route$'):
+            live_test_config.test_metadata({'FOUNDRY_WORLD_ID': 'modstest', 'MODSTEST_CLIENT_PROBE': 'true',
+                                          'MODSTEST_ROUTE': 'PRIVATE_SENTINEL'})
+
     def test_deployment_forces_acceptance_modes_even_if_diagnostic_environment_is_inherited(self):
         config = {**self.config, 'enabled': True, 'other_worlds_disabled_reviewed': True,
                   'test_state_dir': str(self.base)}
         with patch.object(orchestrator, 'load_config', return_value=config), \
              patch.object(orchestrator.os, 'geteuid', return_value=1000), \
              patch.object(sys, 'argv', ['deploy_modstest.py', '--recover-only']), \
-             patch.dict(os.environ, {'MODSTEST_CLIENT_PROBE': 'true', 'MODSTEST_SOURCE_PROBE': 'true'}), \
+             patch.dict(os.environ, {'MODSTEST_CLIENT_PROBE': 'true', 'MODSTEST_SOURCE_PROBE': 'true', 'MODSTEST_ROUTE': 'server-loopback'}), \
              patch.object(orchestrator, 'Peer') as peer, \
              patch.object(orchestrator, 'run_transaction', return_value={'status': 'no-pending-deployment', 'reason': 'none'}), \
              patch.object(orchestrator, 'report'):
@@ -418,6 +428,7 @@ class ConfigurationPolicy(unittest.TestCase):
             environment = peer.call_args_list[0].args[1]
             self.assertEqual(environment['MODSTEST_CLIENT_PROBE'], 'false')
             self.assertEqual(environment['MODSTEST_SOURCE_PROBE'], 'false')
+            self.assertEqual(environment['MODSTEST_ROUTE'], 'public')
 
     def test_tests_only_metadata_rejects_snapshot_state_inside_checkout(self):
         with self.assertRaises(ValueError):

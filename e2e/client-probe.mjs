@@ -80,6 +80,17 @@ export function controlFrame(payload) {
 
 export async function observeControlFrames(page) {
   const session = await page.context().newCDPSession(page);
+  const sockets = new Set();
+  const lifecycle = { opened: 0, closed: 0, errors: 0, pings: 0, pongs: 0 };
+  session.on('Network.webSocketCreated', event => {
+    try {
+      const url = new URL(event.url);
+      if (url.origin !== 'wss://redmagic.club' || !url.pathname.startsWith('/socket.io')) return;
+      sockets.add(event.requestId); lifecycle.opened++;
+    } catch { /* No raw endpoint or session identifiers enter the report. */ }
+  });
+  session.on('Network.webSocketClosed', event => { if (sockets.has(event.requestId)) lifecycle.closed++; });
+  session.on('Network.webSocketFrameError', event => { if (sockets.has(event.requestId)) lifecycle.errors++; });
   let summary, pending;
   const reset = () => {
     summary = { requestFrames: 0, matchingAckFrames: 0, validTimeAckFrames: 0 };
@@ -88,6 +99,10 @@ export async function observeControlFrames(page) {
   reset();
   const receive = (event, direction) => {
     if (event.response.opcode !== 1) return;
+    if (sockets.has(event.requestId)) {
+      if (direction === 'received' && event.response.payloadData === '2') lifecycle.pings++;
+      if (direction === 'sent' && event.response.payloadData === '3') lifecycle.pongs++;
+    }
     const frame = controlFrame(event.response.payloadData);
     if (!frame) return;
     const key = `${event.requestId}:${frame.id}`;
@@ -100,7 +115,7 @@ export async function observeControlFrames(page) {
   session.on('Network.webSocketFrameSent', event => receive(event, 'sent'));
   session.on('Network.webSocketFrameReceived', event => receive(event, 'received'));
   await session.send('Network.enable');
-  return { reset, read: () => ({ ...summary }), close: async () => {
+  return { reset, read: () => ({ ...summary, lifecycle: { ...lifecycle } }), close: async () => {
     try { await session.detach(); } catch { /* The owned context may already be closed. */ }
   } };
 }

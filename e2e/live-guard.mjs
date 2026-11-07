@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { verifiedLoopbackResponse, browserAssetProof } from './client-route.mjs';
 
 export class GuardError extends Error {
   constructor(status, reason) { super(reason); this.status = status; this.reason = reason; }
@@ -44,8 +45,16 @@ export function validateState(state, world) {
 }
 
 export async function publicWorld(page, config) {
-  const response = await page.goto(new URL('join', config.url).href, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+  let response;
+  try { response = await page.goto(new URL('join', config.url).href, { waitUntil: 'domcontentloaded', timeout: 30_000 }); }
+  catch (error) {
+    if (config.connectionRoute === 'server-loopback') throw new GuardError('blocked', 'local-proxy-https-unavailable');
+    throw error;
+  }
   if (!response || response.status() !== 200) throw new GuardError('blocked', 'join-endpoint-unavailable');
+  if (config.connectionRoute === 'server-loopback' && !await verifiedLoopbackResponse(response, config.url)) {
+    throw new GuardError('blocked', 'local-proxy-peer-or-origin-unverified');
+  }
   if (await page.title() !== 'ModsTest') throw new GuardError('skipped', 'active-world-not-modstest');
   // Do not enter credentials when a different world is active. No Setup request,
   // world switch, reload-world socket message or module-enable write is used.
@@ -142,8 +151,13 @@ export async function openGuard(browser, config, { beforeLogin } = {}) {
           }
           const url = new URL(`modules/bg3-video-hud/${name}`, config.url);
           url.searchParams.set('bg3Deployment', expected);
-          const response = await context.request.get(url.href, { timeout: 15_000 });
-          if (response.status() !== 200 || createHash('sha256').update(await response.body()).digest('hex') !== expected) {
+          let proof;
+          if (config.connectionRoute === 'server-loopback') proof = await gm.evaluate(browserAssetProof, url.href);
+          else {
+            const response = await context.request.get(url.href, { timeout: 15_000 });
+            proof = { status: response.status(), sha256: createHash('sha256').update(await response.body()).digest('hex') };
+          }
+          if (proof.status !== 200 || proof.sha256 !== expected) {
             throw new GuardError('blocked', 'served-assets-do-not-match-installed-files');
           }
         }

@@ -9,56 +9,95 @@ export async function inspectClient({ timeoutMs = 10_000 } = {}) {
     }
   };
   safe();
-  const socket = game.socket, engine = socket.io?.engine;
-  const fingerprint = async fn => {
-    if (typeof fn !== 'function') return { available: false };
-    const source = Function.prototype.toString.call(fn);
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(source));
-    // Do not export commercial client source, literals, account data or URLs.
-    return { available: true, chars: source.length,
-      sha256: [...new Uint8Array(digest)].map(n => n.toString(16).padStart(2, '0')).join(''),
-      mentionsDocumentEvent: /["']modifyDocument["']/.test(source),
-      mentionsStatusEvent: /["']getWorldStatus["']/.test(source),
-      mentionsTimeEvent: /["']time["']/.test(source),
-      mentionsSocketEmit: /\.emit\s*\(/.test(source) };
-  };
-  const backend = CONFIG.Actor?.documentClass?.database;
-  const packPrototype = foundry.documents?.collections?.CompendiumCollection?.prototype;
-  const api = Object.fromEntries(await Promise.all(Object.entries({
-    dispatch: foundry.helpers?.SocketInterface?.dispatch,
-    databaseGet: backend?.get, databaseGetDocuments: backend?._getDocuments,
-    databaseConstructor: backend?.constructor,
-    compendiumGetDocument: packPrototype?.getDocument,
-    compendiumGetDocuments: packPrototype?.getDocuments,
-    worldStatus: game.constructor?.getWorldStatus,
-    timeSync: game.time?.sync,
-    socketEmit: socket.emit
-  }).map(async ([name, fn]) => [name, await fingerprint(fn)])));
-  safe();
-  const before = { connected: socket.connected === true,
-    transport: ['websocket', 'polling'].includes(engine?.transport?.name) ? engine.transport.name : 'unknown',
-    engineOpen: engine?.readyState === 'open', transportWritable: engine?.transport?.writable === true,
-    socketEmitOwnProperty: Object.hasOwn(socket, 'emit'),
-    sendBufferCount: Array.isArray(socket.sendBuffer) ? socket.sendBuffer.length : null,
-    engineWriteBufferCount: Array.isArray(engine?.writeBuffer) ? engine.writeBuffer.length : null,
-    volatileFlag: socket.flags?.volatile === true,
-    configuredBackendMatches: backend === CONFIG.DatabaseBackend };
-  const started = Date.now();
-  let timer;
-  const status = await new Promise(resolve => {
-    let complete = false;
-    const finish = result => { if (!complete) { complete = true; clearTimeout(timer); resolve(result); } };
-    timer = setTimeout(() => finish({ status: 'timeout' }), Math.max(1, Math.min(15_000, timeoutMs)));
-    try {
-      socket.emit('time', value => finish(value && typeof value === 'object' && !Array.isArray(value)
-        && Number.isFinite(value.serverTime) && Number.isFinite(value.worldTime)
-        ? { status: 'ok', validTime: true } : { status: 'unexpected-type' }));
-    } catch { finish({ status: 'error' }); }
-  });
-  safe();
-  return { control: 'time', api, before, status: { ...status, durationMs: Date.now() - started },
-    integrations: Object.fromEntries(['lib-wrapper', 'socketlib', 'midi-qol', 'dae'].map(id =>
-      [id, game.modules.get(id)?.active === true])) };
+  // This page belongs to the test. Idle only its local PIXI drawing tickers;
+  // never pause the game, update settings or send a pause/shutdown event.
+  // Restore exact prior running states, including on timeout or guard failure.
+  const rendering = { mode: 'page-local-idle', paused: false, tickerCount: 0, restored: false };
+  const saved = [];
+  try {
+    if (game.scenes?.active) {
+      const app = globalThis.canvas?.app?.ticker;
+      const tickers = [...new Set([app, globalThis.PIXI?.Ticker?.shared, globalThis.PIXI?.Ticker?.system])];
+      if (!globalThis.canvas?.ready || !app || tickers.some(t => !t || typeof t.started !== 'boolean' || typeof t.autoStart !== 'boolean'
+        || typeof t.start !== 'function' || typeof t.stop !== 'function')) {
+        throw Error('client-rendering-idle-unavailable');
+      }
+      for (const ticker of tickers) saved.push({ ticker, started: ticker.started, autoStart: ticker.autoStart });
+      for (const { ticker, started } of saved) {
+        ticker.autoStart = false;
+        if (started) ticker.stop();
+      }
+      if (saved.some(({ ticker }) => ticker.started !== false)) throw Error('client-rendering-idle-unavailable');
+      rendering.paused = true;
+      rendering.tickerCount = saved.length;
+      // Give the page a bounded local opportunity to drain queued work.
+      await new Promise(resolve => setTimeout(resolve, 250));
+      safe();
+      if (saved.some(({ ticker }) => ticker.started !== false)) throw Error('client-rendering-idle-unavailable');
+    }
+    const socket = game.socket, engine = socket.io?.engine;
+    const fingerprint = async fn => {
+      if (typeof fn !== 'function') return { available: false };
+      const source = Function.prototype.toString.call(fn);
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(source));
+      // Do not export commercial client source, literals, account data or URLs.
+      return { available: true, chars: source.length,
+        sha256: [...new Uint8Array(digest)].map(n => n.toString(16).padStart(2, '0')).join(''),
+        mentionsDocumentEvent: /["']modifyDocument["']/.test(source),
+        mentionsStatusEvent: /["']getWorldStatus["']/.test(source),
+        mentionsTimeEvent: /["']time["']/.test(source),
+        mentionsSocketEmit: /\.emit\s*\(/.test(source) };
+    };
+    const backend = CONFIG.Actor?.documentClass?.database;
+    const packPrototype = foundry.documents?.collections?.CompendiumCollection?.prototype;
+    const api = Object.fromEntries(await Promise.all(Object.entries({
+      dispatch: foundry.helpers?.SocketInterface?.dispatch,
+      databaseGet: backend?.get, databaseGetDocuments: backend?._getDocuments,
+      databaseConstructor: backend?.constructor,
+      compendiumGetDocument: packPrototype?.getDocument,
+      compendiumGetDocuments: packPrototype?.getDocuments,
+      worldStatus: game.constructor?.getWorldStatus,
+      timeSync: game.time?.sync,
+      socketEmit: socket.emit
+    }).map(async ([name, fn]) => [name, await fingerprint(fn)])));
+    safe();
+    const before = { connected: socket.connected === true,
+      transport: ['websocket', 'polling'].includes(engine?.transport?.name) ? engine.transport.name : 'unknown',
+      engineOpen: engine?.readyState === 'open', transportWritable: engine?.transport?.writable === true,
+      socketEmitOwnProperty: Object.hasOwn(socket, 'emit'),
+      sendBufferCount: Array.isArray(socket.sendBuffer) ? socket.sendBuffer.length : null,
+      engineWriteBufferCount: Array.isArray(engine?.writeBuffer) ? engine.writeBuffer.length : null,
+      volatileFlag: socket.flags?.volatile === true,
+      configuredBackendMatches: backend === CONFIG.DatabaseBackend };
+    const started = Date.now();
+    let timer;
+    const status = await new Promise(resolve => {
+      let complete = false;
+      const finish = result => { if (!complete) { complete = true; clearTimeout(timer); resolve(result); } };
+      timer = setTimeout(() => finish({ status: 'timeout' }), Math.max(1, Math.min(15_000, timeoutMs)));
+      try {
+        socket.emit('time', value => finish(value && typeof value === 'object' && !Array.isArray(value)
+          && Number.isFinite(value.serverTime) && Number.isFinite(value.worldTime)
+          ? { status: 'ok', validTime: true } : { status: 'unexpected-type' }));
+      } catch { finish({ status: 'error' }); }
+    });
+    safe();
+    if (saved.some(({ ticker }) => ticker.started !== false)) throw Error('client-rendering-idle-unavailable');
+    return { control: 'time', api, before, rendering, status: { ...status, durationMs: Date.now() - started },
+      integrations: Object.fromEntries(['lib-wrapper', 'socketlib', 'midi-qol', 'dae'].map(id =>
+        [id, game.modules.get(id)?.active === true])) };
+  } finally {
+    let restored = true;
+    for (const { ticker, started, autoStart } of saved) {
+      try {
+        ticker.autoStart = autoStart;
+        if (ticker.started !== started) started ? ticker.start() : ticker.stop();
+        if (ticker.started !== started || ticker.autoStart !== autoStart) restored = false;
+      } catch { restored = false; }
+    }
+    rendering.restored = restored;
+    if (!restored) throw Error('client-rendering-restoration-unconfirmed');
+  }
 }
 
 // Engine.IO message + Socket.IO event/ack, default namespace only. Unknown or

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { inspectClient, observeControlFrames, controlFrame } from '../e2e/client-probe.mjs';
 
 async function clientFixture(callback, run) {
-  const names = ['game', 'foundry', 'CONFIG'];
+  const names = ['game', 'foundry', 'CONFIG', 'canvas', 'PIXI'];
   const saved = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
   const calls = [];
   const socket = { connected: true, sendBuffer: [], flags: {},
@@ -21,6 +21,7 @@ async function clientFixture(callback, run) {
   globalThis.foundry = { helpers: { SocketInterface: { dispatch() { throw Error('must not dispatch document RPC'); } } },
     documents: { collections: { CompendiumCollection: class { getDocument() {} getDocuments() {} } } } };
   globalThis.CONFIG = { Actor: { documentClass: { database: backend } }, DatabaseBackend: backend };
+  globalThis.canvas = undefined; globalThis.PIXI = undefined;
   try { await run({ calls, game }); }
   finally { names.forEach((name, i) => saved[i] ? Object.defineProperty(globalThis, name, saved[i]) : delete globalThis[name]); }
 }
@@ -58,6 +59,58 @@ test('foreign users and context changes block inspection without a document or s
   });
   await clientFixture(reply => { game.world.id = 'other-world'; reply({ serverTime: 10, worldTime: 20 }); }, async ({ calls }) => {
     await assert.rejects(inspectClient(), /client-probe-guard-denied/); assert.equal(calls.length, 1);
+  });
+});
+
+function localTickers(game, starts = [true, true, true]) {
+  const tickers = starts.map(started => ({ started, autoStart: true, starts: 0, stops: 0,
+    start() { this.started = true; this.starts++; }, stop() { this.started = false; this.stops++; } }));
+  game.scenes = { active: {} };
+  globalThis.canvas = { ready: true, app: { ticker: tickers[0] } };
+  globalThis.PIXI = { Ticker: { shared: tickers[1], system: tickers[2] } };
+  return tickers;
+}
+
+test('read-only query idles local drawing only and restores every prior ticker state', async () => {
+  let tickers;
+  await clientFixture(reply => {
+    assert.ok([tickers[0], tickers[2]].every(t => !t.started && !t.autoStart)); reply({ serverTime: 10, worldTime: 20 });
+  }, async ({ game, calls }) => {
+    tickers = localTickers(game, [true, true, false]);
+    // Shared ticker references must be restored once, not started twice.
+    globalThis.PIXI.Ticker.shared = tickers[0];
+    const result = await inspectClient();
+    assert.deepEqual(calls, ['time']);
+    assert.deepEqual(result.rendering, { mode: 'page-local-idle', paused: true, tickerCount: 2, restored: true });
+    assert.equal(tickers[0].started, true); assert.equal(tickers[0].starts, 1); assert.equal(tickers[0].stops, 1);
+    assert.equal(tickers[2].started, false); assert.equal(tickers[2].starts, 0);
+    assert.ok([tickers[0], tickers[2]].every(t => t.autoStart));
+  });
+});
+
+test('ticker running states recover after query timeout and a world guard failure', async () => {
+  await clientFixture(null, async ({ game }) => {
+    const tickers = localTickers(game);
+    const result = await inspectClient({ timeoutMs: 1 });
+    assert.equal(result.status.status, 'timeout'); assert.equal(result.rendering.restored, true);
+    assert.ok(tickers.every(t => t.started && t.starts === 1));
+  });
+  await clientFixture(reply => { game.world.id = 'other'; reply({ serverTime: 10, worldTime: 20 }); }, async ({ game: current }) => {
+    const tickers = localTickers(current);
+    await assert.rejects(inspectClient(), /client-probe-guard-denied/);
+    assert.ok(tickers.every(t => t.started && t.starts === 1));
+  });
+});
+
+test('missing drawing controls abort before the query and failed restoration cannot pass', async () => {
+  await clientFixture(null, async ({ game, calls }) => {
+    game.scenes = { active: {} };
+    await assert.rejects(inspectClient(), /client-rendering-idle-unavailable/); assert.equal(calls.length, 0);
+  });
+  await clientFixture(reply => reply({ serverTime: 10, worldTime: 20 }), async ({ game }) => {
+    const tickers = localTickers(game); tickers[0].start = () => { throw Error('PRIVATE'); };
+    await assert.rejects(inspectClient(), error => error.message === 'client-rendering-restoration-unconfirmed');
+    assert.ok(tickers.slice(1).every(t => t.started));
   });
 });
 

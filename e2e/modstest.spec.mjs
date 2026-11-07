@@ -51,7 +51,13 @@ test(process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'ModsTest read-only client i
       info.annotations.push({ type: 'stage', description: 'Inspect client interfaces and one native read-only clock acknowledgement; no document request' });
       const framesBeforeInspection = observer.read();
       observer.reset();
-      const result = await guard.gm.evaluate(inspectClient);
+      let result;
+      try { result = await guard.gm.evaluate(inspectClient); }
+      catch (error) {
+        const reason = ['client-rendering-idle-unavailable', 'client-rendering-restoration-unconfirmed',
+          'client-probe-guard-denied'].find(value => error.message?.includes(value));
+        throw new GuardError('blocked', reason ?? 'client-readonly-inspection-failed');
+      }
       // Retain only passive counts from login/initialization. A successful
       // bootstrap reply must not make the explicit post-ready query pass.
       result.framesBeforeInspection = framesBeforeInspection;

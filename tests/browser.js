@@ -337,20 +337,42 @@ try {
     await enable(); assert(root());
     window.dispatchEvent(new Event('beforeunload')); assert(!root()); assert(originalVisible());
   });
-  await test('a different world registers no HUD settings, controls or API and writes no flags', async () => {
+  await test('a manually enabled module exposes client settings in any world but defaults off', async () => {
     handlers.clear();
     game.world = { id: 'campaign', title: 'Campaign' };
     game.modules.set(MODULE_ID, {});
     const flags = JSON.stringify(user.flags);
-    game.settings.register = () => { throw new Error('Foreign world settings registration'); };
-    game.keybindings.register = () => { throw new Error('Foreign world keybindings registration'); };
     await import('../scripts/module.js?foreign-world-bootstrap');
     await Hooks.emit('init'); await Hooks.emit('ready');
+    const definition = definitions.get(`${MODULE_ID}.enabled`);
+    assert(definition.config); equal(definition.scope, 'client'); equal(definition.default, false);
+    assert(!root()); assert(originalVisible());
+    equal(game.settings.get(MODULE_ID, 'enabled'), false);
+    assert(game.modules.get(MODULE_ID).api);
+    equal(JSON.stringify(user.flags), flags);
+  });
+  await test('another world requires explicit client opt-in and can return to original HUD without flag writes', async () => {
+    const flags = JSON.stringify(user.flags);
+    canvas.tokens.controlled = [{ actor: hero }];
     const controls = { tokens: { tools: {} } };
     await Hooks.emit('getSceneControlButtons', controls);
+    assert(controls.tokens.tools.bg3VideoHUD);
+    await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
+    assert(root()); assert(!originalVisible());
+    await game.modules.get(MODULE_ID).api.toggle(); await flush();
     assert(!root()); assert(originalVisible());
-    assert(!controls.tokens.tools.bg3VideoHUD); assert(!game.modules.get(MODULE_ID).api);
     equal(JSON.stringify(user.flags), flags);
+  });
+  await test('all-world opt-in preserves Foundry and system version guards', async () => {
+    const version = game.version, system = { ...game.system };
+    for (const unsupported of [{ version: '13.0', system },
+      { version, system: { ...system, version: '6.0.5' } },
+      { version, system: { ...system, id: 'other' } }]) {
+      Object.assign(game, unsupported);
+      await enable(); assert(!root()); assert(originalVisible());
+      await game.settings.set(MODULE_ID, 'enabled', false);
+    }
+    Object.assign(game, { version, system });
   });
 } catch (error) { failed++; lines.push(`HARNESS FAILURE: ${error.stack ?? error}`); }
 results.textContent = `${lines.join('\n')}\n${passed} passed, ${failed} failed${failed ? `\nFixture notifications: ${JSON.stringify(notifications.slice(-5))}` : ''}`;

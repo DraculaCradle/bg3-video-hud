@@ -85,3 +85,36 @@ test('CDP status correlation ignores unrelated frames and never exports payloads
   assert.equal(controlFrame('x'.repeat(5000)), null); assert.equal(controlFrame('43not-json'), null);
   await observer.close(); assert.equal(detached, 1);
 });
+
+test('control observer rejects other origins, lookalike paths and frames from unregistered sockets', async () => {
+  const handlers = new Map();
+  const observer = await observeControlFrames({ context: () => ({ newCDPSession: async () => ({
+    on: (name, cb) => handlers.set(name, cb), send: async () => {}, detach: async () => {}
+  }) }) });
+  const frame = (direction, id, data) => handlers.get(`Network.webSocketFrame${direction}`)({
+    requestId: id, response: { opcode: 1, payloadData: data }
+  });
+  for (const [id, url] of [
+    ['other', 'wss://example.invalid/socket.io/'],
+    ['path', 'wss://redmagic.club/socket.io-other/'],
+    ['scheme', 'ws://redmagic.club/socket.io/'],
+    ['port', 'wss://redmagic.club:8443/socket.io/']
+  ]) handlers.get('Network.webSocketCreated')({ requestId: id, url });
+  for (const id of ['other', 'path', 'scheme', 'port', 'not-registered']) {
+    frame('Sent', id, '421["time"]');
+    frame('Received', id, '431[{"serverTime":10,"worldTime":20}]');
+    frame('Received', id, '2'); frame('Sent', id, '3');
+    handlers.get('Network.webSocketFrameError')({ requestId: id });
+    handlers.get('Network.webSocketClosed')({ requestId: id });
+  }
+  assert.deepEqual(observer.read(), { requestFrames: 0, matchingAckFrames: 0, validTimeAckFrames: 0,
+    lifecycle: { opened: 0, closed: 0, errors: 0, pings: 0, pongs: 0 } });
+  for (const [id, path] of [['canonical', '/socket.io/'], ['no-slash', '/socket.io']]) {
+    handlers.get('Network.webSocketCreated')({ requestId: id, url: `wss://redmagic.club${path}?private=omitted` });
+    frame('Sent', id, '422["time"]');
+    frame('Received', id, '432[{"serverTime":10,"worldTime":20}]');
+  }
+  assert.deepEqual(observer.read(), { requestFrames: 2, matchingAckFrames: 2, validTimeAckFrames: 2,
+    lifecycle: { opened: 2, closed: 0, errors: 0, pings: 0, pongs: 0 } });
+  await observer.close();
+});

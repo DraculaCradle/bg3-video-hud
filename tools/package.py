@@ -15,6 +15,7 @@ files += [root / 'docs' / name for name in ['MANUAL_TESTS.md', 'API_NOTES.md', '
 files += [root / 'docs' / 'images' / 'compact-720p.png', root / 'docs' / 'images' / 'targeting-range.jpg']
 files += sorted((root / 'docs' / 'images').glob('responsive-*.jpg'))
 files += sorted((root / 'docs' / 'images').glob('complete-*.jpg'))
+files += sorted((root / 'docs' / 'images').glob('choice-*.jpg'))
 output = root / 'dist'
 output.mkdir(exist_ok=True)
 archive = output / 'bg3-video-hud.zip'

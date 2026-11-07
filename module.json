@@ -2,15 +2,37 @@
   "id": "bg3-video-hud",
   "title": "BG3 视频界面",
   "description": "独立运行的 BG3 风格玩家操作界面，适用于 Foundry VTT V14 与 D&D5e。",
-  "version": "0.1.2",
-  "authors": [{ "name": "BG3 Video HUD contributors" }],
-  "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
-  "relationships": {
-    "systems": [{ "id": "dnd5e", "type": "system", "compatibility": { "minimum": "6.0.6", "verified": "6.0.6", "maximum": "6.0.6" } }]
+  "version": "0.1.3",
+  "authors": [
+    {
+      "name": "BG3 Video HUD contributors"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14",
+    "maximum": "14"
   },
-  "esmodules": ["scripts/module.js"],
-  "styles": ["styles/video-hud.css"],
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "6.0.6",
+          "verified": "6.0.6",
+          "maximum": "6.0.6"
+        }
+      }
+    ]
+  },
+  "esmodules": [
+    "scripts/module.js"
+  ],
+  "styles": [
+    "styles/video-hud.css"
+  ],
   "url": "https://github.com/DraculaCradle/bg3-video-hud",
   "manifest": "https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json",
-  "download": "https://github.com/DraculaCradle/bg3-video-hud/releases/download/v0.1.2/bg3-video-hud.zip"
+  "download": "https://github.com/DraculaCradle/bg3-video-hud/releases/download/v0.1.3/bg3-video-hud.zip"
 }

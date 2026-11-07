@@ -42,7 +42,8 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
     });
   };
   const hud = new VideoHUD({ store, user, onDisable: () => hud.clear(), onError: text => errors.push(text) });
-  const find = (action, extra = '') => hud.root?.querySelector(`[data-action="${action}"]${extra}`);
+  const find = (action, extra = '') => hud.choiceDialog?.querySelector(`[data-action="${action}"]${extra}`)
+    ?? hud.root?.querySelector(`[data-action="${action}"]${extra}`);
   const click = async (action, extra = '') => {
     const control = find(action, extra); assert(control, `Missing ${action} ${extra}`); control.click(); await flush();
     for (let i = 0; hud.saving && i < 100; i++) await new Promise(r => setTimeout(r, 0));
@@ -191,8 +192,10 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       weapon.system.activities = new Map([[activity.id, activity]]);
       let promise = hud.chooseUse(hero, weapon);
       await click('choose-activity', '[data-value=weapon-attack]');
-      const entry = [...hud.root.querySelectorAll('[data-action=choose-cast]')].find(n => n.textContent === '使用并结算');
-      assert(entry); entry.click(); await flush(); assert(!(await promise).nativeOnly);
+      const entry = [...hud.choiceDialog.querySelectorAll('[data-action=choose-cast]')].find(n => n.textContent === '使用并结算');
+      assert(entry); hud.pendingUse.count = '999'; entry.click(); await flush();
+      assert(hud.choiceDialog.querySelector('[role=alert]')); assert(hud.pendingUse);
+      hud.pendingUse.count = ''; find('choose-cast').click(); await flush(); assert(!(await promise).nativeOnly);
       promise = hud.chooseUse(hero, weapon);
       await click('choose-activity', '[data-value=weapon-attack]'); hud.pendingUse.count = '999';
       await click('choose-cast', '[data-native-only=true]'); assert((await promise).nativeOnly);

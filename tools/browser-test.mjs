@@ -279,6 +279,75 @@ try {
       await press('Enter', 'Enter', 13);
       assert.equal(await evaluate('document.getElementById("bg3-video-hud") === null && getComputedStyle(document.getElementById("bg3-hotbar")).display !== "none"'), true);
     });
+    for (const [width, height, deviceScaleFactor] of [[1280,720,1], [1366,768,1], [1920,1080,1],
+      [2560,1440,1], [3840,2160,1], [640,360,2], [390,844,1]]) {
+      await test(`choice dialogs fit ${width}x${height} DPR ${deviceScaleFactor} without replacing or enlarging HUD lists`, async () => {
+        await setViewport({ width, height, deviceScaleFactor });
+        for (const kind of ['casting', 'activity', 'allocation']) {
+          await evaluate(`window.bg3ChoiceTest.start(${JSON.stringify(kind)})`);
+          const state = await evaluate('window.bg3ChoiceTest.snapshot()');
+          assert.equal(state.open, true); assert.equal(state.outsideHUD, true); assert.equal(state.hudContainsChoices, false);
+          assert.ok(state.dialog.left >= 0 && state.dialog.right <= width && state.dialog.top >= 0 && state.dialog.bottom <= height, JSON.stringify(state));
+          assert.ok(state.bodyOverflow <= 1); assert.equal(state.dockNow.height, state.dock.height);
+          assert.ok(state.activeInside); assert.equal(state.writes, 0);
+          await evaluate('window.bg3ChoiceTest.revealLast()');
+          const after = await evaluate('window.bg3ChoiceTest.snapshot()');
+          if (height <= 768) assert.ok(after.bodyScrollTop > 0, 'long choices must scroll inside the window');
+          await press('Escape', 'Escape', 27);
+          assert.equal((await evaluate('window.bg3ChoiceTest.snapshot()')).result, 'cancelled');
+        }
+      });
+    }
+    await test('focused popup option remains visible after 4K to 200% 720P resize', async () => {
+      await setViewport({ width: 3840, height: 2160 });
+      await evaluate('window.bg3ChoiceTest.start("casting"); document.querySelector(".bg3-video-hud-choice-dialog [data-action=source-manager]").focus()');
+      await setViewport({ width: 640, height: 360, deviceScaleFactor: 2 });
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      const state = await evaluate('window.bg3ChoiceTest.snapshot()');
+      assert.equal(state.activeInside, true);
+      assert.ok(state.activeBox.top >= state.body.top - 1 && state.activeBox.bottom <= state.body.bottom + 1);
+      await press('Escape', 'Escape', 27);
+    });
+    await test('trusted Tab stays in the choice dialog and Enter closes it before its consumer continues', async () => {
+      await setViewport({ width: 1280, height: 720 });
+      await evaluate('window.bg3ChoiceTest.start("casting")');
+      await press('Tab', 'Tab', 9);
+      assert.equal((await evaluate('window.bg3ChoiceTest.snapshot()')).activeInside, true);
+      await evaluate('document.querySelector(".bg3-video-hud-choice-dialog [data-slot=spell3]").focus()');
+      await press('Enter', 'Enter', 13);
+      const state = await evaluate('window.bg3ChoiceTest.snapshot()');
+      assert.equal(state.result, 'accepted'); assert.equal(state.open, false); assert.equal(state.closedAtResolution, true);
+    });
+    await test('nested source dialog Escape preserves parent; closing parent restores item focus', async () => {
+      await evaluate('window.bg3ChoiceTest.start("casting"); document.querySelector(".bg3-video-hud-choice-dialog [data-action=source-manager]").focus()');
+      await press('Enter', 'Enter', 13);
+      assert.equal((await evaluate('window.bg3ChoiceTest.snapshot()')).childDialog, true);
+      await press('Escape', 'Escape', 27);
+      let state = await evaluate('window.bg3ChoiceTest.snapshot()');
+      assert.equal(state.childDialog, false); assert.equal(state.open, true); assert.equal(state.result, 'waiting');
+      await evaluate('document.querySelector(".bg3-video-hud-choice-dialog [data-action=close-modal]").focus()');
+      await press('Enter', 'Enter', 13);
+      await evaluate('new Promise(resolve => setTimeout(resolve, 20))');
+      state = await evaluate('window.bg3ChoiceTest.snapshot()');
+      assert.equal(state.result, 'cancelled'); assert.equal(state.focusedItem, 'dialog-spell');
+    });
+    await test('queued close and refresh cannot reopen dialogs; actor/token changes cancel safely', async () => {
+      await evaluate('window.bg3ChoiceTest.start("casting"); window.bg3ChoiceTest.start("activity")');
+      await evaluate('new Promise(resolve => setTimeout(resolve, 0))');
+      let state = await evaluate('window.bg3ChoiceTest.snapshot()');
+      assert.equal(state.open, true); assert.equal(state.result, 'waiting');
+      await evaluate('window.bg3ChoiceTest.closeAndRefresh()');
+      state = await evaluate('window.bg3ChoiceTest.snapshot()');
+      assert.equal(state.open, false); assert.equal(state.result, 'cancelled');
+      await evaluate('window.bg3ChoiceTest.start("activity")');
+      await evaluate('window.bg3ChoiceTest.switchActor()');
+      state = await evaluate('window.bg3ChoiceTest.snapshot()');
+      assert.equal(state.open, false); assert.equal(state.result, 'cancelled'); assert.equal(state.writes, 0);
+      await evaluate('window.bg3ChoiceTest.start("casting"); window.bg3ChoiceTest.switchToken()');
+      state = await evaluate('window.bg3ChoiceTest.snapshot()');
+      assert.equal(state.open, false); assert.equal(state.result, 'cancelled');
+      await evaluate('window.bg3ChoiceTest.dispose()');
+    });
     const mouse = async (type, x, y, button = 'left') => {
       await send('Input.dispatchMouseEvent', { type, x, y, button,
         buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1 }, sessionId);

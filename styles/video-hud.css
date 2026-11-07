@@ -116,7 +116,6 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
 .bg3-video-hud input, .bg3-video-hud select { color: inherit; font: inherit; border: 1px solid #625943; background: #111820; border-radius: 3px; }
 .bg3-video-hud-panel-heading input { flex: 1; min-width: 0; width: 0; height: var(--video-heading); min-height: 0; padding: 0 3px; font-size: var(--video-small); }
 .bg3-video-hud-panel-heading button { min-height: 0; height: var(--video-heading); padding: 0 3px; line-height: 1; flex: 0 0 auto; font-size: var(--video-small); }
-.bg3-video-hud .bg3-video-hud-choice-list { display: block; }
 .bg3-video-hud-choice { display: flex; flex-direction: column; align-items: start; gap: var(--video-gap); padding-bottom: var(--video-gap); }
 .bg3-video-hud-choice > strong { color: var(--video-gold); overflow-wrap: anywhere; }
 .bg3-video-hud-choice button { min-height: var(--video-row); max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
@@ -145,6 +144,21 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
 .bg3-video-hud-dialog label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .bg3-video-hud-dialog input, .bg3-video-hud-dialog select { font: inherit; color: inherit; background: #101620; border: 1px solid #8d805e; min-width: 0; max-width: 65%; padding: 4px; }
 .bg3-video-hud-dialog button, .bg3-video-hud-tooltip button { color: inherit; background: #303342; border: 1px solid #a28d5d; font: inherit; padding: 3px 8px; cursor: pointer; }
+.bg3-video-hud-choice-dialog {
+  --video-gold: #d9bd7b; --video-gap: clamp(6px, .4vw, 12px);
+  --video-row: clamp(30px, 2vw, 44px); --video-label: 1em; --video-small: .9em;
+  width: min(760px, calc(100vw - 24px)); max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px); overflow: hidden;
+  font-size: clamp(12px, calc(10px + .25vw), 20px);
+}
+.bg3-video-hud-choice-dialog[open] { display: flex; flex-direction: column; }
+.bg3-video-hud-choice-dialog > header { flex: 0 0 auto; }
+.bg3-video-hud-choice-body { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.bg3-video-hud-choice-error { color: #ffc1b4; overflow-wrap: anywhere; }
+.bg3-video-hud-choice-dialog .bg3-video-hud-choice { width: 100%; min-width: 0; }
+.bg3-video-hud-choice-dialog .bg3-video-hud-choice > div:first-child { display: flex; flex-wrap: wrap; gap: var(--video-gap); }
+.bg3-video-hud-choice-dialog .bg3-video-hud-option-cards button { flex-basis: 150px; min-width: 0; }
+.bg3-video-hud-choice-dialog button:focus-visible, .bg3-video-hud-choice-dialog input:focus-visible { outline: 2px solid #f8d68b; outline-offset: -2px; }
 .bg3-video-hud-party { display: flex; flex-direction: column; gap: 10px; }
 .bg3-video-hud-party > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .bg3-video-hud-party img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }

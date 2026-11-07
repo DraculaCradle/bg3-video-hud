@@ -50,7 +50,7 @@ export class VideoHUD {
     // the viewport. CSS performs the sizing; this never renders or writes flags.
     this.keepFocusVisible = () => {
       const active = document.activeElement;
-      if (this.root?.contains(active) && active.closest('[data-scroll-group]')) {
+      if ((this.root?.contains(active) || this.choiceDialog?.contains(active)) && active.closest('[data-scroll-group]')) {
         active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }
     };
@@ -68,6 +68,7 @@ export class VideoHUD {
     this.targeting.cancel();
     this.pendingUse?.resolve(null); this.pendingUse = null;
     this.pendingAllocation?.resolve(null); this.pendingAllocation = null;
+    this.dismissChoiceDialog();
     this.tooltip.hide(); this.visuals.destroy(); this.dialog?.close();
     this.edit = false; this.draft = null; this.editGroup = null; this.progress = null;
     this.root?.remove();
@@ -87,11 +88,14 @@ export class VideoHUD {
   setActor(actor, token = null) {
     if (this.destroyed) return;
     if (!actor) { this.clear(); return; }
-    if (this.actor?.uuid !== actor.uuid || this.token?.id !== token?.id) this.targeting.cancel();
-    if (this.actor?.uuid !== actor.uuid) {
+    if (this.actor?.uuid !== actor.uuid || this.token?.id !== token?.id) {
+      this.targeting.cancel();
       this.pendingUse?.resolve(null); this.pendingUse = null;
       this.pendingAllocation?.resolve(null); this.pendingAllocation = null;
+      this.dismissChoiceDialog();
       this.dialog?.close(); this.tooltip.hide(); this.progress = null;
+    }
+    if (this.actor?.uuid !== actor.uuid) {
       this.queries = {}; this.draft = null; this.editGroup = null;
       this.edit = false;
       this.level = 'all';
@@ -234,14 +238,8 @@ export class VideoHUD {
       list.dataset.scrollGroup = group;
       list.setAttribute('aria-label', `${groupLabels[group]}列表`);
       if (groupItems.length) list.tabIndex = 0;
-      const pending = this.pendingUse?.group === group ? this.pendingUse : null;
-      const allocation = this.pendingAllocation && groupFor(this.pendingAllocation.item) === group ? this.pendingAllocation : null;
-      const progress = this.progress && groupFor(this.progress.item) === group ? this.progress : null;
-      if (pending || allocation || progress) {
-        list.classList.add('bg3-video-hud-choice-list');
-        list.append(this.choicePanel(pending, allocation, progress));
-      } else for (const item of groupItems) list.append(this.itemRow(item, prefs));
-      if (!groupItems.length && !pending && !allocation && !progress) section.append(node('p', this.edit ? '此分类没有角色物品。' : '没有符合筛选条件的物品。', 'bg3-video-hud-empty'));
+      for (const item of groupItems) list.append(this.itemRow(item, prefs));
+      if (!groupItems.length) section.append(node('p', this.edit ? '此分类没有角色物品。' : '没有符合筛选条件的物品。', 'bg3-video-hud-empty'));
       section.append(list);
       panels.append(section);
     }
@@ -258,7 +256,13 @@ export class VideoHUD {
     detailed.disabled = this.busy.size > 0 || this.edit || this.saving === true;
     footer.append(detailed);
     if (this.targeting.picking) footer.append(button('取消选目标', 'cancel-target', '取消目标选择，不使用技能'));
-    const status = node('span', this.status, 'bg3-video-hud-status');
+    const stages = { attack: '攻击掷骰', damage: '伤害掷骰', done: '已完成', stopped: '已停止', error: '结算中断' };
+    const progress = this.progress;
+    if (progress && this.busy.size && !['done', 'stopped', 'error'].includes(progress.stage)) {
+      footer.append(button('停止后续', 'stop-sequence', '停止尚未执行的结算；当前原生窗口仍可自行取消'));
+    }
+    const progressText = progress ? `${progress.item.name} · ${stages[progress.stage] ?? '结算'} ${Math.min(progress.index + 1, progress.total)}/${progress.total}` : '';
+    const status = node('span', progressText || this.status, 'bg3-video-hud-status');
     status.title = this.status;
     status.setAttribute('role', 'status');
     footer.append(status);
@@ -281,6 +285,7 @@ export class VideoHUD {
         try { focused.setSelectionRange(...selection); } catch { /* Numeric input has no selection API. */ }
       }
     }
+    this.syncChoiceDialog();
   }
 
   spellControls(prefs) {
@@ -369,7 +374,7 @@ export class VideoHUD {
   }
 
   chooseUse(actor, item) {
-    this.tooltip.hide(); this.progress = null;
+    this.tooltip.hide(); this.progress = null; this.choiceError = '';
     const activities = usableActivities(item);
     const single = !this.detailed && activities.length === 1 ? activities[0] : null;
     // Skip choices only when there is one usable activity and no spell-level
@@ -387,9 +392,77 @@ export class VideoHUD {
   }
 
   closeChoice() {
+    const item = this.pendingUse?.item ?? this.pendingAllocation?.item;
+    const actor = this.actor;
     this.pendingUse?.resolve(null); this.pendingUse = null;
     this.pendingAllocation?.resolve(null); this.pendingAllocation = null;
-    this.progress = null; this.tooltip.hide(); this.render();
+    this.dismissChoiceDialog();
+    this.progress = null; this.choiceError = ''; this.tooltip.hide(); this.render();
+    // The owning use promise releases its busy lock in microtasks. Restore
+    // keyboard focus after that, without stealing it from another dialog.
+    setTimeout(() => {
+      if (!item || this.destroyed || this.actor !== actor || this.choiceDialog?.open || this.dialog?.open) return;
+      [...(this.root?.querySelectorAll('[data-action="use"]') ?? [])]
+        .find(control => control.dataset.itemId === item.id && !control.disabled)?.focus({ preventScroll: true });
+    }, 0);
+  }
+
+  dismissChoiceDialog() {
+    const dialog = this.choiceDialog;
+    this.choiceDialog = null;
+    // Clear identity before close: its queued close event must not cancel a
+    // subsequent choice or an already accepted native use.
+    if (dialog?.open) dialog.close();
+    dialog?.remove();
+  }
+
+  syncChoiceDialog() {
+    const state = this.pendingUse ?? this.pendingAllocation;
+    if (!state) { this.dismissChoiceDialog(); return; }
+    let dialog = this.choiceDialog;
+    let created = false;
+    if (dialog && dialog.choiceState === state && !dialog.open) {
+      // Native close events are queued. A simultaneous document refresh must
+      // honor cancellation rather than reopen the just-closed window.
+      this.closeChoice(); return;
+    }
+    if (!dialog || dialog.choiceState !== state || !dialog.open) {
+      this.dismissChoiceDialog();
+      const title = this.pendingAllocation ? '分配目标' : '选择使用方式';
+      dialog = modal(title, () => {
+        if (this.choiceDialog !== dialog) return;
+        this.choiceDialog = null;
+        if (this.pendingUse === state || this.pendingAllocation === state) this.closeChoice();
+      }, { restoreFocus: false });
+      dialog.classList.add('bg3-video-hud-choice-dialog');
+      dialog.choiceState = state;
+      this.choiceDialog = dialog;
+      created = true;
+      dialog.addEventListener('click', event => {
+        const control = event.target.closest('button[data-action]');
+        if (control && !control.disabled && control.dataset.action !== 'close-modal') this.run(() => this.click(control, event));
+      });
+    }
+    const previous = dialog.querySelector('.bg3-video-hud-choice-body');
+    const active = dialog.contains(document.activeElement) ? document.activeElement : null;
+    const bodyHadFocus = previous?.contains(active) === true;
+    const focusKey = active ? JSON.stringify({ data: active.dataset, label: active.getAttribute('aria-label'), type: active.type }) : null;
+    const top = previous?.scrollTop ?? 0;
+    const body = node('div', undefined, 'bg3-video-hud-choice-body');
+    if (this.choiceError) {
+      const error = node('p', this.choiceError, 'bg3-video-hud-choice-error'); error.setAttribute('role', 'alert'); body.append(error);
+    }
+    body.append(this.choicePanel(this.pendingUse, this.pendingAllocation));
+    if (previous) previous.replaceWith(body); else dialog.append(body);
+    body.scrollTop = top;
+    const controls = [...body.querySelectorAll('button, input, select')];
+    const focused = controls.find(control => JSON.stringify({ data: control.dataset,
+      label: control.getAttribute('aria-label'), type: control.type }) === focusKey);
+    if (!this.dialog?.open && (created || bodyHadFocus)) {
+      const next = focused && !focused.disabled ? focused : controls.find(control => !control.disabled);
+      next?.focus({ preventScroll: true });
+      if (!focused || focused.disabled) next?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
   }
 
   chooseActivity(id) {
@@ -397,7 +470,7 @@ export class VideoHUD {
     if (!state || state.actor !== this.actor) return;
     const activity = usableActivities(state.item).find(a => a.id === id);
     if (!activity) throw new Error('此活动已不可用，请重新选择。');
-    state.activityId = id; state.phase = 'casting'; this.render();
+    this.choiceError = ''; state.activityId = id; state.phase = 'casting'; this.render();
   }
 
   finishChoice(data) {
@@ -413,8 +486,8 @@ export class VideoHUD {
     this.pendingUse = null; state.resolve(choice); this.render();
   }
 
-  choicePanel(pending, allocation, progress) {
-    const row = node('li', undefined, 'bg3-video-hud-choice');
+  choicePanel(pending, allocation) {
+    const row = node('div', undefined, 'bg3-video-hud-choice');
     row.dataset.scrollGroup = 'use-options';
     if (allocation) {
       row.append(node('strong', `${allocation.item.name} · 分配 ${allocation.allocation.length}/${allocation.count}`));
@@ -428,15 +501,6 @@ export class VideoHUD {
       row.append(button('撤回一次', 'allocate-undo'), button('取消', 'allocate-cancel'));
       const confirm = button(`施放（${allocation.allocation.length}/${allocation.count}）`, 'allocate-confirm');
       confirm.disabled = allocation.allocation.length !== allocation.count; row.append(confirm); return row;
-    }
-    if (progress) {
-      const labels = { attack: '攻击掷骰', damage: '伤害掷骰', done: '已完成', stopped: '已停止', error: '结算中断' };
-      row.append(node('strong', `${progress.item.name} · ${labels[progress.stage] ?? '结算'} ${Math.min(progress.index + 1, progress.total)}/${progress.total}`));
-      for (const [index, target] of progress.allocation.entries()) {
-        row.append(node('span', `${index < progress.index ? '✓' : index === progress.index ? '›' : '·'} ${index + 1}. ${target.document?.name ?? target.name ?? '目标'}`));
-      }
-      row.append(button(this.busy.size ? '停止后续' : '返回', this.busy.size ? 'stop-sequence' : 'close-choice'));
-      return row;
     }
     const navigation = node('div');
     if (pending.phase !== 'activity') navigation.append(button('返回', 'back-choice'));
@@ -482,6 +546,7 @@ export class VideoHUD {
   }
 
   allocate({ item, selected, count, consumed }) {
+    this.choiceError = '';
     return new Promise(resolve => {
       this.pendingAllocation = { item, selected, count, consumed, allocation: [], resolve };
       this.render();
@@ -608,6 +673,7 @@ export class VideoHUD {
     catch (error) {
       const message = error instanceof Error ? error.message : '系统未能完成此操作，请重试或从角色卡操作。';
       if (this.actor?.uuid === actorUuid) this.status = message;
+      if (this.choiceDialog?.open) this.choiceError = message;
       this.onError?.(message);
       try { this.render(); } catch { this.clear(); }
     }

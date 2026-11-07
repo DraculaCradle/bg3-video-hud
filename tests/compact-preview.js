@@ -16,7 +16,7 @@ const hero = actor('preview', all, { name: '林间游侠 · Rowan', img: icon('R
   system: { attributes: { hp: { value: 12, max: 12 }, ac: { value: 14 } }, spells: { spell1: { value: 2, max: 3, level: 1 }, spell2: { value: 1, max: 2, level: 2 } } } });
 for (const entry of hero.items.values()) {
   entry.actor = hero; entry.uuid = `${hero.uuid}.Item.${entry.id}`;
-  entry.system.description = { value: '<p>原创模拟物品说明，用于验证完整说明卡、搜索和紧凑布局。</p><p><strong>操作：</strong>在栏内选择使用方式，再选择地图目标。</p>' };
+  entry.system.description = { value: '<p>原创模拟物品说明，用于验证完整说明卡、搜索和紧凑布局。</p><p><strong>操作：</strong>点击使用；法术先选环阶或来源。需要重复结算或原生选项时，开启“详细”。</p>' };
   const activation = entry.system.activities[0]?.activation ?? { type: 'action' };
   const activity = { id: 'preview-use', name: entry.type === 'spell' ? '施放' : '使用', type: 'utility',
     canUse: true, item: entry, actor: hero, activation, consumption: { spellSlot: entry.type === 'spell' },

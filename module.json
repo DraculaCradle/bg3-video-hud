@@ -1,16 +1,12 @@
 {
   "id": "bg3-video-hud",
   "title": "BG3 视频界面",
-  "description": "搭配 BG3 Inspired HUD 使用的独立玩家操作界面。",
+  "description": "独立运行的 BG3 风格玩家操作界面，适用于 Foundry VTT V14 与 D&D5e。",
   "version": "0.1.2",
   "authors": [{ "name": "BG3 Video HUD contributors" }],
   "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
   "relationships": {
-    "systems": [{ "id": "dnd5e", "type": "system", "compatibility": { "minimum": "6.0.6", "verified": "6.0.6", "maximum": "6.0.6" } }],
-    "requires": [
-      { "id": "bg3-hud-core", "type": "module", "manifest": "https://github.com/BragginRites/bg3-hud-core/releases/latest/download/module.json", "compatibility": { "minimum": "0.8.0" } },
-      { "id": "bg3-hud-dnd5e", "type": "module", "manifest": "https://github.com/BragginRites/bg3-hud-dnd5e/releases/latest/download/module.json", "compatibility": { "minimum": "0.8.0" } }
-    ]
+    "systems": [{ "id": "dnd5e", "type": "system", "compatibility": { "minimum": "6.0.6", "verified": "6.0.6", "maximum": "6.0.6" } }]
   },
   "esmodules": ["scripts/module.js"],
   "styles": ["styles/video-hud.css"],

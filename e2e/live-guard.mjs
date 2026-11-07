@@ -30,15 +30,10 @@ export function validateState(state, world) {
   if (!state.gm || state.gmName !== 'Gamemaster' || !state.testAccountsValid) throw new GuardError('blocked', 'test-account-identity-invalid');
   if (state.foreignActive) throw new GuardError('blocked', 'non-test-account-active');
   if (state.unsafe) throw new GuardError('blocked', 'world-or-session-guard-latched');
-  if (state.generation !== '14' || state.system !== 'dnd5e' || state.systemVersion !== '6.0.6'
-      || !state.dependenciesValid) {
+  if (state.generation !== '14' || state.system !== 'dnd5e' || state.systemVersion !== '6.0.6') {
     const version = value => /^\d+(?:\.\d+){0,3}(?:[-+][0-9A-Za-z.-]+)?$/.test(String(value)) ? String(value) : 'unknown';
     const details = [`foundry=${version(state.version ?? state.generation)}`,
       `system=${state.system === 'dnd5e' ? 'dnd5e' : 'unsupported'}@${version(state.systemVersion)}`];
-    for (const id of ['bg3-hud-core', 'bg3-hud-dnd5e']) {
-      const dependency = state.dependencies?.find(d => d.id === id);
-      details.push(`${id}=${version(dependency?.version)}(active=${typeof dependency?.active === 'boolean' ? dependency.active : 'unknown'})`);
-    }
     throw new GuardError('maintenance-required', `foundry-or-dependency-version-mismatch:${details.join(';')}`);
   }
   if (!state.moduleActive) throw new GuardError('maintenance-required', 'module-not-enabled-in-modstest');
@@ -130,13 +125,6 @@ export async function openGuard(browser, config, { beforeLogin } = {}) {
               testAccountsValid: accounts.every(users => users.length === 1) && accounts[0][0]?.isGM && !accounts[1][0]?.isGM,
               foreignActive: game.users.some(u => u.active && !allowed.has(u.id)),
               version: game.version, generation: String(game.version).split('.')[0], system: game.system.id, systemVersion: game.system.version,
-              dependencies: ['bg3-hud-core', 'bg3-hud-dnd5e'].map(id => ({ id,
-                version: game.modules.get(id)?.version, active: game.modules.get(id)?.active === true })),
-              dependenciesValid: ['bg3-hud-core', 'bg3-hud-dnd5e'].every(id => {
-                const module = game.modules.get(id);
-                const parts = String(module?.version ?? '').match(/^(\d+)\.(\d+)\.(\d+)$/)?.slice(1).map(Number);
-                return module?.active === true && parts && (parts[0] > 0 || parts[1] >= 8);
-              }),
               moduleActive: game.modules.get('bg3-video-hud')?.active === true,
               moduleVersion: game.modules.get('bg3-video-hud')?.version,
               entrypoints: { esmodules: registered?.esmodules ?? [], styles: registered?.styles ?? [] },

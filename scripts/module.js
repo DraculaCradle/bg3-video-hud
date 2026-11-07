@@ -14,8 +14,7 @@ function testWorld() { return game.world?.title === 'ModsTest'; }
 
 function compatible() {
   return testWorld() && game.system?.id === 'dnd5e' && String(game.version).split('.')[0] === '14'
-    && game.system.version === '6.0.6'
-    && ['bg3-hud-core', 'bg3-hud-dnd5e'].every(id => game.modules.get(id)?.active);
+    && game.system.version === '6.0.6';
 }
 
 function refresh() {
@@ -27,7 +26,7 @@ function refresh() {
       hud.clear();
       if (!compatibilityWarning) {
         compatibilityWarning = true;
-        ui.notifications.warn('请使用 Foundry VTT V14、D&D5e 6.0.6，并启用 BG3 HUD Core 和 D&D5e 依赖。');
+        ui.notifications.warn('请使用 Foundry VTT V14 和 D&D5e 6.0.6。无需安装其他 HUD 模组。');
       }
       return;
     }
@@ -36,7 +35,7 @@ function refresh() {
     const token = tokens.find(t => t.actor === actor) ?? null;
     hud.setActor(actor, token);
   } catch (error) {
-    hud.clear(); // Fail open to upstream HUD rather than stranding the player.
+    hud.clear(); // Restore the native/optional HUD rather than stranding the player.
     ui.notifications.error(`BG3 视频界面：${error.message}`);
   }
 }

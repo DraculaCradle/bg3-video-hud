@@ -1,5 +1,7 @@
 # Codex task: BG3 Video HUD – functional MVP
 
+> Historical brief. The user now requires standalone operation without BG3 HUD dependencies and performs live tests manually. Current instructions and behavior are in [AGENTS.md](../AGENTS.md) and [the prototype comparison](PROTOTYPE_COMPARISON.md); do not restore the old required-module gate or restart automatic live tests from this brief.
+
 ## User goal
 User runs Foundry VTT **v14 Stable** with **D&D5e 6.0.6** and already uses the publicly released BG3 Inspired HUD. Player-character usability is poor. They have two unpublished demonstration videos by a separate author who customized BG3 Inspired HUD; reimplement similar layout and usability from description, not from unavailable author code.
 

@@ -38,7 +38,7 @@ async function guard(page, config) {
   const actual = await page.evaluate(() => ({
     world: game.world.id, title: game.world.title,
     generation: String(game.version).split('.')[0], system: game.system.id, version: game.system.version,
-    modules: ['bg3-hud-core', 'bg3-hud-dnd5e', 'bg3-video-hud'].map(id => ({
+    modules: ['bg3-video-hud'].map(id => ({
       id, active: game.modules.get(id)?.active === true, version: game.modules.get(id)?.version
     }))
   }));

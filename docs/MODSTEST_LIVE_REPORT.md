@@ -4,7 +4,19 @@
 
 目标始终是现有 `https://redmagic.club/`、世界 `modstest`／`ModsTest`。仅使用既有测试账号；凭据来自 GitHub `modstest` Environment，Player1 空密码。自动文件部署继续关闭。
 
-## 最新结果：完整 Chromium 对照（11月7日 11:44，香港时间）
+## 最新结果：匿名连接交接对照（11月7日 11:55，香港时间）
+
+[只读诊断 42335826166](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42335826166) 使用 [PR #35](https://github.com/DraculaCradle/bg3-video-hud/pull/35) 合并后的 main。报告明确断言自己的匿名登录页连接已在 GM 认证前关闭；实际完整 Chromium 158.0.8127.18／WebGL2、端点、世界与版本 0.1.2 守卫均通过。
+
+初始化观察窗口仍为 3 个 time 请求、1 个匹配且有效的 ACK。重置统计后，显式查询到期及额外 1 秒观察均为 2 个请求、0 个匹配 ACK；10 秒页面计时器实际约 14.24 秒后超时。画布等待约 5.82 秒后就绪，连接与缓冲状态正常，观察期间有 2 次 ping／pong 往返。每轮诊断仍只主动发送一次查询。
+
+**提前关闭匿名连接没有恢复显式回调，因此尚无证据把登录交接竞态认定为根因。** 本轮没有文档 RPC、Player1 登录、角色／token／场景创建或世界文档更新；自有 GM 原生登出与新匿名页面账号可选性检查没有报异常。停止相同配置的进一步查询，不启动完整 HUD 验收。
+
+[CI 42335732354](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42335732354) 全部 275 项通过（113 Node、49 共享实例／配置、22 安装、91 Chromium），完整 Chromium／WebGL2 smoke 通过，部署开关 false；main [构建 42335805326](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42335805326) 成功、`deploy-and-test` skipped。未发布新版本、部署文件、修改服务器配置或其他世界。
+
+下一步需要日常浏览器的同一时钟事件对照，区分普通文档打开与这个明确回调；代码见下方。结果尚未提供，不能假定其正常或超时。
+
+## 完整 Chromium 对照（11月7日 11:44，香港时间）
 
 [只读诊断 42335038943](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42335038943) 使用 [PR #34](https://github.com/DraculaCradle/bg3-video-hud/pull/34) 合并后的 main；runner 实际 smoke 为完整 Chromium 158.0.8127.18、WebGL2=true，本机 HTTPS 端点和版本 0.1.2 守卫通过。
 
@@ -22,7 +34,7 @@
 
 [CI 42334950567](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42334950567) 通过 271 项检查（109 Node、49 共享实例／配置、22 安装、91 Chromium），完整 Chromium／WebGL2 smoke 通过且文件部署开关为 false；main [构建 42335015219](https://github.com/DraculaCradle/bg3-video-hud/actions/runs/42335015219) 成功、部署任务 skipped。
 
-下一次只读对照只改变本测试匿名连接与 HTTP 认证的交接：输入凭据前确认自己的匿名 Socket／传输已关闭，再用原生登录表单认证。已认证用户或不同世界连接一律不操作；关闭未确认就停止。它用于检查交接阶段的可能影响，尚未证实竞态；不重复原配置的查询，不绕过世界／账号／版本／恢复守卫。
+后续匿名连接交接对照也已完成，仍然超时，见上文。该流程不操作已认证用户或不同世界连接，关闭未确认即停止；未绕过世界／账号／版本／恢复守卫。
 
 ## 人工浏览器对照
 
@@ -127,13 +139,47 @@ GM 认证、精确世界／账号／版本／依赖守卫完成后，测试读�
 
 ## 下一步（仅现有实例）
 
-版本更新、上述日志核查、人工浏览器 SRD 对照及完整 Chromium 对照已完成，**不再要求重新更新模组、重复同一时段的日志检查或重做人工打开操作**。当前下一步为匿名连接交接的只读对照；不要求发送截图、原始日志或账号信息。
+版本更新、上述日志核查、人工浏览器 SRD 对照、完整 Chromium 与匿名连接交接对照均已完成，**不再要求重新更新模组、重复同一时段的日志检查或重做人工打开操作**。下一步为日常浏览器中的同一时钟事件对照；不要求发送截图、原始日志或账号信息。
 
 人工浏览器能打开只能证明该次读取路径可用，条目仍可能已被缓存；不能据此宣称所有数据库请求正常。若人工浏览器也卡住，则扩大了问题的复现范围，但仍不直接定位根因。结合结果，再选择新的、能区分假设的只读检查；不重复已经失败的同一请求，不自动停用其他模组或改变服务器配置。
 
 获得新的证据并修复障碍后，先确认原生时钟回调恢复，再运行一次 main 的 `ModsTest live tests only`、`world_id=modstest`、`inspect_sources=true`；使用本机路径时必须显式选择 `connection_route=server-loopback` 并再次通过凭据前端点校验。版本一致、无其他会话且真实文档读取正常，才运行 `create_fixtures=true` 完整测试。完整流程会在创建唯一标记临时角色前核对服务器实际 JS/CSS 的 SHA-256，并严格恢复／登出；恢复模式不因版本变化被禁止。
 
 只读诊断或恢复绿色也不能代替 HUD 功能、真实资源消费和第三方组合验收。暂不发起相同 RPC 重试或完整验收。
+
+### 日常浏览器的只读时钟对照
+
+自动诊断结束后，由管理员自行进入现有 ModsTest 的 Gamemaster 页面，在浏览器开发者工具 Console 执行下面的代码。它只查询当前服务器时间并输出“正常／超时／格式异常”，不保存或打印时间值、账号 ID、Cookie，不设置时间或写入世界文档。仅在 ModsTest、精确测试 GM、连接在线且没有非测试用户在线时执行；不需要密码出现在代码或聊天里。完成后使用“退出游戏”并关闭自己的 GM 页面，只回复状态即可。
+
+```js
+(() => {
+  const g = globalThis.game;
+  if (g?.world?.id !== 'modstest' || g.world.title !== 'ModsTest'
+    || !g.ready || !g.user?.isGM || g.user.name !== 'Gamemaster' || !g.socket?.connected
+    || g.users.some(u => u.active && !['Gamemaster', 'Player1'].includes(u.name))) {
+    console.log('BG3只读时钟：条件不符，未执行');
+    return;
+  }
+  let done = false;
+  const finish = status => {
+    if (done) return;
+    done = true;
+    console.log('BG3只读时钟：' + status);
+  };
+  const timer = setTimeout(() => finish('超时'), 10000);
+  try {
+    g.socket.emit('time', value => {
+      clearTimeout(timer);
+      finish(Number.isFinite(value?.serverTime) && Number.isFinite(value?.worldTime) ? '正常' : '格式异常');
+    });
+  } catch {
+    clearTimeout(timer);
+    finish('调用失败');
+  }
+})()
+```
+
+此对照是新的证据请求，不是让管理员重做 SRD 打开操作。超时状态不会因迟到回包改写为正常；页面计时器可能延迟，状态不能单独定位服务端故障。浏览器若不允许粘贴代码，可以跳过并说明；不要关闭浏览器安全保护。
 
 ## 之前的 RPC 诊断（05:49 UTC）
 

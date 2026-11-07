@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { verifiedLoopbackResponse, browserAssetProof } from './client-route.mjs';
+import { closeAnonymousJoin } from './anonymous-join.mjs';
 
 export class GuardError extends Error {
   constructor(status, reason) { super(reason); this.status = status; this.reason = reason; }
@@ -75,6 +76,11 @@ export async function login(page, config, name, password) {
     .map(node => ({ value: node.value, disabled: node.disabled })), name);
   if (options.length !== 1) throw new GuardError('blocked', 'test-account-option-unavailable');
   if (options[0].disabled) throw new GuardError('blocked', 'test-account-already-active');
+  // The anonymous socket belongs to this fresh task context. Confirm it has
+  // closed before native HTTP authentication changes the same session cookie.
+  // Do not disconnect if it is already authenticated or the world changes.
+  try { await page.evaluate(closeAnonymousJoin, { world: config.world }); }
+  catch { throw new GuardError('blocked', 'anonymous-join-handoff-unconfirmed'); }
   await user.selectOption(options[0].value);
   await page.locator('#join-game-form input[name="password"]').fill(password ?? '');
   await page.locator('#join-game-form button[type="submit"]').click();

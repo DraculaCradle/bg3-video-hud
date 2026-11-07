@@ -30,6 +30,7 @@ test(process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'ModsTest read-only client i
         catch { throw new GuardError('blocked', 'client-control-observer-unavailable'); }
       }
     } });
+    info.annotations.push({ type: 'verified', description: 'Own anonymous join connection closed before GM authentication' });
     const installed = await guard.check();
     // Recovery must remain possible across upgrades. Diagnostics/acceptance may
     // never turn an older installed module into a result for the new release.

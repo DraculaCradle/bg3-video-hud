@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GuardError, validateState, validateModuleVersion, login, freshModuleRequests, closeOwnContext, openGuard } from '../e2e/live-guard.mjs';
+import { closeAnonymousJoin } from '../e2e/anonymous-join.mjs';
 
 const state = { connected: true, ready: true, world: 'modstest', title: 'ModsTest', gm: true,
   gmName: 'Gamemaster', testAccountsValid: true, foreignActive: false, generation: '14',
@@ -70,6 +71,19 @@ test('Player1 submits its intentionally empty password, while GM still requires 
   assert.deepEqual(filled, ['']);
   await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', ''),
     error => error.reason === 'missing-test-secret');
+});
+test('an unconfirmed anonymous handoff stops before entering credentials and hides page errors', async () => {
+  const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
+    locator: () => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'gm', disabled: false }],
+      selectOption: () => assert.fail('must not select'), fill: () => assert.fail('must not enter credentials'),
+      click: () => assert.fail('must not authenticate') }),
+    evaluate: async fn => {
+      if (fn === closeAnonymousJoin) throw Error('PRIVATE_SENTINEL');
+      return { world: 'modstest', title: 'ModsTest' };
+    } };
+  await assert.rejects(login(page, { url: 'https://example.invalid/', world: 'modstest' }, 'Gamemaster', 'SENTINEL'),
+    error => error instanceof GuardError && error.reason === 'anonymous-join-handoff-unconfirmed'
+      && !error.message.includes('PRIVATE_SENTINEL'));
 });
 test('a missing V14 login form reports a controlled reason before entering credentials', async () => {
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
@@ -159,7 +173,7 @@ test('a logout failure preserves the original world/version guard failure for di
     process.env.FOUNDRY_GM_PASSWORD = 'SENTINEL';
     t.after(() => { delete process.env.FOUNDRY_GM_PASSWORD; });
   }
-  const replies = [{ world: 'modstest', title: 'ModsTest' },
+  const replies = [{ world: 'modstest', title: 'ModsTest' }, undefined,
     { world: 'modstest', title: 'ModsTest', name: 'Gamemaster', gm: true }, undefined,
     { ...state, generation: '13' }, true];
   let closed = false;

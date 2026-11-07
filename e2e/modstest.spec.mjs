@@ -48,8 +48,12 @@ test(process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'ModsTest read-only client i
       const readyWaitMs = Date.now() - readyStart;
       await guard.check();
       info.annotations.push({ type: 'stage', description: 'Inspect client interfaces and one native read-only clock acknowledgement; no document request' });
+      const framesBeforeInspection = observer.read();
       observer.reset();
       const result = await guard.gm.evaluate(inspectClient);
+      // Retain only passive counts from login/initialization. A successful
+      // bootstrap reply must not make the explicit post-ready query pass.
+      result.framesBeforeInspection = framesBeforeInspection;
       result.readyWaitMs = readyWaitMs;
       result.canvasState = await guard.gm.evaluate(() => ({ ready: globalThis.canvas?.ready === true, activeScene: !!game.scenes?.active }));
       result.framesAtResolution = observer.read();

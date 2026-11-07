@@ -199,11 +199,15 @@ Player1 未分配角色时，V14 会自动打开账号配置窗口。测试只�
 
 ## 原生读取超时后的客户端诊断
 
+预登录 WebGL2 检查、只测试流程和部署守卫统一显式使用 `channel: chromium` 的完整 Chromium 无界面模式。Playwright 默认无界面启动会选择单独的 headless shell；此前离线 UI 用的是完整 Chromium。这个调整用于缩小人工浏览器与自动化客户端的差异，不能单凭浏览器切换就宣称 RPC 问题解决。无需安装第二个 Foundry、桌面环境或服务；既有 `playwright install chromium` 同时提供所需浏览器。
+
 `inspect_transport=true` 是独立的只读模式，与 `inspect_sources`、`recover_only`、`create_fixtures` 不可组合。不需要 token ID；仍要求 main、现有 modstest Environment、精确世界与测试会话、版本一致、无待恢复日志。
 
 它在登录前启用自有页面的 CDP 网络观察，登录后有活动场景时等待画布就绪，再读取接口摘要／连接状态并发送一次原生 `time` 读取查询（与世界初始化／周期同步相同的请求）。不会发起任何文档 RPC，不创建或恢复世界文档。报告仅保存方法指纹、有限布尔字段和控制帧／匹配回包计数；不保存客户端源码、包文档、原始报文、URL、会话或账号 ID。
 
 生命周期与控制帧计数都仅接受规范 HTTPS 域名对应的 `wss://redmagic.club`、默认 443、精确 `/socket.io` 或 `/socket.io/` 路径，且必须是观察器登记的连接。其他端点即使使用相同事件名或回包编号也不能计入结果。统计窗口结束后才执行的登出检查单独判断，不能用窗口内的关闭计数证明退出成功。
+
+报告的 `browserChannel` 只记录配置为 `chromium` 或 `unknown`；实际启动版本与 WebGL2 检查见登录前的 smoke 日志。`framesBeforeInspection` 为登录／初始化期间的被动计数，显式查询前重置其统计窗口；初始化时的回包不能替代显式查询成功，未保留时间值或请求标识。
 
 只验证返回字段 serverTime/worldTime 的数值类型，不保存具体时间、不调用设置或推进时间接口。
 

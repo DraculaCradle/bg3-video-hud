@@ -78,8 +78,12 @@ test('CDP status correlation ignores unrelated frames and never exports payloads
   assert.equal(observer.read().matchingAckFrames, 0);
   received('PRIVATE_SOCKET', '432[{"serverTime":10,"worldTime":20}]');
   assert.deepEqual(observer.read(), { requestFrames: 1, matchingAckFrames: 1, validTimeAckFrames: 1, lifecycle });
-  observer.reset(); sent('PRIVATE_SOCKET', '423["time"]'); received('PRIVATE_SOCKET', '433[{"secret":"PRIVATE_SENTINEL"}]');
+  const bootstrap = observer.read();
+  observer.reset();
+  assert.equal(observer.read().matchingAckFrames, 0);
+  sent('PRIVATE_SOCKET', '423["time"]'); received('PRIVATE_SOCKET', '433[{"secret":"PRIVATE_SENTINEL"}]');
   assert.deepEqual(observer.read(), { requestFrames: 1, matchingAckFrames: 1, validTimeAckFrames: 0, lifecycle });
+  assert.equal(bootstrap.validTimeAckFrames, 1);
   assert.ok(!JSON.stringify(observer.read()).includes('PRIVATE'));
   assert.ok(!JSON.stringify(observer.read()).includes('worldTime'));
   assert.equal(controlFrame('x'.repeat(5000)), null); assert.equal(controlFrame('43not-json'), null);

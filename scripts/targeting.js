@@ -272,6 +272,7 @@ export class TargetWorkflow {
     }
     this.picking = true;
     const abort = new AbortController();
+    const compatibility = new AbortController();
     const rectangle = document.createElement('div');
     rectangle.className = 'bg3-video-hud-target-box';
     rectangle.setAttribute('aria-hidden', 'true');
@@ -284,10 +285,15 @@ export class TargetWorkflow {
     let start, pointer;
     return new Promise((resolve, reject) => {
       let settled = false;
-      const finish = (value, error) => {
+      const finish = (value, error, drainClick = false) => {
         if (settled) return;
         settled = true;
-        abort.abort(); rectangle.remove();
+        // PIXI listens on document capture. Keep this gesture isolated through
+        // its compatibility mouse/click events, then remove every listener.
+        abort.abort();
+        if (drainClick) setTimeout(() => compatibility.abort(), 0);
+        else compatibility.abort();
+        rectangle.remove();
         this.visuals?.stop();
         if (board.style.cursor === 'crosshair') board.style.cursor = previousCursor;
         if (pointer !== undefined && board.hasPointerCapture?.(pointer)) board.releasePointerCapture(pointer);
@@ -308,11 +314,15 @@ export class TargetWorkflow {
         });
       };
       const options = { capture: true, signal: abort.signal };
+      const fromBoard = event => event.composedPath().includes(board)
+        || (pointer !== undefined && event.pointerId === pointer);
       const safe = callback => event => {
+        if (!fromBoard(event)) return;
+        if (settled) { intercept(event); return; }
         try { callback(event); }
         catch (error) { finish(null, error); }
       };
-      board.addEventListener('pointerdown', safe(event => {
+      globalThis.addEventListener('pointerdown', safe(event => {
         intercept(event);
         if (event.button === 2) { finish(null); return; }
         if (event.button !== 0 || pointer !== undefined || !active()) return;
@@ -320,7 +330,7 @@ export class TargetWorkflow {
         start = { clientX: event.clientX, clientY: event.clientY, world: point(event) };
         board.setPointerCapture?.(pointer);
       }), options);
-      board.addEventListener('pointermove', safe(event => {
+      globalThis.addEventListener('pointermove', safe(event => {
         intercept(event);
         const world = point(event);
         const hovered = visibleTargets(canvas).filter(t => t.bounds?.contains(world.x, world.y)).at(-1);
@@ -334,7 +344,7 @@ export class TargetWorkflow {
           width: `${Math.abs(start.clientX - event.clientX)}px`, height: `${Math.abs(start.clientY - event.clientY)}px`
         });
       }), options);
-      board.addEventListener('pointerup', safe(event => {
+      globalThis.addEventListener('pointerup', safe(event => {
         intercept(event);
         if (!start || pointer !== event.pointerId) return;
         const origin = start, id = pointer;
@@ -354,16 +364,21 @@ export class TargetWorkflow {
         if (plan.max && selected.length > plan.max) {
           this.onStatus?.(`已框选 ${selected.length} 个，最多 ${plan.max} 个；请缩小选区。`); return;
         }
-        finish(selected);
+        finish(selected, undefined, true);
       }), options);
-      board.addEventListener('pointercancel', () => finish(null), options);
+      globalThis.addEventListener('pointercancel', safe(() => finish(null)), options);
       board.addEventListener('lostpointercapture', () => { if (start) finish(null); }, options);
       // A wheel/resize can change scene-to-screen coordinates mid-drag. Cancel
       // the selection before allowing normal map/browser navigation to proceed.
       board.addEventListener('wheel', () => finish(null), options);
       globalThis.addEventListener('blur', () => finish(null), { signal: abort.signal });
       globalThis.addEventListener('resize', () => finish(null), { signal: abort.signal });
-      board.addEventListener('contextmenu', event => { intercept(event); finish(null); }, options);
+      globalThis.addEventListener('contextmenu', safe(event => { intercept(event); finish(null); }), options);
+      for (const type of ['mousedown', 'mouseup', 'click', 'dblclick']) {
+        globalThis.addEventListener(type, event => {
+          if (event.composedPath().includes(board)) intercept(event);
+        }, { capture: true, signal: compatibility.signal });
+      }
       document.addEventListener('keydown', event => {
         if (event.target?.closest?.('dialog[open]')) return;
         if (event.key === 'Escape') { intercept(event); finish(null); }

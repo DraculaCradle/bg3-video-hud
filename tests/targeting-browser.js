@@ -55,17 +55,25 @@ export function createTargetingFixture(synthetic = false) {
     { bubbles: true, cancelable: true, pointerId: 1, button, clientX: x * 2 + 60, clientY: y * 2 + 40 }));
   const drag = (x1, y1, x2, y2) => { send('pointerdown', x1, y1); send('pointermove', x2, y2); send('pointerup', x2, y2); };
   let nativePresses = 0;
-  board.addEventListener('pointerdown', () => nativePresses++);
+  // PIXI registers document capture before our picker. A board-level capture
+  // handler runs too late; native controlToken would replace the attacking PC.
+  let nativeReleases = 0, nativeClicks = 0;
+  const nativeDown = e => { if (e.target === board) nativePresses++; };
+  const nativeUp = e => { if (e.target === board) nativeReleases++; };
+  const nativeClick = e => { if (e.target === board) nativeClicks++; };
+  document.addEventListener('click', nativeClick, true);
+  document.addEventListener('pointerdown', nativeDown, true);
+  document.addEventListener('pointerup', nativeUp, true);
   // Synthetic DOM events cannot acquire a real pointer capture. Production uses
   // real capture; the separate CDP case below verifies trusted mouse input.
   if (synthetic) board.setPointerCapture = () => {};
   hud.setActor(caster);
   return { hud, board, user, errors, calls, selections, scene, tokens, canvas, single, multi, caster, originalSystem,
-    use, send, drag, get nativePresses() { return nativePresses; },
+    use, send, drag, get nativePresses() { return nativePresses; }, get nativeReleases() { return nativeReleases; },
     snapshot: () => ({ calls: calls.length, targets: selections.at(-1) ?? [], selections: selections.length,
-      picking: hud.targeting.picking, cursor: board.style.cursor, nativePresses,
+      picking: hud.targeting.picking, cursor: board.style.cursor, nativePresses, nativeReleases, nativeClicks,
       actor: hud.actor?.uuid, box: !!document.querySelector('.bg3-video-hud-target-box'), writes: user.writes.length }),
-    dispose() { hud.destroy(); board.remove(); globalThis.canvas = originalCanvas; } };
+    dispose() { document.removeEventListener('click', nativeClick, true); document.removeEventListener('pointerdown', nativeDown, true); document.removeEventListener('pointerup', nativeUp, true); hud.destroy(); board.remove(); globalThis.canvas = originalCanvas; } };
 }
 
 export async function targetingBrowserTests({ test, assert, equal, flush }) {
@@ -78,7 +86,7 @@ export async function targetingBrowserTests({ test, assert, equal, flush }) {
       assert(hud.root.querySelector('[data-action="edit"]').disabled);
       drag(100, 100, 100, 100); await flush();
       equal(calls.length, 1); equal(calls.at(-1).targets, ['one']); equal(hud.actor, caster);
-      equal(f.nativePresses, 0); equal(board.style.cursor, 'grab');
+      equal(f.nativePresses, 0); equal(f.nativeReleases, 0); equal(board.style.cursor, 'grab');
       assert(!document.querySelector('.bg3-video-hud-target-box'));
     });
     await test('multi target automatically selects visible token centres on reverse-drag release', async () => {

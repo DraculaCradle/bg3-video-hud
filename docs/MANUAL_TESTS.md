@@ -76,3 +76,9 @@ Release sign-off requires all applicable required checkboxes above, with recorde
 6. 已有护盾术及可用免费来源的角色，在原生 Midi-QOL 反应已确认时检查来源弹窗：法术位、来源、取消各一次，核对实际消费及无重复反应。不要为了此测试自动安装／启用其他模组。
 
 自动实机测试继续停止。请只使用 ModsTest 的临时测试角色并记录结果；不向公开问题贴玩家数据、账号凭据或完整私有截图。
+
+## v0.1.6 Player 与点击回归
+
+- GM 和 Player 分别在各自客户端启用 HUD，Player 仅选择 OWNER 角色的 Token；不自动授予或提升权限。先保持 ModsTest 人工验收。
+- 若 Player 未显示，记录黄色／红色提示；如可使用开发者工具，运行 `game.modules.get('bg3-video-hud').api.status()`，只反馈原因码及布尔状态。浏览器阻止粘贴则跳过，不关闭保护。当前现场原因待确认。
+- 普通武器进入点选后点击可见 Token：应使用原生攻击流程，当前受控 Token 保持操作者；取消不消耗。随后普通地图点击应恢复选择功能。

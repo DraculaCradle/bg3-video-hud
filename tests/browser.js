@@ -35,6 +35,7 @@ const notifications = [];
 globalThis.ui = { notifications: { error: text => notifications.push(text), warn: text => notifications.push(text) } };
 const settings = new Map(), definitions = new Map();
 const user = userWithFlags();
+user.isGM = false; user.role = 1;
 user.flags['bg3-hud-core'] = { layout: ['untouched'] };
 user.flags['bg3-hud-dnd5e'] = { order: ['original'] };
 const oldFlags = JSON.stringify(user.flags);
@@ -52,6 +53,7 @@ const hero = actor('hero', [sword, item('bow', 'weapon'), item('second-wind'), l
     spells: { spell1: { value: 0, max: 2 }, pact: { value: 1, max: 1, level: 2 } } },
   shortRest: async () => { shortRests++; }, longRest: async () => { longRests++; }
 });
+hero.testUserPermission = (u, permission) => u.id === user.id && permission === 'OWNER' && hero.isOwner;
 user.character = hero;
 globalThis.canvas = { ready: true, tokens: { controlled: [{ actor: hero }] } };
 globalThis.game = {
@@ -373,6 +375,20 @@ try {
       await game.settings.set(MODULE_ID, 'enabled', false);
     }
     Object.assign(game, { version, system });
+  });
+  await test('Player OWNER sees HUD; denied ownership produces a safe status and warning without bypass', async () => {
+    canvas.tokens.controlled = [{ actor: hero }];
+    await enable(); assert(!game.user.isGM); assert(root());
+    equal(game.modules.get(MODULE_ID).api.status().reason, 'ready');
+    hero.isOwner = false;
+    await Hooks.emit('controlToken');
+    assert(!root());
+    const state = game.modules.get(MODULE_ID).api.status();
+    equal(state.reason, 'selected-not-owned'); equal(state.owned, 0);
+    assert(notifications.at(-1).includes('OWNER'));
+    assert(!JSON.stringify(state).includes(hero.id));
+    hero.isOwner = true; await Hooks.emit('controlToken'); assert(root());
+    await game.settings.set(MODULE_ID, 'enabled', false);
   });
 } catch (error) { failed++; lines.push(`HARNESS FAILURE: ${error.stack ?? error}`); }
 results.textContent = `${lines.join('\n')}\n${passed} passed, ${failed} failed${failed ? `\nFixture notifications: ${JSON.stringify(notifications.slice(-5))}` : ''}`;

@@ -414,7 +414,13 @@ try {
       const state = await evaluate('window.bg3TargetTest.snapshot()');
       assert.equal(state.calls, 1); assert.deepEqual(state.targets, ['one']);
       assert.equal(state.actor, 'Actor.target-caster'); assert.equal(state.nativePresses, 0);
+      assert.equal(state.nativeReleases, 0); assert.equal(state.nativeClicks, 0);
       assert.equal(state.picking, false); assert.equal(state.box, false); assert.equal(state.writes, 0);
+      // After this gesture drains, ordinary map control must resume.
+      await mouse('mousePressed', 260, 240); await mouse('mouseReleased', 260, 240);
+      const normal = await evaluate('window.bg3TargetTest.snapshot()');
+      assert.equal(normal.nativePresses, 1); assert.equal(normal.nativeReleases, 1);
+      assert.equal(normal.nativeClicks, 1); assert.equal(normal.calls, 1);
       await evaluate('window.bg3TargetTest.dispose()');
     });
     await test('trusted drag with pointer capture selects the visible range and automatically delegates once', async () => {

@@ -19,6 +19,7 @@ export class VideoHUD {
     Object.assign(this, { store, user, onDisable, onError });
     this.actor = null;
     this.edit = false;
+    this.detailed = false;
     this.level = 'all';
     this.action = 'all';
     this.busy = new Set();
@@ -54,6 +55,13 @@ export class VideoHUD {
       }
     };
     globalThis.addEventListener('resize', this.keepFocusVisible);
+    this.cancelInlineChoice = event => {
+      if (event.key !== 'Escape' || event.defaultPrevented || this.dialog?.open
+        || event.target?.closest?.('dialog, [role="dialog"], .application')
+        || (!this.pendingUse && !this.pendingAllocation)) return;
+      event.preventDefault(); event.stopImmediatePropagation(); this.closeChoice();
+    };
+    document.addEventListener('keydown', this.cancelInlineChoice);
   }
 
   clear() {
@@ -72,6 +80,7 @@ export class VideoHUD {
   destroy() {
     this.destroyed = true;
     globalThis.removeEventListener('resize', this.keepFocusVisible);
+    document.removeEventListener('keydown', this.cancelInlineChoice);
     this.clear();
   }
 
@@ -183,7 +192,7 @@ export class VideoHUD {
     const edit = button(this.edit ? '完成' : '编辑', 'edit', '编辑物品显示与排序');
     edit.disabled = this.busy.size > 0 || this.saving === true;
     edit.setAttribute('aria-pressed', String(this.edit));
-    controls.append(edit, button('原版界面', 'disable', '返回原版 BG3 界面'));
+    controls.append(edit, button('原版界面', 'disable', '关闭本 HUD，返回 Foundry 或已启用的其他 HUD'));
     header.append(controls);
     root.append(header);
 
@@ -244,6 +253,10 @@ export class VideoHUD {
       footer.append(control);
     }
     footer.append(button('队伍', 'party', '查看可访问的队伍角色'), button('联动', 'integrations', '动画、骰子与自动化状态'));
+    const detailed = button('详细', 'detailed', '显示活动、重复结算和原生使用选项');
+    detailed.setAttribute('aria-pressed', String(this.detailed));
+    detailed.disabled = this.busy.size > 0 || this.edit || this.saving === true;
+    footer.append(detailed);
     if (this.targeting.picking) footer.append(button('取消选目标', 'cancel-target', '取消目标选择，不使用技能'));
     const status = node('span', this.status, 'bg3-video-hud-status');
     status.title = this.status;
@@ -357,10 +370,26 @@ export class VideoHUD {
 
   chooseUse(actor, item) {
     this.tooltip.hide(); this.progress = null;
+    const activities = usableActivities(item);
+    const single = !this.detailed && activities.length === 1 ? activities[0] : null;
+    // Skip choices only when there is one usable activity and no spell-level
+    // or source decision. TargetWorkflow still rechecks ownership/context and
+    // delegates consumption, configuration and rolls to the native system.
+    const needsCasting = single && item.type === 'spell'
+      && (spellLevel(item) > 0 || castingSources(actor, item).length > 0);
+    if (single && !needsCasting) return Promise.resolve({ activityId: single.id,
+      slot: null, sourceId: null, count: null, manual: false, nativeOnly: false });
     return new Promise(resolve => {
-      this.pendingUse = { actor, item, group: groupFor(item), phase: 'activity', resolve, manual: false, count: '' };
+      this.pendingUse = { actor, item, group: groupFor(item), phase: single ? 'casting' : 'activity',
+        activityId: single?.id, resolve, manual: false, count: '' };
       this.render();
     });
+  }
+
+  closeChoice() {
+    this.pendingUse?.resolve(null); this.pendingUse = null;
+    this.pendingAllocation?.resolve(null); this.pendingAllocation = null;
+    this.progress = null; this.tooltip.hide(); this.render();
   }
 
   chooseActivity(id) {
@@ -610,11 +639,14 @@ export class VideoHUD {
       case 'cancel-target': this.targeting.cancel(); this.status = '已取消目标选择。'; this.render(); return;
       case 'sheet': return actor.sheet?.render({ force: true });
       case 'edit': return this.edit ? this.commitEdit() : this.beginEdit();
+      case 'detailed': if (!this.busy.size && !this.edit && !this.saving) {
+        this.detailed = !this.detailed; this.render();
+      } return;
       case 'edit-group': return this.beginEdit(value);
       case 'save-edit': return this.commitEdit();
       case 'cancel-edit': this.edit = false; this.draft = null; this.editGroup = null; this.render(); return;
       case 'bulk-edit': return this.bulkEdit(value);
-      case 'close-choice': this.pendingUse?.resolve(null); this.pendingUse = null; this.progress = null; this.render(); return;
+      case 'close-choice': this.closeChoice(); return;
       case 'choose-activity': return this.chooseActivity(value);
       case 'choose-cast': return this.finishChoice(control.dataset);
       case 'source-manager': return this.sourceManager();

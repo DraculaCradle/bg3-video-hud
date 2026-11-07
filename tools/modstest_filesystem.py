@@ -152,7 +152,7 @@ class Transaction:
 
     def inspect(self):
         files = read_tree(self.target)
-        manifest = validate_payload(files)
+        manifest = validate_payload(files, legacy=True)
         return {'pending': self.journal.exists(), 'version': manifest['version'],
                 'entrypoints': {key: manifest.get(key, []) for key in ['esmodules', 'styles']},
                 'manifest_sha256': hashlib.sha256(files['module.json']).hexdigest(),
@@ -200,7 +200,7 @@ class Transaction:
         with backup.open('rb') as stream:
             os.fsync(stream.fileno())
         backup_digest = hashlib.sha256(backup.read_bytes()).hexdigest()
-        if archive_payload(backup, backup_digest) != old_files:
+        if archive_payload(backup, backup_digest, legacy=True) != old_files:
             raise OSError('Backup verification failed')
         candidate = destination / 'candidate'
         candidate.mkdir(mode=0o755)
@@ -248,7 +248,7 @@ class Transaction:
     def rollback(self):
         journal, candidate = self.pending()
         backup = candidate.parent / 'previous.zip'
-        previous = archive_payload(backup, journal['backup_sha256'])
+        previous = archive_payload(backup, journal['backup_sha256'], legacy=True)
         if fingerprint(previous) != journal['old']:
             raise ValueError('Backup does not match the journal')
         actual, staged = fingerprint(read_tree(self.target)), fingerprint(read_tree(candidate))
@@ -272,7 +272,7 @@ class Transaction:
         inode = journal['target_inode'] if rollback else journal['candidate_inode']
         if journal['phase'] != phase or fingerprint(read_tree(self.target)) != expected or self.target.stat().st_ino != inode:
             raise ValueError('Transaction cannot be finalized')
-        previous = archive_payload(candidate.parent / 'previous.zip', journal['backup_sha256'])
+        previous = archive_payload(candidate.parent / 'previous.zip', journal['backup_sha256'], legacy=True)
         if fingerprint(previous) != journal['old'] or (not rollback and fingerprint(read_tree(candidate)) != journal['old']):
             raise ValueError('Recovery backup changed before finalization')
         self.journal.unlink()

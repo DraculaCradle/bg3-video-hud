@@ -7,7 +7,7 @@ This repository contains an independent Foundry VTT module, *not* the original u
 ## Constraints
 
 - Target Foundry 14 Stable / D&D5e 6.0.6.
-- Require installed `bg3-hud-core` and `bg3-hud-dnd5e` where integration is useful; inspect their public APIs before using them.
+- Run independently of other HUD modules. `bg3-hud-core` and `bg3-hud-dnd5e` are optional coexistence integrations; do not require, enable, disable or import them. Inspect public APIs before adding optional integrations.
 - Do not mutate or fork upstream module files in place; prefer a distinct module id `bg3-video-hud` and isolated CSS namespace.
 - Preserve player data and avoid irreversible flag migrations.
 - Use the system's official item/activity use routines for spell slots, limited uses, targets, concentration and chat cards. Never simply decrement a slot in custom UI code.
@@ -23,7 +23,7 @@ This repository contains an independent Foundry VTT module, *not* the original u
 4. Clicking an item delegates to D&D5e's actual use/activity method and reports errors rather than fabricating success.
 5. Filter spell levels including cantrips, show spell slots from the system and handle pact spells.
 6. Edit visibility and order, persist per actor/user without damaging original BG3 HUD flags.
-7. Toggle custom HUD on/off to restore public BG3 HUD; avoid overlapping widgets.
+7. Toggle custom HUD on/off to return to Foundry, restoring any optionally installed BG3 HUD shell; avoid overlapping widgets.
 8. Include unit tests for grouping/filtering/persistence and explicit manual smoke-test checklist.
 
 When uncertain, first deliver an MVP that is installable, conservative, and testable. Document unverified Foundry integrations.

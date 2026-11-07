@@ -112,7 +112,49 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       const fragment = descriptionFragment('<iframe src="https://example.com"></iframe><b>保留</b>');
       equal(fragment.textContent, '保留');
     });
+    await test('single-activity attacks and cantrips skip redundant HUD confirmations', async () => {
+      const simple = item('quick-attack', 'weapon', { activities: new Map() });
+      const attack = { id: 'quick-activity', type: 'attack', canUse: true, use: async () => assert(false) };
+      simple.system.activities.set(attack.id, attack);
+      const choice = await hud.chooseUse(hero, simple);
+      equal(choice.activityId, attack.id); equal(choice.nativeOnly, false); assert(!hud.pendingUse);
+      let quickCalls = 0;
+      const cantrip = item('quick-cantrip', 'spell', { level: 0, activities: new Map() }, { actor: hero });
+      const activity = { id: 'quick-cast', type: 'utility', canUse: true, actor: hero, item: cantrip,
+        target: { affects: { type: 'self' } }, use: async () => { quickCalls++; return { official: true }; } };
+      cantrip.system.activities.set(activity.id, activity); hero.items.set(cantrip.id, cantrip); hud.render();
+      try { await click('use', '[data-item-id="quick-cantrip"]'); equal(quickCalls, 1); assert(!hud.pendingUse); }
+      finally { hero.items.delete(cantrip.id); hud.render(); }
+      equal(calls.length, 0); equal(hero.system.spells.spell1.value, 2);
+    });
+    await test('leveled spells retain source/slot choice; Escape cancels before native use', async () => {
+      await click('use', '[data-item-id="full-spell"]');
+      equal(hud.pendingUse.phase, 'casting'); assert(!find('choose-activity'));
+      assert(find('choose-cast', '[data-slot=spell3]')); equal(calls.length, 0);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await flush();
+      assert(!hud.pendingUse); equal(calls.length, 0); assert(!hud.busy.size);
+    });
+    await test('ambiguous activities remain explicit; detailed mode and allocation cancel stay accessible', async () => {
+      const multi = item('multi-activity', 'weapon', { activities: new Map([
+        ['one', { id: 'one', canUse: true, use() {} }], ['two', { id: 'two', canUse: true, use() {} }]
+      ]) });
+      const pending = hud.chooseUse(hero, multi); assert(find('choose-activity', '[data-value=two]'));
+      // Escape must remain available to an unrelated native/application dialog.
+      const native = document.createElement('div'); native.setAttribute('role', 'dialog'); document.body.append(native);
+      native.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      assert(hud.pendingUse); native.remove();
+      await click('close-choice'); equal(await pending, null);
+      const before = user.writes.length;
+      await click('detailed'); equal(find('detailed').getAttribute('aria-pressed'), 'true');
+      const detail = hud.chooseUse(hero, spell); equal(hud.pendingUse.phase, 'activity');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); equal(await detail, null);
+      const allocation = hud.allocate({ item: spell, selected: [{ id: 'target', name: 'Fixture target' }], count: 2, consumed: true });
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); equal(await allocation, null);
+      assert(!hud.pendingAllocation); equal(calls.length, 0); equal(user.writes.length, before);
+      await click('detailed'); equal(hud.detailed, false);
+    });
     await test('activity and cast-level inline panels preserve return/cancel and pass native slot options', async () => {
+      await click('detailed');
       await click('use', '[data-item-id="full-spell"]'); equal(calls.length, 0);
       assert(find('choose-activity')); await click('choose-activity', '[data-value=cast]');
       assert(find('choose-cast', '[data-slot=spell3]')); await click('back-choice'); equal(calls.length, 0);

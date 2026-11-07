@@ -149,6 +149,37 @@ class SharedInstanceFiles(unittest.TestCase):
         self.assert_old()
         self.assertFalse(self.transaction.journal.exists())
 
+    def seed_legacy_manifest(self):
+        manifest = json.loads(self.old['module.json'])
+        manifest['relationships']['requires'] = [{'id': name, 'type': 'module'}
+                                               for name in ['bg3-hud-core', 'bg3-hud-dnd5e']]
+        self.old['module.json'] = json.dumps(manifest).encode()
+        (self.target / 'module.json').write_bytes(self.old['module.json'])
+
+    def test_legacy_to_standalone_manifest_change_still_requires_maintenance(self):
+        self.seed_legacy_manifest()
+        with self.assertRaises(files.MaintenanceRequired):
+            self.transaction.prepare(*self.archive())
+        self.assert_old()
+        self.assertEqual(list(self.state.iterdir()), [])
+
+    def test_legacy_pending_transaction_can_restore_its_verified_backup(self):
+        self.seed_legacy_manifest()
+        self.new['module.json'] = self.old['module.json']
+        original = self.target.stat()
+        previous_reader = files.archive_payload
+        # Reproduce a transaction prepared by the old validator, then recover
+        # using the new code with no compatibility patch in place.
+        with patch.object(files, 'archive_payload', side_effect=lambda *a, **kw:
+                          previous_reader(*a, **{**kw, 'legacy': True})):
+            self.prepare()
+            self.transaction.activate()
+        self.transaction.rollback()
+        self.assert_old()
+        self.assertEqual(self.target.stat().st_ino, original.st_ino)
+        self.transaction.finish(rollback=True)
+        self.assertFalse(self.transaction.journal.exists())
+
     def test_missing_installation_needs_maintenance(self):
         self.target.rename(self.target.with_name('initial-backup'))
         with self.assertRaises(files.MaintenanceRequired):

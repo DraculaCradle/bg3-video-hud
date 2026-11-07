@@ -5,7 +5,7 @@ import { closeAnonymousJoin } from '../e2e/anonymous-join.mjs';
 
 const state = { connected: true, ready: true, world: 'modstest', title: 'ModsTest', gm: true,
   gmName: 'Gamemaster', testAccountsValid: true, foreignActive: false, generation: '14',
-  system: 'dnd5e', systemVersion: '6.0.6', dependenciesValid: true, moduleActive: true };
+  system: 'dnd5e', systemVersion: '6.0.6', moduleActive: true };
 
 test('release acceptance rejects older installed versions and sanitizes non-version metadata', () => {
   validateModuleVersion({ moduleVersion: '0.1.2' }, '0.1.2');
@@ -36,17 +36,15 @@ test('a non-test active user, disconnect or mismatched identity blocks deploymen
   }
 });
 test('missing discovery, wrong versions and disabled modules require a maintenance window', () => {
-  for (const changed of [{ generation: '13' }, { systemVersion: '6.0.5' }, { dependenciesValid: false }, { moduleActive: false }]) {
+  for (const changed of [{ generation: '13' }, { systemVersion: '6.0.5' }, { moduleActive: false }]) {
     assert.throws(() => validateState({ ...state, ...changed }, 'modstest'), error => error.status === 'maintenance-required');
   }
 });
-test('version diagnostics include dependency enablement and exclude non-version data', () => {
-  assert.throws(() => validateState({ ...state, dependenciesValid: false, version: '14.369', dependencies: [
-    { id: 'bg3-hud-core', version: '0.8.0', active: false },
-    { id: 'bg3-hud-dnd5e', version: 'PRIVATE_PASSWORD', active: true }
-  ] }, 'modstest'), error => error.reason.includes('foundry=14.369;system=dnd5e@6.0.6')
-    && error.reason.includes('bg3-hud-core=0.8.0(active=false)')
-    && error.reason.includes('bg3-hud-dnd5e=unknown(active=true)') && !error.reason.includes('PRIVATE_PASSWORD'));
+test('standalone safety retains system/version checks without requiring optional HUD modules', () => {
+  assert.equal(validateState({ ...state, dependenciesValid: false }, 'modstest').moduleActive, true);
+  assert.throws(() => validateState({ ...state, version: '14.369', systemVersion: 'PRIVATE_PASSWORD' }, 'modstest'),
+    error => error.reason.includes('foundry=14.369;system=dnd5e@unknown')
+      && !error.reason.includes('PRIVATE_PASSWORD'));
 });
 test('another active world is rejected before entering either account credential', async () => {
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'Campaign',

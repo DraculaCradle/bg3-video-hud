@@ -1,4 +1,6 @@
-/* Independent namespace; the sole upstream selector suppresses its DOM shell only. */
+/* Suppress only competing bar shells while our replacement is mounted.
+   Removing this class restores native/optional HUD visibility preferences. */
+body.bg3-video-hud-active #hotbar,
 body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
 .bg3-video-hud-target-box {
   position: fixed; z-index: 64; pointer-events: none; box-sizing: border-box;

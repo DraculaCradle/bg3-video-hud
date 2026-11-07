@@ -55,7 +55,7 @@ globalThis.canvas = { ready: true, tokens: { controlled: [{ actor: hero }] } };
 globalThis.game = {
   world: { id: 'modstest', title: 'ModsTest' },
   user, version: '14.0', system: { id: 'dnd5e', version: '6.0.6' },
-  modules: new Map([[MODULE_ID, {}], ['bg3-hud-core', { active: true }], ['bg3-hud-dnd5e', { active: true }]]),
+  modules: new Map([[MODULE_ID, {}]]),
   settings: {
     register(scope, key, definition) { definitions.set(`${scope}.${key}`, definition); settings.set(`${scope}.${key}`, definition.default); },
     get(scope, key) { return settings.get(`${scope}.${key}`); },
@@ -81,6 +81,7 @@ try {
   await Hooks.emit('ready');
 
   await test('defaults to original HUD; does not write upstream flags/settings', async () => {
+    assert(!game.modules.has('bg3-hud-core') && !game.modules.has('bg3-hud-dnd5e'));
     assert(!root()); assert(originalVisible()); equal(JSON.stringify(user.flags), oldFlags);
     equal([...settings.keys()], [`${MODULE_ID}.enabled`]);
   });
@@ -94,6 +95,27 @@ try {
     equal(definitions.get(`${MODULE_ID}.enabled`).name, '启用 BG3 视频界面');
     equal([...root().querySelectorAll('[data-group]')].map(section => section.dataset.group), ['Equipment', 'Features', 'Spells']);
     equal(root().querySelector('.bg3-video-hud-summary strong').textContent, hero.name);
+  });
+  await test('standalone HUD needs no BG3 shell; optional HUDs may be disabled or present without writes', async () => {
+    const shell = document.getElementById('bg3-hotbar'); shell.remove();
+    const native = document.createElement('div'); native.id = 'hotbar'; native.textContent = 'Native interface fixture'; document.body.append(native);
+    const before = JSON.stringify(user.flags);
+    try {
+      await Hooks.emit('updateUser', user); assert(root()); assert(getComputedStyle(native).display === 'none');
+      await click('disable'); assert(!root()); assert(getComputedStyle(native).display !== 'none');
+      for (const id of ['bg3-hud-core', 'bg3-hud-dnd5e']) game.modules.set(id, { active: false });
+      await game.modules.get(MODULE_ID).api.toggle(); await flush(); assert(root());
+      document.body.append(shell);
+      for (const id of ['bg3-hud-core', 'bg3-hud-dnd5e']) game.modules.get(id).active = true;
+      await Hooks.emit('updateUser', user); assert(root()); assert(!originalVisible());
+      await click('disable'); assert(originalVisible());
+      for (const id of ['bg3-hud-core', 'bg3-hud-dnd5e']) assert(game.modules.get(id).active);
+      await game.modules.get(MODULE_ID).api.toggle(); await flush(); assert(root());
+      equal(JSON.stringify(user.flags), before);
+    } finally {
+      if (!shell.isConnected) document.body.append(shell);
+      native.remove(); game.modules.delete('bg3-hud-core'); game.modules.delete('bg3-hud-dnd5e');
+    }
   });
   await test('document strings render as text rather than executable HTML', async () => {
     assert(root().textContent.includes(sword.name));

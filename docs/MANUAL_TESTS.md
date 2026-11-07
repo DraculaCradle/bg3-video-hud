@@ -2,7 +2,7 @@
 
 Status: **Full live acceptance remains incomplete.** The existing ModsTest instance has the module installed; automated live document reads are currently blocked by missing Socket acknowledgements. See [the current live report](MODSTEST_LIVE_REPORT.md). The current Chinese UI, cast/source manager and coordinated attacks are verified with local Chromium fixtures, not yet installed or certified in Foundry; see [the 720P report](COMPACT_HUD.md). Earlier proxy failures in [the historical test report](TEST_REPORT.md) are not the current diagnosis.
 
-Use only the existing ModsTest world and uniquely marked temporary test characters (never a second Foundry instance or another world), with two player-owned characters (martial and spellcaster, including a pact caster or multiclass test actor), a separate GM account, and Core/D&D5e HUD 0.8.0. Record exact Foundry build, system/module versions, browser, user role, steps, expected/observed result and console errors for every failure. Do not include credentials, private videos or player data in reports.
+Use only the existing ModsTest world and uniquely marked temporary test characters (never a second Foundry instance or another world), with two player-owned characters (martial and spellcaster, including a pact caster or multiclass test actor) and a separate GM account. Current source needs no BG3 modules; published v0.1.2 still does. Test optional BG3 coexistence separately only when the administrator chooses it. Automatic live testing is stopped; the user performs these checks. Record versions, browser, user role, steps and expected/observed results without credentials or private player data.
 
 ## Installation and first load
 
@@ -20,6 +20,9 @@ Use only the existing ModsTest world and uniquely marked temporary test characte
 - [ ] Revoke ownership while HUD is open and attempt item use immediately. No unauthorized use occurs. Confirm ordinary players can edit **their own User flags** and cannot edit other players' layout data.
 
 ## System workflows (verify actual state before/after)
+
+- [ ] In an explicitly installed development build, with BG3 modules absent or manually disabled only in ModsTest, enable this HUD and use an owned actor. Native hotbar is hidden only while the replacement is mounted; disabling restores its original display state. If testing optional BG3 coexistence, confirm its flags/settings and enabled state stay unchanged.
+- [ ] Default quick use: one usable activity on an ordinary item/cantrip skips redundant HUD choices; a levelled spell still requires slot/source choice. Multiple activities remain explicit. Enable **详细** to access all activity/count/allocation/native options. Esc cancels an inline choice, while an open system dialog retains its own Escape behavior.
 
 Map-targeting behavior is implemented but not live-certified. Follow the additional [single-click, range-selection and native Region checklist](TARGETING.md), including cancellation/consumption timing and multi-ray limitations.
 

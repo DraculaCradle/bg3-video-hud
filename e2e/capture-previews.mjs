@@ -42,7 +42,7 @@ try {
     const { hud, hero } = window.compactPreview;
     hud.busy.add(`${hero.uuid}:spell-2`); void hud.chooseUse(hero, hero.items.get('spell-2'));
   });
-  await page.locator('[data-action="choose-activity"]').click();
+  await page.locator('[data-action="choose-cast"]').first().waitFor();
   await page.screenshot({ path: join(output, 'complete-casting-720p.jpg'), type: 'jpeg', quality: 85 });
   await page.locator('[data-action="source-manager"]').click();
   await page.screenshot({ path: join(output, 'complete-source-720p.jpg'), type: 'jpeg', quality: 85 });

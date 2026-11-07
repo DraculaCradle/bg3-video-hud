@@ -30,7 +30,7 @@ def read_json(path):
         return json.load(stream)
 
 
-def validate_payload(files):
+def validate_payload(files, *, legacy=False):
     """Validate the manifest and its complete local ES-module import graph."""
     try:
         manifest = json.loads(files['module.json'])
@@ -44,8 +44,11 @@ def validate_payload(files):
     if manifest.get('compatibility', {}).get('minimum') != '14':
         raise ValueError('Expected Foundry v14 compatibility')
     requires = manifest.get('relationships', {}).get('requires', [])
-    if sorted(r.get('id', '') for r in requires) != ['bg3-hud-core', 'bg3-hud-dnd5e']:
-        raise ValueError('Both public BG3 HUD dependencies must be declared')
+    legacy_bg3 = (isinstance(requires, list) and len(requires) == 2
+                  and all(isinstance(r, dict) and r.get('type') == 'module' for r in requires)
+                  and sorted(r.get('id', '') for r in requires) == ['bg3-hud-core', 'bg3-hud-dnd5e'])
+    if requires != [] and not (legacy and legacy_bg3):
+        raise ValueError('Standalone HUD must not declare required modules')
     systems = manifest.get('relationships', {}).get('systems', [])
     if not any(s.get('id') == 'dnd5e' and s.get('compatibility', {}).get('verified') == '6.0.6' for s in systems):
         raise ValueError('Expected D&D5e 6.0.6 target')
@@ -71,7 +74,7 @@ def validate_payload(files):
     return manifest
 
 
-def archive_payload(path, expected_sha256=None):
+def archive_payload(path, expected_sha256=None, *, legacy=False):
     if expected_sha256:
         if not re.fullmatch(r'[a-fA-F0-9]{64}', expected_sha256):
             raise ValueError('--sha256 must be exactly 64 hexadecimal characters')
@@ -103,7 +106,7 @@ def archive_payload(path, expected_sha256=None):
             if entry.is_dir():
                 continue
             files[name] = archive.read(entry)  # ZipFile also verifies each CRC.
-    validate_payload(files)
+    validate_payload(files, legacy=legacy)
     return files
 
 
@@ -119,7 +122,9 @@ def tree_payload(root):
             if len(files) >= MAX_FILES or path.stat().st_size + sum(map(len, files.values())) > MAX_BYTES:
                 raise ValueError('Module tree exceeds the module size/file limit')
             files[path.relative_to(root).as_posix()] = path.read_bytes()
-    validate_payload(files)
+    # Existing installations/backups may predate standalone mode. Recognize
+    # only the known old pair; incoming release archives stay standalone-only.
+    validate_payload(files, legacy=True)
     return files
 
 
@@ -133,21 +138,12 @@ def check_access(path, mode, purpose):
         raise PermissionError(f'{purpose}: insufficient permissions on {path}')
 
 
-def version_tuple(value):
-    if not re.fullmatch(r'\d+(?:\.\d+)*', value):
-        raise ValueError(f'Unsupported installed dependency version: {value}')
-    return tuple(int(p) for p in value.split('.')) + (0,) * max(0, 3 - len(value.split('.')))
-
-
-def check_dependencies(data, modules, manifest):
+def check_system(data):
+    # Module requirements are forbidden by validate_payload. The required
+    # D&D5e system/version remains checked, independent of optional HUD modules.
     system = read_json(data / 'Data' / 'systems' / 'dnd5e' / 'system.json')
     if system.get('id') != 'dnd5e' or system.get('version') != '6.0.6':
         raise ValueError('Install D&D5e 6.0.6 before deploying this module')
-    for dependency in manifest['relationships']['requires']:
-        installed = read_json(modules / dependency['id'] / 'module.json')
-        minimum = dependency.get('compatibility', {}).get('minimum', '0.8.0')
-        if installed.get('id') != dependency['id'] or version_tuple(installed.get('version', '')) < version_tuple(minimum):
-            raise ValueError(f'Install {dependency["id"]} >= {minimum} separately first')
 
 
 def ownership(owner, target):
@@ -214,8 +210,8 @@ def deploy(args):
         if (backup / 'module').is_symlink():
             raise ValueError('Linked backup payload is unsupported')
         files = tree_payload(backup / 'module')
-    manifest = validate_payload(files)
-    check_dependencies(data, modules, manifest)
+    manifest = validate_payload(files, legacy=bool(args.rollback))
+    check_system(data)
     uid, gid = ownership(args.owner, target)
     backup_root = Path(args.backup_dir).expanduser().resolve() if args.backup_dir else data / f'.{MODULE_ID}-backups'
     if backup_root == target or target in backup_root.parents:
@@ -264,7 +260,7 @@ def deploy(args):
                 shutil.copytree(target, backup / 'module')
                 verify_tree(backup / 'module', previous_files)
                 (backup / 'deployment.json').write_text(json.dumps({
-                    'module': MODULE_ID, 'previous_version': validate_payload(previous_files)['version'],
+                    'module': MODULE_ID, 'previous_version': validate_payload(previous_files, legacy=True)['version'],
                     'target': str(target), 'uid': target.stat().st_uid, 'gid': target.stat().st_gid,
                 }, indent=2) + '\n', encoding='utf-8')
                 print(f'Backup verified: {backup}', flush=True)

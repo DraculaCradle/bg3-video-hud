@@ -200,16 +200,44 @@ class DeploymentTests(unittest.TestCase):
                 deploy.deploy(self.args())
             self.assertEqual(deploy.tree_payload(self.target), previous)
 
-    def test_missing_dependencies_and_wrong_system_version_block_install(self):
-        dependency = self.modules / 'bg3-hud-core/module.json'
-        dependency.write_text(json.dumps({'id': 'bg3-hud-core', 'version': '0.7.9'}))
-        with self.assertRaisesRegex(ValueError, 'bg3-hud-core'):
-            deploy.deploy(self.args())
-        dependency.write_text(json.dumps({'id': 'bg3-hud-core', 'version': '0.8.0'}))
+    def test_wrong_system_version_still_blocks_standalone_install(self):
         (self.data / 'Data/systems/dnd5e/system.json').write_text(json.dumps({'id': 'dnd5e', 'version': '5.3.0'}))
         with self.assertRaisesRegex(ValueError, 'D&D5e'):
             deploy.deploy(self.args())
         self.assertFalse(self.target.exists())
+
+    def test_standalone_install_needs_no_bg3_modules(self):
+        for name in ['bg3-hud-core', 'bg3-hud-dnd5e']:
+            for path in (self.modules / name).iterdir():
+                path.unlink()
+            (self.modules / name).rmdir()
+        deploy.deploy(self.args())
+        self.assertEqual(deploy.tree_payload(self.target), self.files)
+        for name in ['bg3-hud-core', 'bg3-hud-dnd5e']:
+            self.assertFalse((self.modules / name).exists())
+
+    def test_required_modules_cannot_be_silently_added_to_standalone_archive(self):
+        manifest = copy.deepcopy(self.manifest)
+        manifest['relationships']['requires'] = [{'id': 'bg3-hud-core', 'type': 'module'}]
+        self.write_zip({**self.files, 'module.json': json.dumps(manifest).encode()})
+        with self.assertRaisesRegex(ValueError, 'Standalone HUD'):
+            deploy.deploy(self.args())
+        self.assertFalse(self.target.exists())
+
+    def test_legacy_bg3_backup_can_be_verified_and_restored_after_standalone_upgrade(self):
+        previous = self.seed_old()
+        manifest = json.loads(previous['module.json'])
+        manifest['relationships']['requires'] = [{'id': name, 'type': 'module'}
+                                               for name in ['bg3-hud-core', 'bg3-hud-dnd5e']]
+        previous['module.json'] = json.dumps(manifest).encode()
+        (self.target / 'module.json').write_bytes(previous['module.json'])
+        deploy.deploy(self.args())
+        self.assertEqual(deploy.tree_payload(self.target), self.files)
+        backup = next(self.backups.glob('*/deployment.json')).parent
+        self.assertEqual(deploy.tree_payload(backup / 'module'), previous)
+        deploy.deploy(self.args(zip=None, rollback=str(backup)))
+        self.assertEqual(deploy.tree_payload(self.target), previous)
+        self.assert_neighbors_untouched()
 
     def test_directory_permission_failure_leaves_original_intact(self):
         previous = self.seed_old()

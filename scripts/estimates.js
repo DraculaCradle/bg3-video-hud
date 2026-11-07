@@ -39,6 +39,14 @@ export function hitChance(bonus, ac, { advantage = false, disadvantage = false, 
   return advantage === disadvantage ? p : advantage ? 1 - (1 - p) ** 2 : p ** 2;
 }
 
+export function saveFailureChance(bonus, dc, { advantage = false, disadvantage = false } = {}) {
+  if (!Number.isFinite(bonus) || !Number.isFinite(dc)) return null;
+  let successes = 0;
+  for (let die = 1; die <= 20; die++) if (die + bonus >= dc) successes++;
+  const p = successes / 20;
+  return 1 - (advantage === disadvantage ? p : advantage ? 1 - (1 - p) ** 2 : p ** 2);
+}
+
 export function combatEstimate(activity, target, origin, canvas = globalThis.canvas, user = globalThis.game?.user) {
   const result = { chance: null, average: null, distance: null, range: null, blocked: null, mode: '普通', note: '基础估算；临时修正、抗性与额外规则以系统结算为准。' };
   // Visibility does not grant permission to expose target AC or private HP.
@@ -57,6 +65,26 @@ export function combatEstimate(activity, target, origin, canvas = globalThis.can
     result.chance = observe ? hitChance(bonus, actor.system?.attributes?.ac?.value,
       { ...modes, critical: activity.criticalThreshold ?? 20 }) : null;
   } catch { /* Unknown/unsupported roll mechanics do not produce a guessed percentage. */ }
+  if (activity?.type === 'save') {
+    result.chance = null; result.kind = 'save';
+    try {
+      const abilities = typeof activity.save?.ability === 'string' ? [activity.save.ability] : [...(activity.save?.ability ?? [])];
+      if (observe && abilities.length === 1) {
+        const ability = abilities[0], stats = actor.system.abilities?.[ability];
+        const fields = globalThis.game?.dnd5e?.dataModels?.shared?.D20RollModificationField;
+        const modes = fields?.combineFields?.(actor.system,
+          [`abilities.${ability}.save.roll`, 'rolls.ability.save'],
+          { rules: { category: 'save', actor, rollData: actor.getRollData?.({ roll: true }) } }) ?? {};
+        const parts = [stats?.mod, stats?.save?.prof?.hasProficiency ? stats.save.prof.term : 0,
+          modes.bonus || 0, ability === 'dex' ? (actor.system.attributes?.ac?.cover || 0) : 0];
+        const bonus = parts.every(p => p !== undefined && p !== null)
+          ? averageFormula(parts.join('+'), actor.getRollData?.({ roll: true }) ?? {}) : null;
+        result.chance = saveFailureChance(bonus, activity.save?.dc?.value, modes);
+        result.mode = modes.advantage === modes.disadvantage ? '普通' : modes.advantage ? '目标优势' : '目标劣势';
+      }
+    } catch { /* An unsupported save remains unknown, not an attack percentage. */ }
+  }
+  result.difficulty = result.chance === null ? '未知' : result.chance >= .8 ? '容易' : result.chance >= .55 ? '适中' : result.chance >= .3 ? '困难' : '很难';
   try {
     const rolls = activity.getDamageConfig?.().rolls ?? [];
     const means = rolls.map(r => averageFormula(r.parts.join('+'), r.data));

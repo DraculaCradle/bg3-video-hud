@@ -1,6 +1,7 @@
 import { MODULE_ID, selectActor, values } from './model.js';
 import { LayoutStore } from './persistence.js';
 import { VideoHUD } from './hud.js';
+import { reactionResources } from './reactions.js';
 
 let hud;
 let canvasReady = false;
@@ -113,3 +114,17 @@ Hooks.on('hoverToken', (token, hovered) => {
   else hud.visuals.stop();
 });
 globalThis.addEventListener('beforeunload', () => hud?.destroy());
+
+Hooks.on('midi-qol.preItemRollV2', async payload => {
+  if (!compatible() || !hud?.root?.isConnected || !game.modules.get('midi-qol')?.active) return;
+  try {
+    const actor = hud.actor, token = hud.token, scene = globalThis.canvas?.scene;
+    return await reactionResources(payload, { user: game.user,
+      current: subject => compatible() && hud?.root?.isConnected && subject === actor
+        && hud.actor === actor && hud.token === token && globalThis.canvas?.scene === scene,
+      choose: (item, sources) => hud.chooseReactionSource(item, sources) });
+  } catch (error) {
+    ui.notifications.error(`BG3 视频界面：${error.message}`);
+    return false;
+  }
+});

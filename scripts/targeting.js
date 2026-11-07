@@ -1,12 +1,16 @@
 import { MODULE_ID, canUseActor, values } from './model.js';
 import { resolveOwnedItem, useOwnedItem } from './actions.js';
-import { nativeCastingOptions, scaledActivity, sequencePlan, requireActor } from './casting.js';
+import { nativeCastingOptions, scaledActivity, sequencePlan, requireActor, usableActivities } from './casting.js';
 
 // Read prepared system data, never evaluate formulas or infer rules from names.
 export function targetPlan(activity) {
   const target = activity?.target;
   if (target?.template?.type) return { mode: 'area' };
   const affects = target?.affects;
+  // Prepared D&D5e weapon attacks may leave affects.type empty. They still
+  // require a map target; utility items with the same blank field do not.
+  if (activity?.type === 'enchant' || affects?.type === 'object') return { mode: 'native' };
+  if (!affects?.type && activity?.type === 'attack') return { mode: 'single', max: 1 };
   if (!affects?.type || affects.type === 'self' || affects.type === 'space') return { mode: 'native' };
   const count = affects.count;
   if (count === null || count === '' || count === undefined || count === 0) return { mode: 'multi', max: null };
@@ -61,7 +65,7 @@ export class TargetWorkflow {
     const scene = canvas?.scene;
     const item = resolveOwnedItem(actor, itemId, this.user);
     if (item.flags?.[MODULE_ID]?.castingSource?.enabled === false) throw new Error('此施法来源已在本界面停用。');
-    const activities = values(item.system?.activities).filter(a => a.canUse === true && typeof a.use === 'function');
+    const activities = usableActivities(item);
     // Activity-less items still use their official chat-card workflow. Unknown
     // data never turns into a guessed attack or an invented resource operation.
     if (!activities.length) return useOwnedItem(actor, itemId, this.user, event);
@@ -167,7 +171,16 @@ export class TargetWorkflow {
 
   async settleSequence({ actor, item, activity, choice, usage, repetition, selected, active, event, canvas }) {
     if (globalThis.game?.modules?.get('midi-qol')?.active) {
-      throw new Error('此客户端已启用战斗自动化，请从原生流程结算重复攻击，避免重复掷骰。');
+      // Selection is still ours; enabled automation owns attack/damage and any
+      // per-ray dispatcher. A normal weapon must not fail merely because an
+      // explicit target count of one produced a sequence plan.
+      if (choice.manual || choice.count) throw new Error('自定义重复次数／分配请使用原生自动化界面，避免与自动化的重复结算冲突。');
+      requireActor(actor, this.user);
+      const available = new Set(visibleTargets(canvas));
+      if (!active() || selected.some(t => !available.has(t))) return;
+      canvas.tokens.setTargets(selected.map(t => t.id), { mode: 'replace' });
+      this.onStatus?.('目标已选择；攻击、伤害与重复施放交由已启用的原生自动化处理。');
+      return useOwnedItem(actor, item.id, this.user, event, activity.id, usage);
     }
     const distribute = count => Array.from({ length: count }, (_, i) => selected[i % selected.length]);
     let allocation = choice.manual && this.allocate

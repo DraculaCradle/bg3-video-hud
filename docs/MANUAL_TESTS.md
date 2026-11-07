@@ -2,7 +2,7 @@
 
 Status: **Full live acceptance remains incomplete.** The existing ModsTest instance has the module installed; automated live document reads are currently blocked by missing Socket acknowledgements. See [the current live report](MODSTEST_LIVE_REPORT.md). The current Chinese UI, cast/source manager and coordinated attacks are verified with local Chromium fixtures, not yet installed or certified in Foundry; see [the 720P report](COMPACT_HUD.md). Earlier proxy failures in [the historical test report](TEST_REPORT.md) are not the current diagnosis.
 
-Use only the existing ModsTest world and uniquely marked temporary test characters (never a second Foundry instance or another world), with two player-owned characters (martial and spellcaster, including a pact caster or multiclass test actor) and a separate GM account. v0.1.3 needs no BG3 modules; the older v0.1.2 still does. Test optional BG3 coexistence separately only when the administrator chooses it. Automatic live testing is stopped; the user performs these checks. Record versions, browser, user role, steps and expected/observed results without credentials or private player data.
+Use only the existing ModsTest world and uniquely marked temporary test characters (never a second Foundry instance or another world), with two player-owned characters (martial and spellcaster, including a pact caster or multiclass test actor) and a separate GM account. v0.1.3 and v0.1.4 need no BG3 modules; the older v0.1.2 still does. Test optional BG3 coexistence separately only when the administrator chooses it. Automatic live testing is stopped; the user performs these checks. Record versions, browser, user role, steps and expected/observed results without credentials or private player data.
 
 ## Installation and first load
 
@@ -65,3 +65,14 @@ Map-targeting behavior is implemented but not live-certified. Follow the additio
 - [ ] Test a deliberately unsupported system/version; custom HUD stays disabled and original remains available.
 
 Release sign-off requires all applicable required checkboxes above, with recorded versions and observations. Automated fixture results alone do not close these boxes.
+
+## v0.1.4 优先人工验收
+
+1. 普通近战／远程武器点击后出现地图选目标提示，未点目标前没有聊天卡或消耗；点空地不使用，Esc／右键取消；点有效目标只进入一次原生流程。另测多活动武器的单／双手选择。
+2. 对照原作者：独立圆形头像及 AC／血条、三块金边技能栏、上方资源条、右侧圆形按钮；720P 与 4K、侧栏开关、浏览器缩放下可达。拖动分栏／方向键微调、Esc 撤销、Home 重置，重新载入后比例保留。
+3. 分组编辑在弹窗完成，保存与取消分开；施法环阶／来源卡片、删除来源二次确认不挤入 HUD。
+4. 本人当前回合可结束且连点不连跳；切其他 Token 不可结束；短休／长休保留系统确认。
+5. SRD 魔法飞弹在不启用额外战斗自动化的测试组合中：三枚／升环多枚目标分配、原生伤害卡和一次消费。启用 Midi-QOL／CPR 的组合单独验证其原生分配，不能把 mock 测试当认证。
+6. 已有护盾术及可用免费来源的角色，在原生 Midi-QOL 反应已确认时检查来源弹窗：法术位、来源、取消各一次，核对实际消费及无重复反应。不要为了此测试自动安装／启用其他模组。
+
+自动实机测试继续停止。请只使用 ModsTest 的临时测试角色并记录结果；不向公开问题贴玩家数据、账号凭据或完整私有截图。

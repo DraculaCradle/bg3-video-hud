@@ -25,8 +25,23 @@ const idList = value => [...new Set(Array.isArray(value) ? value.filter(v => typ
 export function normalizeLayout(data = {}) {
   return {
     version: 1, order: idList(data?.order), hidden: idList(data?.hidden),
-    pinned: idList(data?.pinned), pinnedOnly: data?.pinnedOnly === true
+    pinned: idList(data?.pinned), pinnedOnly: data?.pinnedOnly === true,
+    ...(validRatios(data?.ratios) ? { ratios: [...data.ratios] } : {})
   };
+}
+
+export function validRatios(ratios) {
+  return Array.isArray(ratios) && ratios.length === 3
+    && ratios.every(n => Number.isFinite(n) && n >= 1 && n <= 10000);
+}
+
+export function resizeColumns(widths, index, delta, minimum = 56) {
+  if (!validRatios(widths) || ![0, 1].includes(index) || !Number.isFinite(delta)) return [2, 3, 5];
+  const result = [...widths], sum = widths[index] + widths[index + 1];
+  const floor = Math.min(minimum, sum / 3);
+  result[index] = Math.max(floor, Math.min(sum - floor, widths[index] + delta));
+  result[index + 1] = sum - result[index];
+  return result;
 }
 
 export function groupFor(item) {
@@ -38,7 +53,7 @@ export function groupFor(item) {
 export function activationTypes(item) {
   const types = values(item.system?.activities).map(a => a.activation?.type).filter(Boolean);
   if (item.system?.activation?.type) types.push(item.system.activation.type);
-  return [...new Set(types)];
+  return [...new Set(types.flatMap(type => type.startsWith('reaction') ? [type, 'reaction'] : [type]))];
 }
 
 export function spellLevel(item) {

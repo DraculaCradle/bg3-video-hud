@@ -33,3 +33,17 @@ export async function restActor(actor, kind, user) {
   if (typeof actor[method] !== 'function') throw new Error('此角色不支持休息操作。');
   return actor[method](); // Keep the system's confirmation and resource recovery.
 }
+
+export function canEndTurn(actor, token, user, combat) {
+  if (!combat?.started || !combat.combatant || !canUseActor(actor, user)) return false;
+  const turn = combat.combatant;
+  return turn.actor?.uuid === actor.uuid && (!token || turn.tokenId === token.id)
+    && (user.isGM || turn.isOwner === true);
+}
+
+export async function endTurn(actor, token, user, combat) {
+  if (!canEndTurn(actor, token, user, combat) || typeof combat.nextTurn !== 'function') {
+    throw new Error('只有当前回合角色的拥有者或 GM 能从此角色界面结束回合。');
+  }
+  return combat.nextTurn();
+}

@@ -13,7 +13,8 @@ export class TurnLedger {
     // Linked consumption prepares source updates; it does not emit a second
     // postUseActivity. Count its spell too, deduplicating the native message ID.
     if (!this.key || !id || this.seen.has(id) || !canUseActor(activity.actor, user)) return;
-    const type = activity.activation?.type;
+    const activation = activity.activation?.type;
+    const type = activation?.startsWith('reaction') ? 'reaction' : activation;
     if (!['action', 'bonus', 'reaction'].includes(type)) return;
     this.seen.add(id);
     const key = `${activity.actor.uuid}:${type}`; this.counts.set(key, (this.counts.get(key) ?? 0) + 1);

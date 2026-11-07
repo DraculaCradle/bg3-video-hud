@@ -43,3 +43,12 @@ HP, AC, resources, slot pools, limited-use labels and action filters read system
 ## Validation boundary
 
 Node tests exercise real module logic with small document doubles. Chromium tests load the actual module entry point and styles against fixtures for Foundry hooks/settings/documents, then drive actual DOM events. This verifies local behavior, including flags, canceled/error workflows and restoration, but is not a substitute for the licensed Foundry runtime. Official dialogs, real multiplayer permissions, target templates, chat and third-party automation must pass the manual checklist before use in a real game.
+
+## v0.1.4 reference parity interfaces
+
+- Blank `affects.type` on an `attack` activity is a single visible token selection; explicit self/object/enchant/template semantics take precedence. No name parsing.
+- `Combat.nextTurn()` is called only on a user click for the currently owned actor and matching selected token; native permissions still apply.
+- D&D5e 6.0.6 [Magic Missile data](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/packs/_source/spells/1st-level/magic-missile.yml) defines one unscaled 1d4+1 damage activity. A level+2 allocation requests that native damage activity after one native resource workflow. No item source rewrite.
+- Optional Midi-QOL [Activity mixin](https://github.com/tposney/midi-qol/blob/master/src/module/activities/MidiActivityMixin.ts), inspected 2026-11-07, awaits `midi-qol.preItemRollV2` before consumption and accepts false to abort. Shield source choice only augments the per-use native `cause`/`consume` configuration; the owned spell, macros, targets and dialog flags are untouched. This is a source-inspected contract, not certification against every installed Midi-QOL version.
+- Native save estimate reads `D20RollModificationField.combineFields`, prepared ability proficiency and save DC. Unknown formulas/permissions remain unknown. No rolls, workflow creation or effect-expression evaluation during hover.
+- Layout ratios add an optional validated leaf to version-1 user layouts; missing/invalid ratios use 2:3:5. Other actors/users/upstream flags are preserved.

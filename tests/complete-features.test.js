@@ -260,3 +260,33 @@ test('turn ledger counts observed successful native uses, deduplicates and reset
   assert.equal(ledger.state(hero, 'action', { ...combat, turn: 1 }).used, 0);
   assert.equal(ledger.state(hero, 'action', null).used, null);
 });
+
+test('magic missile distributes native single-dart damage with one resource use and no attack roll', async () => {
+  const f = sequenceFixture({ nativeLevel: 3 });
+  f.spell.system.identifier = 'magic-missile'; f.spell.system.level = 1;
+  f.cast.type = 'damage'; f.cast.rollDamage = f.attack.rollDamage;
+  f.spell.system.activities = new Map([['cast', f.cast]]);
+  await f.workflow.use(f.hero, 'spell', {});
+  assert.equal(f.records.filter(r => r[0] === 'use').length, 1);
+  assert.equal(f.records.filter(r => r[0] === 'attack').length, 0);
+  assert.equal(f.records.filter(r => r[0] === 'damage').length, 5);
+  assert.ok(f.records.filter(r => r[0] === 'damage').every(r => r[1].scaling === 0));
+  assert.equal(f.hero.system.spells.spell2.value, 2); assert.equal(f.hooks.size, 0);
+});
+
+test('enabled automation receives selected weapon targets once and retains ownership of subsequent rolls', async () => {
+  const previous = globalThis.game;
+  globalThis.game = { modules: new Map([['midi-qol', { active: true }]]) };
+  try {
+    const f = sequenceFixture(); f.spell.type = 'weapon'; f.spell.system.identifier = 'weapon';
+    f.attack.target = { affects: { type: '', count: 1 } };
+    f.attack.use = async config => { f.records.push(['use', config]); return { native: true }; };
+    f.workflow.chooseUse = async () => ({ activityId: 'attack' }); f.workflow.pick = async () => [f.targets[0]];
+    await f.workflow.use(f.hero, 'spell', {});
+    assert.deepEqual(f.records.filter(r => r[0] === 'targets').at(-1)[1], ['1']);
+    assert.equal(f.records.filter(r => r[0] === 'use').length, 1);
+    assert.equal(f.records.filter(r => r[0] === 'use')[0][1].subsequentActions, undefined);
+    assert.equal(f.records.filter(r => r[0] === 'attack' || r[0] === 'damage').length, 0);
+    assert.equal(f.hooks.size, 0);
+  } finally { globalThis.game = previous; }
+});

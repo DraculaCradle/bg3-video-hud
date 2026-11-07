@@ -42,14 +42,15 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
     });
   };
   const hud = new VideoHUD({ store, user, onDisable: () => hud.clear(), onError: text => errors.push(text) });
-  const find = (action, extra = '') => hud.choiceDialog?.querySelector(`[data-action="${action}"]${extra}`)
+  const find = (action, extra = '') => hud.editorDialog?.querySelector(`[data-action="${action}"]${extra}`)
+    ?? hud.choiceDialog?.querySelector(`[data-action="${action}"]${extra}`)
     ?? hud.root?.querySelector(`[data-action="${action}"]${extra}`);
   const click = async (action, extra = '') => {
     const control = find(action, extra); assert(control, `Missing ${action} ${extra}`); control.click(); await flush();
     for (let i = 0; hud.saving && i < 100; i++) await new Promise(r => setTimeout(r, 0));
   };
   const setQuery = async (group, query) => {
-    const input = hud.root.querySelector(`[data-query-group="${group}"]`);
+    const input = (hud.editorDialog ?? hud.root).querySelector(`[data-query-group="${group}"]`);
     input.focus(); input.value = query; input.setSelectionRange(query.length, query.length);
     input.dispatchEvent(new InputEvent('input', { bubbles: true })); await flush();
   };

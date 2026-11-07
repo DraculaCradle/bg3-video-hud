@@ -108,8 +108,8 @@ try {
         assert.ok(layout.lists.every(list => list.height > 0 && list.firstFits && list.left >= layout.left && list.right <= layout.right), JSON.stringify(layout));
         assert.ok(layout.height <= Math.max(145, height * .4), 'Dock leaves useful map height even in short zoomed viewports');
         assert.equal(layout.dpr, deviceScaleFactor);
-        assert.ok(layout.cell >= 31.5 && layout.cell <= 72 && layout.font >= 11 && layout.font <= 24);
-        if (height <= 720 && width > 650) assert.ok(layout.height <= 190, '720P dock stays compact');
+        assert.ok(layout.cell >= 31.5 && layout.cell <= 96 && layout.font >= 11 && layout.font <= 24);
+        if (height <= 720 && width > 650) assert.ok(layout.height <= 228, '720P dock stays compact');
       });
     }
     await test('native 720P to 4K sizes grow smoothly and stop growing beyond the cap', async () => {
@@ -117,8 +117,9 @@ try {
       for (let i = 1; i < native.length; i++) {
         for (const property of ['height', 'width', 'cell', 'font', 'gap', 'portrait']) assert.ok(native[i][property] > native[i - 1][property], property);
       }
-      assert.ok(native[4].height > native[0].height * 1.5 && native[4].height < 400);
+      assert.ok(native[4].height > native[0].height * 1.5 && native[4].height < 420);
       assert.ok(native[4].cell > native[0].cell * 1.5);
+      assert.ok(native.every(layout => layout.lists.every(list => list.twoRowsFit)), 'Native 720P–4K must show two full skill rows');
       await setViewport({ width: 5120, height: 2880 });
       const capped = await measure();
       for (const key of ['width', 'height', 'cell', 'font']) assert.ok(Math.abs(capped[key] - native[4][key]) < 1, key);
@@ -212,7 +213,7 @@ try {
         })()`);
         assert.equal(reachable, true, `Last item in group ${index} must be clickable`);
       }
-      assert.ok(await evaluate('document.getElementById("bg3-video-hud").getBoundingClientRect().height <= 190'));
+      assert.ok(await evaluate('document.getElementById("bg3-video-hud").getBoundingClientRect().height <= 228'));
     });
     await test('high-level spell filters remain keyboard reachable without enlarging the 720P dock', async () => {
       await evaluate(`document.querySelector('#bg3-video-hud [data-action=filter-level][data-value="9"]').focus()`);
@@ -226,7 +227,7 @@ try {
     });
     await test('720P edit controls remain reachable without returning to a tall item list', async () => {
       await evaluate('document.querySelector("#bg3-video-hud [data-action=edit]").click()');
-      assert.ok(await evaluate('document.getElementById("bg3-video-hud").getBoundingClientRect().height <= 190'));
+      assert.ok(await evaluate('document.getElementById("bg3-video-hud").getBoundingClientRect().height <= 228'));
       const controlsFit = await evaluate(`[...document.querySelectorAll('#bg3-video-hud .bg3-video-hud-items')].every(list => {
         const controls = list.querySelector('.bg3-video-hud-edit-controls');
         const a = controls.getBoundingClientRect(), b = list.getBoundingClientRect();
@@ -353,6 +354,47 @@ try {
         buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1 }, sessionId);
       await evaluate('new Promise(resolve => setTimeout(resolve, 0))');
     };
+    await test('trusted divider drag and keyboard resize persist once; Escape restores without a write', async () => {
+      await setViewport({ width: 1280, height: 720 });
+      await evaluate('window.bg3LayoutTest.enable(); window.bg3LayoutTest.crowded()');
+      const snapshot = () => evaluate(`(() => {
+        const root = document.getElementById('bg3-video-hud');
+        return { widths: [...root.querySelectorAll('.bg3-video-hud-panel')].map(el => el.getBoundingClientRect().width),
+          writes: window.bg3LayoutTest.writes(), focused: document.activeElement.dataset.divider };
+      })()`);
+      const before = await snapshot();
+      await evaluate('document.querySelector("[data-divider]").focus()');
+      await press('ArrowRight', 'ArrowRight', 39);
+      const keyboard = await snapshot(); assert.ok(keyboard.widths[0] > before.widths[0]); assert.equal(keyboard.focused, '0');
+      const point = await evaluate(`(() => { const b = document.querySelector('[data-divider]').getBoundingClientRect(); return { x: b.x + b.width/2, y: b.y + b.height/2 }; })()`);
+      await mouse('mousePressed', point.x, point.y); await mouse('mouseMoved', point.x + 30, point.y); await mouse('mouseReleased', point.x + 30, point.y);
+      const dragged = await snapshot(); assert.ok(dragged.widths[0] > keyboard.widths[0]); assert.equal(dragged.writes, keyboard.writes + 1);
+      const again = await evaluate(`(() => { const b = document.querySelector('[data-divider]').getBoundingClientRect(); return { x: b.x + b.width/2, y: b.y + b.height/2 }; })()`);
+      await mouse('mousePressed', again.x, again.y); await mouse('mouseMoved', again.x - 30, again.y);
+      await press('Escape', 'Escape', 27); await mouse('mouseReleased', again.x - 30, again.y);
+      const cancelled = await snapshot(); assert.equal(cancelled.writes, dragged.writes);
+      assert.ok(cancelled.widths.every((n,i) => Math.abs(n - dragged.widths[i]) < 1));
+      await evaluate('document.querySelector("[data-divider]").focus()'); await press('Home', 'Home', 36);
+    });
+    await test('sidebar geometry changes reserve actual width and reopening restores a bounded dock', async () => {
+      await evaluate(`(() => { const sidebar = document.createElement('aside'); sidebar.id='sidebar'; sidebar.style.cssText='position:fixed;right:0;top:0;width:280px;height:100vh'; document.body.append(sidebar); })()`);
+      await evaluate('window.bg3LayoutTest.refresh()');
+      const first = await measure(); assert.ok(first.right <= 1000);
+      await evaluate('document.getElementById("sidebar").style.width="350px"');
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      const resized = await measure(); assert.ok(resized.right <= 930); assert.ok(resized.width < first.width);
+      await evaluate('document.getElementById("sidebar").remove(); window.bg3LayoutTest.refresh()');
+      assert.ok((await measure()).width > resized.width);
+    });
+    await test('trusted group editor opens outside HUD and Escape discards checkbox changes', async () => {
+      const before = await evaluate('window.bg3LayoutTest.writes()');
+      await evaluate('document.querySelector("[data-action=edit-group]").focus()'); await press('Enter', 'Enter', 13);
+      assert.equal(await evaluate('!!document.querySelector(".bg3-video-hud-editor-dialog[open]")'), true);
+      await evaluate('document.querySelector(".bg3-video-hud-editor-dialog [data-action=visibility]").focus()'); await press('Enter', 'Enter', 13);
+      await press('Escape', 'Escape', 27);
+      assert.equal(await evaluate('!!document.querySelector(".bg3-video-hud-editor-dialog[open]")'), false);
+      assert.equal(await evaluate('window.bg3LayoutTest.writes()'), before);
+    });
     await test('trusted map click targets once without controlling the clicked token', async () => {
       await setViewport({ width: 1280, height: 720 });
       await evaluate('window.bg3TargetTest.start("single")');

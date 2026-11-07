@@ -3,6 +3,7 @@ import { MODULE_ID } from '../scripts/model.js';
 import { LayoutStore } from '../scripts/persistence.js';
 import { targetingBrowserTests, createTargetingFixture } from './targeting-browser.js';
 import { completeFeatureBrowserTests } from './complete-features-browser.js';
+import { referenceBrowserTests } from './reference-browser.js';
 import { createChoiceDialogFixture } from './choice-dialog-browser.js';
 
 const results = document.querySelector('#test-results');
@@ -284,6 +285,7 @@ try {
   });
   await targetingBrowserTests({ test, assert, equal, flush });
   await completeFeatureBrowserTests({ test, assert, equal, flush });
+  await referenceBrowserTests({ test, assert, equal, flush });
   // The Node runner now drives actual viewport changes and keyboard events.
   await enable();
   const crowded = actor('crowded', Array.from({ length: 180 }, (_, i) => item(`crowded-${i}`,

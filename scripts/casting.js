@@ -5,7 +5,11 @@ export const SOURCE_ACTIVITY = 'bg3sourcecast001';
 export const RECOVERY = { '': '不自动恢复', sr: '短休', lr: '长休', day: '每日' };
 
 export function usableActivities(item) {
-  return values(item?.system?.activities).filter(a => a.canUse === true && typeof a.use === 'function');
+  const premades = item?.flags?.['chris-premades'] ?? {};
+  const hidden = new Set((Array.isArray(premades.hiddenActivities) ? premades.hiddenActivities : [])
+    .map(key => premades.activityIdentifiers?.[key]).filter(Boolean));
+  return values(item?.system?.activities).filter(a => a.canUse === true && typeof a.use === 'function'
+    && a.midiProperties?.automationOnly !== true && !hidden.has(a.id));
 }
 
 export function castingSources(actor, spell) {
@@ -64,6 +68,17 @@ export async function saveCastingSource(actor, spellId, user, input, sourceId = 
     [`flags.${MODULE_ID}.castingSource.enabled`]: input.enabled !== false });
 }
 
+export async function deleteCastingSource(actor, spellId, user, sourceId) {
+  const spell = resolveOwnedItem(actor, spellId, user);
+  const source = resolveOwnedItem(actor, sourceId, user);
+  if (spell.type !== 'spell' || source.type !== 'feat'
+    || source.flags?.[MODULE_ID]?.castingSource?.spell !== spell.uuid
+    || !source.system?.activities?.get?.(SOURCE_ACTIVITY) || typeof source.delete !== 'function') {
+    throw new Error('只能删除本模组为此法术创建的专用来源；不能删除其他物品。');
+  }
+  return source.delete();
+}
+
 /** Validated native use configuration. No resource value is subtracted here. */
 export function nativeCastingOptions(actor, item, activity, choice = {}) {
   const config = {};
@@ -118,6 +133,10 @@ export function sequencePlan(item, activity, { level = spellLevel(item), count =
     n = Math.max(3, level + 1); roller = attack[0]; standard = true;
   } else if (identifier === 'eldritch-blast' && attack.length === 1) {
     n = 1 + [5, 11, 17].filter(l => actorLevel >= l).length; roller = attack[0]; standard = true;
+  } else if (identifier === 'magic-missile' && damage.length === 1 && activity.id === damage[0].id) {
+    // D&D5e 6.0.6's SRD damage activity is one 1d4+1 dart with no damage
+    // scaling. Consume the cast once, then allocate level+2 native damage rolls.
+    n = Math.max(3, level + 2); roller = damage[0]; method = 'damage'; standard = true;
   }
   // Native multi-attack target counts are not automatically treated as a number
   // of attacks. Only explicit standard profiles or user-entered repetitions are.

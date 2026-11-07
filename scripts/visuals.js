@@ -37,17 +37,28 @@ export class TargetVisuals {
       badge.style.left = `${point.x + 45}px`; badge.style.top = `${point.y + 45}px`; root.append(badge);
     }
     if (target) {
+      const bounds = target.bounds;
+      if (bounds && Number.isFinite(bounds.x) && Number.isFinite(bounds.y)) {
+        const a = this.project({ x: bounds.x, y: bounds.y });
+        const b = this.project({ x: bounds.x + bounds.width, y: bounds.y + bounds.height });
+        if (a && b) {
+          const bracket = node('div', undefined, 'bg3-video-hud-target-lock');
+          Object.assign(bracket.style, { left: `${a.x - 3}px`, top: `${a.y - 3}px`, width: `${b.x - a.x + 6}px`, height: `${b.y - a.y + 6}px` });
+          for (let i = 0; i < 4; i++) bracket.append(node('i'));
+          root.append(bracket);
+        }
+      }
       const estimate = combatEstimate(activity, target, origin, this.getCanvas(), this.user);
       const card = node('div', undefined, 'bg3-video-hud-aim-info');
       card.append(node('strong', target.name ?? target.document?.name ?? '目标'));
-      const mayObserve = this.user?.isGM || target.actor?.testUserPermission?.(this.user, 'OBSERVER');
-      if (mayObserve) { const stats = actorStats(target.actor); card.append(node('span', `生命 ${stats.hp}/${stats.maxHp} · 护甲 ${stats.ac}`)); }
-      card.append(node('span', estimate.chance === null ? '命中率：未知' : `命中率·估算 ${Math.round(estimate.chance * 100)}% · ${estimate.mode}`));
-      if (estimate.average !== null) card.append(node('span', `基础平均伤害 ${Number(estimate.average.toFixed(1))}`));
+      const chanceLabel = estimate.kind === 'save' ? '目标豁免失败率' : '命中率';
+      card.append(node('span', estimate.chance === null ? `${chanceLabel}：未知` : `${chanceLabel}·估算 ${Math.round(estimate.chance * 100)}%`));
+      card.append(node('span', `难易：${estimate.difficulty}`));
+      card.append(node('span', `${estimate.kind === 'save' ? '豁免' : '攻击'}模式：${estimate.mode}`));
+      card.append(node('span', `基础平均伤害 ${estimate.average === null ? '未知' : Number(estimate.average.toFixed(1))}`));
       const range = [estimate.distance !== null ? `距离 ${Number(estimate.distance.toFixed(1))} ${this.getCanvas()?.scene?.grid?.units ?? ''}` : '',
         estimate.range === false ? '超出基础射程' : '', estimate.blocked === true ? '视线受阻' : '', progress].filter(Boolean).join(' · ');
-      if (range) card.append(node('span', range));
-      card.title = estimate.note;
+      card.title = [estimate.note, range].filter(Boolean).join(' ');
       card.style.left = `${Math.min(innerWidth - 240, Math.max(8, point.x + 34))}px`;
       card.style.top = `${Math.max(8, Math.min(innerHeight - 160, point.y - 100))}px`; root.append(card);
     }

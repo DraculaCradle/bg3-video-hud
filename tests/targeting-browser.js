@@ -41,6 +41,8 @@ export function createTargetingFixture(synthetic = false) {
   const activity = (id, count) => ({ id, canUse: true, target: { affects: { type: 'creature', count } },
     use: async config => { calls.push({ id, config, targets: selections.at(-1) }); return undefined; } });
   const single = activity('single', 1), multi = activity('multi', 2);
+  // Actual prepared weapon shape: blank affects.type must still prompt a token.
+  single.type = 'attack'; single.target.affects = { type: '', count: '' };
   const caster = actor('target-caster', [item('attack', 'weapon', { activities: new Map([['single', single]]) }, { name: '练习攻击' }),
     item('spell', 'spell', { level: 1, activities: new Map([['multi', multi]]) }, { name: '群体练习法术' })], {
     name: '试炼施法者（模拟）', system: { attributes: { hp: { value: 18, max: 24 }, ac: { value: 14 } },

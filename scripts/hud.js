@@ -1,10 +1,10 @@
 import { MODULE_ID, GROUPS, actorStats, groupFor, itemsFor, normalizeLayout, reorder, slotPools,
-  spellLevels, spellLevel, toggleId, usesLabel, values } from './model.js';
-import { restActor } from './actions.js';
+  spellLevels, spellLevel, toggleId, usesLabel, values, resizeColumns } from './model.js';
+import { restActor, endTurn, canEndTurn } from './actions.js';
 import { TargetWorkflow } from './targeting.js';
 import { node, button, RichTooltip, modal } from './ui.js';
 import { castingPools, castingSources, usableActivities, bundledActivity, nativeCastingOptions,
-  saveCastingSource, RECOVERY, sequencePlan, requireActor } from './casting.js';
+  saveCastingSource, deleteCastingSource, RECOVERY, sequencePlan, requireActor } from './casting.js';
 import { TargetVisuals, partyRows, INTEGRATIONS } from './visuals.js';
 import { TurnLedger } from './turn-ledger.js';
 
@@ -50,11 +50,13 @@ export class VideoHUD {
     // the viewport. CSS performs the sizing; this never renders or writes flags.
     this.keepFocusVisible = () => {
       const active = document.activeElement;
+      this.positionChrome();
       if ((this.root?.contains(active) || this.choiceDialog?.contains(active)) && active.closest('[data-scroll-group]')) {
         active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       }
     };
     globalThis.addEventListener('resize', this.keepFocusVisible);
+    this.chromeObserver = new ResizeObserver(() => this.positionChrome());
     this.cancelInlineChoice = event => {
       if (event.key !== 'Escape' || event.defaultPrevented || this.dialog?.open
         || event.target?.closest?.('dialog, [role="dialog"], .application')
@@ -65,10 +67,13 @@ export class VideoHUD {
   }
 
   clear() {
+    this.chromeObserver.disconnect();
+    this.cancelResize?.();
     this.targeting.cancel();
     this.pendingUse?.resolve(null); this.pendingUse = null;
     this.pendingAllocation?.resolve(null); this.pendingAllocation = null;
     this.dismissChoiceDialog();
+    this.dismissEditor(); this.reactionDialog?.close();
     this.tooltip.hide(); this.visuals.destroy(); this.dialog?.close();
     this.edit = false; this.draft = null; this.editGroup = null; this.progress = null;
     this.root?.remove();
@@ -89,10 +94,13 @@ export class VideoHUD {
     if (this.destroyed) return;
     if (!actor) { this.clear(); return; }
     if (this.actor?.uuid !== actor.uuid || this.token?.id !== token?.id) {
+      this.cancelResize?.();
       this.targeting.cancel();
       this.pendingUse?.resolve(null); this.pendingUse = null;
       this.pendingAllocation?.resolve(null); this.pendingAllocation = null;
       this.dismissChoiceDialog();
+      this.dismissEditor(); this.reactionDialog?.close();
+      this.edit = false; this.draft = null; this.editGroup = null;
       this.dialog?.close(); this.tooltip.hide(); this.progress = null;
     }
     if (this.actor?.uuid !== actor.uuid) {
@@ -111,7 +119,7 @@ export class VideoHUD {
   }
 
   render() {
-    if (this.destroyed || !this.actor) return;
+    if (this.destroyed || !this.actor || this.resizing) return;
     const actor = this.actor;
     const prefs = this.edit && this.draft ? this.draft : this.store.read(actor);
     const active = this.root?.contains(document.activeElement) ? document.activeElement : null;
@@ -120,7 +128,7 @@ export class VideoHUD {
     const scroll = new Map([...(this.root?.querySelectorAll('[data-scroll-group]') ?? [])]
       .map(list => [list.dataset.scrollGroup, { top: list.scrollTop, left: list.scrollLeft }]));
     const root = node('aside', undefined, 'bg3-video-hud');
-    root.classList.toggle('bg3-video-hud-editing', this.edit);
+    root.classList.toggle('bg3-video-hud-editing', this.edit && !this.editGroup);
     root.id = MODULE_ID;
     root.setAttribute('aria-busy', String(this.saving === true));
     root.setAttribute('aria-label', 'BG3 视频界面');
@@ -163,7 +171,9 @@ export class VideoHUD {
     portrait.className = 'bg3-video-hud-portrait';
     const src = this.token?.document?.texture?.src ?? this.token?.texture?.src ?? actor.img;
     if (src) {
-      const image = node('img');
+      const animated = /\.(webm|mp4|m4v)(?:[?#]|$)/i.test(src);
+      const image = node(animated ? 'video' : 'img');
+      if (animated) { image.autoplay = true; image.loop = true; image.muted = true; image.playsInline = true; }
       image.src = src;
       image.alt = actor.name ?? '角色';
       image.addEventListener('error', () => image.replaceWith(node('span', '?')), { once: true });
@@ -175,17 +185,23 @@ export class VideoHUD {
     const name = node('strong', actor.name ?? '角色');
     name.title = actor.name ?? '角色';
     summary.append(name, node('span',
-      `生命 ${stats.hp}/${stats.maxHp}${stats.tempHp ? `（临时+${stats.tempHp}）` : ''} · 护甲 ${stats.ac}`));
+      `生命 ${stats.hp}/${stats.maxHp}${stats.tempHp ? `（临时+${stats.tempHp}）` : ''} · 护甲 ${stats.ac}`, 'bg3-video-hud-stats-text'));
+    const vitals = node('div', undefined, 'bg3-video-hud-vitals');
+    const armor = node('span', `AC ${stats.ac}`); armor.title = `护甲 ${stats.ac}`; vitals.append(armor);
     if (Number.isFinite(Number(stats.hp)) && Number(stats.maxHp) > 0) {
       const bar = node('div', undefined, 'bg3-video-hud-health');
       bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-label', `生命 ${stats.hp}/${stats.maxHp}，临时生命 ${stats.tempHp || 0}`);
       bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', stats.maxHp);
       bar.setAttribute('aria-valuenow', Math.max(0, Math.min(stats.hp, stats.maxHp)));
       bar.title = bar.getAttribute('aria-label');
-      bar.style.setProperty('--hp', `${Math.max(0, Math.min(100, stats.hp / stats.maxHp * 100))}%`);
-      bar.style.setProperty('--temp', `${Math.max(0, Math.min(100, (stats.tempHp || 0) / stats.maxHp * 100))}%`);
-      summary.append(bar);
+      const total = Number(stats.maxHp) + Math.max(0, Number(stats.tempHp) || 0);
+      const current = Math.max(0, Math.min(Number(stats.maxHp), Number(stats.hp)));
+      bar.style.setProperty('--hp', `${current / total * 100}%`);
+      bar.style.setProperty('--temp', `${Math.max(0, Number(stats.tempHp) || 0) / total * 100}%`);
+      bar.append(node('b', `${stats.hp}/${stats.maxHp}${stats.tempHp ? ` +${stats.tempHp}` : ''}`));
+      vitals.append(bar);
     }
+    summary.append(vitals);
     for (const resource of stats.resources) {
       const line = node('small', `${resource.label || '资源'} ${resource.value ?? '—'}/${resource.max ?? '—'}`);
       line.title = line.textContent;
@@ -199,26 +215,35 @@ export class VideoHUD {
     controls.append(edit, button('原版界面', 'disable', '关闭本 HUD，返回 Foundry 或已启用的其他 HUD'));
     header.append(controls);
     root.append(header);
+    const ratios = prefs.ratios ?? [2, 3, 5];
+    root.style.setProperty('--video-columns', ratios.map(n => `minmax(0, ${n}fr)`).join(' '));
 
     const filters = node('div', undefined, 'bg3-video-hud-filters');
     const activations = node('nav', undefined, 'bg3-video-hud-activations');
     activations.dataset.scrollGroup = 'activations';
     activations.setAttribute('aria-label', '按动作类型筛选，不代表剩余动作次数');
     for (const [key, label] of [['all', '全部'], ['action', '动作'], ['bonus', '附赠动作'], ['reaction', '反应']]) {
-      const control = button(label, 'filter-action', label, { value: key });
+      const control = button('', 'filter-action', label, { value: key });
+      const symbol = node('i', { all: '◇', action: '●', bonus: '▲', reaction: '✦' }[key], `bg3-video-hud-resource-${key}`);
+      symbol.setAttribute('aria-hidden', 'true');
+      control.append(symbol, node('span', label));
       control.setAttribute('aria-pressed', String(this.action === key));
       if (key !== 'all') {
         const state = this.ledger.state(actor, key, globalThis.game?.combat);
-        const indicator = node('small', state.used === null ? '○' : state.used ? `●${state.used}` : '○', 'bg3-video-hud-action-state');
+        const indicator = node('small', state.used ? `${state.used}` : '', 'bg3-video-hud-action-state');
         indicator.title = `${state.label}；记录原生使用，不限制额外动作或代替系统规则。`;
         control.append(indicator);
       }
       control.disabled = this.edit;
       activations.append(control);
     }
+    if (actor.statuses?.has('concentrating') || actor.system?.attributes?.concentration?.effects?.size) {
+      const concentration = node('span', '◉', 'bg3-video-hud-concentration');
+      concentration.title = '专注中'; concentration.setAttribute('aria-label', '专注中'); activations.append(concentration);
+    }
     filters.append(activations, this.spellControls(prefs));
     root.append(filters);
-    if (this.edit) root.append(this.editToolbar(prefs));
+    if (this.edit && !this.editGroup) root.append(this.editToolbar(prefs));
 
     const panels = node('div', undefined, 'bg3-video-hud-panels');
     const items = itemsFor(actor, prefs, { edit: this.edit, level: this.level, action: this.action });
@@ -238,18 +263,24 @@ export class VideoHUD {
       list.dataset.scrollGroup = group;
       list.setAttribute('aria-label', `${groupLabels[group]}列表`);
       if (groupItems.length) list.tabIndex = 0;
-      for (const item of groupItems) list.append(this.itemRow(item, prefs));
+      for (const item of groupItems) list.append(this.itemRow(item, prefs, !this.editGroup));
       if (!groupItems.length) section.append(node('p', this.edit ? '此分类没有角色物品。' : '没有符合筛选条件的物品。', 'bg3-video-hud-empty'));
       section.append(list);
       panels.append(section);
     }
     root.append(panels);
+    this.installDividers(root, panels);
+    const end = node('div', undefined, 'bg3-video-hud-end');
+    end.append(button('♙ 角色卡', 'sheet', '打开角色卡'));
+    const combat = globalThis.game?.combat;
+    const primary = button('', combat?.started ? 'end-turn' : 'rest', combat?.started ? '结束当前角色回合' : '短休（系统确认窗口）', { value: 'short' });
+    primary.className = 'bg3-video-hud-turn';
+    primary.append(node('b', combat?.started ? '⌛' : '☾'), node('span', combat?.started ? '结束回合' : '短休'));
+    primary.disabled = this.busy.size > 0 || (combat?.started && !canEndTurn(actor, this.token, this.user, combat));
+    end.append(primary);
+    const longRest = button('☾ 长休', 'rest', '长休（系统确认窗口）', { value: 'long' });
+    longRest.disabled = this.busy.size > 0; end.append(longRest); root.append(end);
     const footer = node('footer');
-    for (const [kind, label] of [['short', '短休'], ['long', '长休']]) {
-      const control = button(label, 'rest', `${label}（系统确认窗口）`, { value: kind });
-      control.disabled = this.busy.size > 0;
-      footer.append(control);
-    }
     footer.append(button('队伍', 'party', '查看可访问的队伍角色'), button('联动', 'integrations', '动画、骰子与自动化状态'));
     const detailed = button('详细', 'detailed', '显示活动、重复结算和原生使用选项');
     detailed.setAttribute('aria-pressed', String(this.detailed));
@@ -266,10 +297,13 @@ export class VideoHUD {
     status.title = this.status;
     status.setAttribute('role', 'status');
     footer.append(status);
+    footer.prepend(controls);
     root.append(footer);
     if (this.root?.isConnected) this.root.parentNode.replaceChild(root, this.root);
     else document.body.append(root);
     this.root = root;
+    this.chromeObserver.disconnect(); this.chromeObserver.observe(root);
+    const sidebar = document.getElementById('sidebar'); if (sidebar) this.chromeObserver.observe(sidebar);
     for (const list of root.querySelectorAll('[data-scroll-group]')) {
       const position = scroll.get(list.dataset.scrollGroup);
       if (position) { list.scrollTop = position.top; list.scrollLeft = position.left; }
@@ -278,14 +312,16 @@ export class VideoHUD {
     // Never toggle upstream settings or touch its persistent player flags.
     document.body.classList.add('bg3-video-hud-active');
     if (focusKey) {
-      const focused = [...root.querySelectorAll('button, input, select, [data-scroll-group][tabindex]')]
+      const focused = [...root.querySelectorAll('button, input, select, [data-scroll-group][tabindex], [data-divider]')]
         .find(b => JSON.stringify(b.dataset) === focusKey);
       focused?.focus({ preventScroll: true });
       if (focused?.tagName === 'INPUT' && selection?.[0] !== null && selection?.[0] !== undefined) {
         try { focused.setSelectionRange(...selection); } catch { /* Numeric input has no selection API. */ }
       }
     }
+    this.positionChrome();
     this.syncChoiceDialog();
+    this.syncEditor();
   }
 
   spellControls(prefs) {
@@ -293,18 +329,29 @@ export class VideoHUD {
     const nav = node('nav');
     nav.dataset.scrollGroup = 'spell-levels';
     nav.setAttribute('aria-label', '法术环阶');
+    const pools = slotPools(this.actor);
     for (const level of ['all', ...spellLevels(this.actor)]) {
-      const text = level === 'all' ? '全部' : level === 0 ? '0环·戏法' : `${level}环`;
-      const control = button(text, 'filter-level', `法术环阶：${text}`, { value: String(level) });
+      const text = level === 'all' ? '全部' : level === 0 ? '戏法' : ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][level];
+      const control = button('', 'filter-level', `法术环阶：${level === 'all' ? '全部' : `${level}环`}`, { value: String(level) });
+      control.append(node('span', text));
+      const indicators = node('span', undefined, 'bg3-video-hud-level-pips');
+      const pool = pools.find(p => p.key === `spell${level}`);
+      if (pool) {
+        control.title += ` · 法术位 ${pool.value}/${pool.max}`;
+        for (let i = 0; i < Math.min(12, Number(pool.max) || 0); i++) {
+          const pip = node('i'); pip.classList.toggle('available', i < pool.value); indicators.append(pip);
+        }
+      } else indicators.textContent = level === 'all' ? '◇' : String(values(this.actor.items).filter(i => i.type === 'spell' && spellLevel(i) === level).length);
+      indicators.setAttribute('aria-hidden', 'true'); control.append(indicators);
       control.setAttribute('aria-pressed', String(String(this.level) === String(level)));
       control.disabled = this.edit;
       nav.append(control);
     }
-    const pinned = button('仅固定', 'pinned-only', '仅显示已固定的法术');
+    const pinned = button('★', 'pinned-only', '仅显示已固定的法术');
+    pinned.append(node('span', '仅固定', 'bg3-video-hud-stats-text'));
     pinned.setAttribute('aria-pressed', String(prefs.pinnedOnly));
     nav.append(pinned);
     box.append(nav);
-    const pools = slotPools(this.actor);
     const slots = node('small', pools.length
       ? pools.map(p => `${p.label}：${p.value ?? '?'}/${p.max ?? '?'}`).join(' · ')
       : '无法术位。戏法与天赋施法按系统规则处理。');
@@ -323,13 +370,157 @@ export class VideoHUD {
     return box;
   }
 
+  positionChrome() {
+    const root = this.root;
+    if (!root) return;
+    const sidebar = document.getElementById('sidebar')?.getBoundingClientRect();
+    const reserved = sidebar?.width > 80 && sidebar.left > innerWidth / 2
+      && sidebar.right >= innerWidth - 50 ? innerWidth - sidebar.left + 12 : 12;
+    root.style.setProperty('--video-right', `${reserved}px`);
+    const panels = root.querySelector('.bg3-video-hud-panels');
+    const bounds = panels.getBoundingClientRect();
+    const sections = [...panels.querySelectorAll('.bg3-video-hud-panel')].map(el => el.getBoundingClientRect());
+    for (const handle of panels.querySelectorAll('[data-divider]')) {
+      const i = Number(handle.dataset.divider), a = sections[i], b = sections[i + 1];
+      handle.style.left = `${(a.right + b.left) / 2 - bounds.left}px`;
+      handle.setAttribute('aria-valuenow', String(Math.round(a.width / (a.width + b.width) * 100)));
+    }
+  }
+
+  installDividers(root, panels) {
+    const widths = () => [...panels.querySelectorAll('.bg3-video-hud-panel')].map(el => el.getBoundingClientRect().width);
+    const apply = next => {
+      root.style.setProperty('--video-columns', next.map(n => `minmax(0, ${n}fr)`).join(' '));
+      this.positionChrome();
+    };
+    const save = async (actor, next) => {
+      requireActor(actor, this.user);
+      await this.store.update(actor, prefs => ({ ...prefs, ratios: next }));
+      if (this.actor === actor) this.render();
+    };
+    for (let i = 0; i < 2; i++) {
+      const handle = node('div', '⋮', 'bg3-video-hud-divider');
+      handle.dataset.divider = String(i); handle.tabIndex = 0;
+      handle.setAttribute('role', 'separator'); handle.setAttribute('aria-orientation', 'vertical');
+      handle.setAttribute('aria-label', `调整${groupLabels[GROUPS[i]]}与${groupLabels[GROUPS[i + 1]]}宽度`);
+      handle.setAttribute('aria-valuemin', '1'); handle.setAttribute('aria-valuemax', '99');
+      handle.title = '拖动或方向键调整宽度；双击或 Home 恢复 2:3:5';
+      const available = () => !this.busy.size && !this.edit && !this.saving && !this.resizing;
+      handle.ondblclick = () => { if (available()) this.run(() => save(this.actor, [2, 3, 5])); };
+      handle.onkeydown = event => {
+        if (!available() || !['ArrowLeft', 'ArrowRight', 'Home'].includes(event.key)) return;
+        event.preventDefault(); event.stopPropagation();
+        const next = event.key === 'Home' ? [2, 3, 5] : resizeColumns(widths(), i,
+          (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 20 : 5));
+        this.run(() => save(this.actor, next));
+      };
+      handle.onpointerdown = event => {
+        if (event.button !== 0 || !available()) return;
+        event.preventDefault(); event.stopPropagation(); this.tooltip.hide();
+        const actor = this.actor, token = this.token, initial = widths(), x = event.clientX, id = event.pointerId;
+        let next = initial;
+        const abort = new AbortController(); this.resizing = true;
+        handle.setPointerCapture(id);
+        const finish = commit => {
+          if (!this.resizing) return;
+          this.resizing = false; this.cancelResize = null; abort.abort();
+          if (handle.hasPointerCapture(id)) handle.releasePointerCapture(id);
+          if (commit && this.actor === actor && this.token === token) this.run(() => save(actor, next));
+          else this.render();
+        };
+        this.cancelResize = () => finish(false);
+        const options = { signal: abort.signal };
+        handle.addEventListener('pointermove', ev => {
+          if (ev.pointerId !== id) return;
+          next = resizeColumns(initial, i, ev.clientX - x); apply(next);
+        }, options);
+        handle.addEventListener('pointerup', ev => { if (ev.pointerId === id) finish(true); }, options);
+        handle.addEventListener('pointercancel', this.cancelResize, options);
+        handle.addEventListener('lostpointercapture', this.cancelResize, options);
+        window.addEventListener('blur', this.cancelResize, options);
+        window.addEventListener('resize', this.cancelResize, options);
+        document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { ev.preventDefault(); finish(false); } }, options);
+      };
+      panels.append(handle);
+    }
+  }
+
   beginEdit(group = null) {
     if (this.busy.size) return;
     if (this.edit) { if (group) this.editGroup = group; this.render(); return; }
     this.tooltip.hide(); this.progress = null;
+    this.editorError = '';
     this.draft = normalizeLayout(this.store.read(this.actor));
     this.editBase = JSON.stringify(this.draft); this.editGroup = group;
     this.edit = true; this.render();
+  }
+
+  dismissEditor() {
+    const dialog = this.editorDialog; this.editorDialog = null;
+    if (dialog?.open) dialog.close(); dialog?.remove();
+    if (dialog) this.restoreEditorFocus(dialog.dataset.editGroup, this.actor);
+  }
+
+  restoreEditorFocus(group, actor) {
+    setTimeout(() => {
+      if (this.destroyed || this.actor !== actor || this.edit || this.choiceDialog?.open || this.dialog?.open) return;
+      [...(this.root?.querySelectorAll('[data-action="edit-group"]') ?? [])]
+        .find(control => control.dataset.value === group)?.focus({ preventScroll: true });
+    }, 0);
+  }
+
+  syncEditor() {
+    if (!this.edit || !this.editGroup) { this.dismissEditor(); return; }
+    let dialog = this.editorDialog;
+    if (dialog && !dialog.open) {
+      this.dismissEditor(); this.edit = false; this.draft = null; this.editGroup = null; this.render(); return;
+    }
+    if (!dialog) {
+      dialog = modal(`编辑${groupLabels[this.editGroup]}栏位`, () => {
+        if (this.editorDialog !== dialog) return;
+        const group = this.editGroup, actor = this.actor;
+        this.editorDialog = null; this.edit = false; this.draft = null; this.editGroup = null; this.render();
+        this.restoreEditorFocus(group, actor);
+      });
+      this.editorDialog = dialog; dialog.classList.add('bg3-video-hud-editor-dialog');
+      dialog.dataset.editGroup = this.editGroup;
+      dialog.addEventListener('click', event => {
+        const control = event.target.closest('button[data-action]');
+        if (control && !control.disabled && control.dataset.action !== 'close-modal') this.run(() => this.click(control, event));
+      });
+      dialog.addEventListener('input', event => {
+        if (event.isComposing || !event.target.dataset.queryGroup) return;
+        this.queries[this.editGroup] = event.target.value; this.render();
+      });
+      dialog.addEventListener('compositionend', event => {
+        if (!event.target.dataset.queryGroup) return;
+        this.queries[this.editGroup] = event.target.value; this.render();
+      });
+      dialog.addEventListener('dragstart', event => this.drag(event));
+      dialog.addEventListener('dragover', event => { if (event.target.closest('[data-item-id]')) event.preventDefault(); });
+      dialog.addEventListener('drop', event => this.run(() => this.drop(event)));
+    }
+    const previous = dialog.querySelector('.bg3-video-hud-editor-body'), active = document.activeElement;
+    const key = previous?.contains(active) ? JSON.stringify(active.dataset) : null;
+    const selection = active?.tagName === 'INPUT' ? active.selectionStart : null;
+    const scroll = previous?.querySelector('ul')?.scrollTop ?? 0;
+    const body = node('div', undefined, 'bg3-video-hud-editor-body');
+    if (this.editorError) { const error = node('p', this.editorError); error.setAttribute('role', 'alert'); body.append(error); }
+    const query = node('input'); query.type = 'search'; query.dataset.queryGroup = this.editGroup;
+    query.setAttribute('aria-label', `搜索${groupLabels[this.editGroup]}`); query.placeholder = '搜索名称…';
+    query.value = this.queries[this.editGroup] ?? '';
+    const list = node('ul'); list.dataset.scrollGroup = 'editor-items';
+    const prefs = this.draft;
+    for (const item of itemsFor(this.actor, prefs, { edit: true }).filter(i => groupFor(i) === this.editGroup
+      && i.name.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase()))) {
+      list.append(this.itemRow(item, prefs));
+    }
+    body.append(query, this.editToolbar(prefs), list);
+    if (previous) previous.replaceWith(body); else dialog.append(body);
+    list.scrollTop = scroll;
+    const focus = [...body.querySelectorAll('input, button')].find(el => JSON.stringify(el.dataset) === key);
+    if (focus) { focus.focus({ preventScroll: true }); if (selection !== null) { try { focus.setSelectionRange(selection, selection); } catch {} } }
+    else if (!previous) query.focus();
   }
 
   async commitEdit() {
@@ -470,7 +661,12 @@ export class VideoHUD {
     if (!state || state.actor !== this.actor) return;
     const activity = usableActivities(state.item).find(a => a.id === id);
     if (!activity) throw new Error('此活动已不可用，请重新选择。');
-    this.choiceError = ''; state.activityId = id; state.phase = 'casting'; this.render();
+    this.choiceError = ''; state.activityId = id;
+    if (!this.detailed && !(state.item.type === 'spell'
+      && (spellLevel(state.item) > 0 || castingSources(this.actor, state.item).length))) {
+      this.finishChoice({}); return;
+    }
+    state.phase = 'casting'; this.render();
   }
 
   finishChoice(data) {
@@ -520,11 +716,13 @@ export class VideoHUD {
       const pools = castingPools(this.actor, pending.item, activity);
       for (const pool of pools) {
         const control = button(`${pool.label} · ${pool.value}/${pool.max}`, 'choose-cast', `用${pool.label}进入原生施放流程`, { slot: pool.key });
+        this.decorateCastCard(control, pending.item, pool.level, pool.label, pool.value, pool.max);
         control.disabled = pool.value === 0; cards.append(control);
       }
       for (const source of castingSources(this.actor, pending.item)) {
         const control = button(`${source.item.name} · ${source.max ? `${source.remaining}/${source.max}` : '不限次数'}`,
           'choose-cast', `${source.level}环来源，消耗与恢复由系统处理`, { sourceId: source.item.id });
+        this.decorateCastCard(control, pending.item, source.level, source.item.name, source.remaining, source.max);
         control.disabled = !source.enabled || (source.max && !source.remaining); cards.append(control);
       }
       if (!pools.length) cards.append(button('使用并结算', 'choose-cast', '选择目标后使用本次原生活动'));
@@ -543,6 +741,18 @@ export class VideoHUD {
       }
     }
     row.append(cards); return row;
+  }
+
+  decorateCastCard(control, item, level, label, remaining, maximum) {
+    control.replaceChildren();
+    const emblem = node('span', undefined, 'bg3-video-hud-cast-emblem');
+    if (item.img) { const image = node('img'); image.src = item.img; image.alt = ''; emblem.append(image); }
+    emblem.append(node('b', ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][level] ?? '—'));
+    const pips = node('span', undefined, 'bg3-video-hud-level-pips'); pips.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < Math.min(12, maximum || 0); i++) {
+      const pip = node('i'); pip.classList.toggle('available', i < remaining); pips.append(pip);
+    }
+    control.append(emblem, node('span', label), node('small', maximum ? `剩余 ${remaining}/${maximum}` : '不限次数'), pips);
   }
 
   allocate({ item, selected, count, consumed }) {
@@ -597,7 +807,30 @@ export class VideoHUD {
     load(); refreshRemaining();
     const error = node('p'); error.setAttribute('role', 'alert');
     const save = node('button', '保存来源'); save.type = 'submit';
+    const remove = button('删除所选来源', 'delete-source', '仅删除本模组创建的所选来源，需要再次确认');
+    remove.disabled = true;
+    selector.addEventListener('change', () => { remove.disabled = !selector.value; });
+    remove.onclick = () => {
+      const id = selector.value, selected = sources.find(s => s.item.id === id);
+      if (!selected || save.disabled) return;
+      const confirmation = modal('删除免费来源');
+      confirmation.append(node('p', `删除“${selected.item.name}”？此操作仅删除这个专用来源特性，不删除法术。`));
+      const confirm = button('确认删除', 'confirm-delete-source');
+      const cancel = button('取消', 'cancel-delete-source'); cancel.onclick = () => confirmation.close();
+      const issue = node('p'); issue.setAttribute('role', 'alert');
+      confirm.onclick = async () => {
+        if (confirm.disabled) return; confirm.disabled = true;
+        try {
+          if (this.actor !== state.actor || this.pendingUse !== state || !dialog.open) throw new Error('角色或物品已改变，请重新打开来源管理。');
+          await deleteCastingSource(state.actor, state.item.id, this.user, id);
+          confirmation.close(); dialog.close(); this.render();
+        } catch (e) { issue.textContent = e.message; confirm.disabled = false; }
+      };
+      dialog.addEventListener('close', () => confirmation.close(), { once: true });
+      confirmation.append(issue, cancel, confirm); cancel.focus();
+    };
     form.append(node('small', '保存会创建或编辑此角色上的专用原生来源特性；实际施放、扣次和恢复交由系统。'), error, save);
+    form.append(remove);
     form.onsubmit = async event => {
       event.preventDefault(); if (save.disabled) return; save.disabled = true;
       try {
@@ -616,16 +849,41 @@ export class VideoHUD {
     this.dialog = dialog; dialog.append(partyRows(globalThis.game, this.user, () => dialog.close()));
   }
 
+  chooseReactionSource(item, sources) {
+    // One explicitly confirmed optional automation reaction at a time.
+    if (this.reactionDialog?.open) return Promise.resolve(null);
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = value => {
+        if (settled) return; settled = true;
+        if (this.reactionDialog === dialog) this.reactionDialog = null;
+        if (dialog.open) dialog.close(); dialog.remove(); resolve(value);
+      };
+      const dialog = modal('护盾术反应 · 选择施法资源', () => finish(null));
+      this.reactionDialog = dialog;
+      dialog.append(node('p', '已进入原生反应流程。选择本次资源，取消将停止本次施放。'));
+      const cards = node('div', undefined, 'bg3-video-hud-option-cards');
+      for (const source of sources) {
+        const control = button('', 'reaction-source', source.item.name, { sourceId: source.item.id });
+        this.decorateCastCard(control, item, source.level, source.item.name, source.remaining, source.max);
+        control.onclick = () => finish(source.item.id); cards.append(control);
+      }
+      const slot = button('使用法术位', 'reaction-slot'); slot.onclick = () => finish('slot');
+      const cancel = button('取消施放', 'reaction-cancel'); cancel.onclick = () => finish(null);
+      dialog.append(cards, slot, cancel); cancel.focus();
+    });
+  }
+
   openIntegrations() {
     this.dialog?.close(); const dialog = modal('骰子与动画联动', () => { if (this.dialog === dialog) this.dialog = null; }); this.dialog = dialog;
     for (const [id, label] of INTEGRATIONS) dialog.append(node('p', `${label}：${globalThis.game?.modules?.get(id)?.active ? '已启用' : '未启用'}`));
     dialog.append(node('p', '原生聊天／掷骰事件交给已安装的模组；不重复请求 3D 骰子或自动应用伤害。自动动画未启用时使用本界面的轻量投射与目标反馈。'));
   }
 
-  itemRow(item, prefs) {
+  itemRow(item, prefs, editing = true) {
     const row = node('li', undefined, 'bg3-video-hud-item');
     row.dataset.itemId = item.id;
-    row.draggable = this.edit;
+    row.draggable = this.edit && editing;
     if (prefs.hidden.includes(item.id)) row.classList.add('bg3-video-hud-item-hidden');
     const detail = [item.name ?? '未命名物品', item.type === 'spell' ? `${spellLevel(item)}环法术` : (itemLabels[item.type] ?? '物品'),
       usesLabel(item)].filter(Boolean).join(' · ');
@@ -644,12 +902,14 @@ export class VideoHUD {
     }
     const label = node('span', item.name ?? '未命名物品', 'bg3-video-hud-item-label');
     use.append(label);
+    const badge = node('span', item.type === 'spell' ? (['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][spellLevel(item)]) : item.type === 'weapon' ? '⚔' : '✦', 'bg3-video-hud-item-badge');
+    badge.setAttribute('aria-hidden', 'true'); use.append(badge);
     if (usesLabel(item)) {
       use.append(node('small', usesLabel(item).replace(/ 次$/, ''), 'bg3-video-hud-uses'));
     }
     use.disabled = this.edit || this.busy.size > 0 || item.flags?.[MODULE_ID]?.castingSource?.enabled === false;
     row.append(use);
-    if (this.edit && (!this.editGroup || groupFor(item) === this.editGroup)) {
+    if (this.edit && editing && (!this.editGroup || groupFor(item) === this.editGroup)) {
       const buttons = node('div', undefined, 'bg3-video-hud-edit-controls');
       const hidden = prefs.hidden.includes(item.id);
       const visibility = button(hidden ? '显示' : '隐藏', 'visibility', `${hidden ? '显示' : '隐藏'} ${item.name}`, { itemId: item.id });
@@ -674,6 +934,7 @@ export class VideoHUD {
       const message = error instanceof Error ? error.message : '系统未能完成此操作，请重试或从角色卡操作。';
       if (this.actor?.uuid === actorUuid) this.status = message;
       if (this.choiceDialog?.open) this.choiceError = message;
+      if (this.editorDialog?.open) this.editorError = message;
       this.onError?.(message);
       try { this.render(); } catch { this.clear(); }
     }
@@ -755,6 +1016,7 @@ export class VideoHUD {
         return;
       }
       case 'use': if (!this.edit && !this.busy.size) return this.perform(`${actor.uuid}:${itemId}`, () => this.targeting.use(actor, itemId, event)); break;
+      case 'end-turn': if (!this.busy.size) return this.perform(`${actor.uuid}:turn`, () => endTurn(actor, this.token, this.user, globalThis.game?.combat)); return;
       case 'rest': return this.perform(`${actor.uuid}:rest`, () => restActor(actor, value, this.user));
     }
   }

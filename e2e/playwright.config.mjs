@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { routeSettings } from './client-route.mjs';
 
 export default defineConfig({
   testDir: '.',
@@ -13,6 +14,7 @@ export default defineConfig({
   use: {
     browserName: 'chromium',
     headless: true,
+    launchOptions: { args: routeSettings().args },
     ignoreHTTPSErrors: false,
     screenshot: 'off',
     video: 'off',

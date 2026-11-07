@@ -30,6 +30,11 @@ on:
         description: Inspect client interfaces and one native read-only clock acknowledgement, without document RPC
         type: boolean
         default: false
+      connection_route:
+        description: Test client path; same HTTPS host/certificate, never changes server configuration
+        type: choice
+        options: [public, server-loopback]
+        default: public
 permissions:
   contents: read
 concurrency:
@@ -59,6 +64,7 @@ jobs:
           MODSTEST_RECOVER_ONLY: ${{ inputs.recover_only }}
           MODSTEST_SOURCE_PROBE: ${{ inputs.inspect_sources }}
           MODSTEST_CLIENT_PROBE: ${{ inputs.inspect_transport }}
+          MODSTEST_ROUTE: ${{ inputs.connection_route }}
         run: python3 tools/live_test_config.py
       - run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund
         if: ${{ !inputs.diagnostics_only }}

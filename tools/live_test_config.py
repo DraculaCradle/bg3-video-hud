@@ -20,6 +20,9 @@ def read_test_config(path=CONFIG):
 
 
 def test_metadata(environment, config=None):
+    route = environment.get('MODSTEST_ROUTE') or 'public'
+    if route not in ('public', 'server-loopback'):
+        raise ValueError('Invalid test connection route')
     world = environment.get('FOUNDRY_WORLD_ID') or (config or {}).get('world_id', '')
     tokens = environment.get('MODSTEST_TOKEN_IDS', '').strip()
     probe = environment.get('MODSTEST_SOURCE_PROBE') == 'true'
@@ -45,6 +48,7 @@ def test_metadata(environment, config=None):
             'MODSTEST_RECOVER_ONLY': 'true' if recover else 'false',
             'MODSTEST_SOURCE_PROBE': 'true' if probe else 'false',
             'MODSTEST_CLIENT_PROBE': 'true' if client_probe else 'false',
+            'MODSTEST_ROUTE': route,
             'MODSTEST_STATE_DIR': state}
 
 

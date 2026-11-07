@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 import { login, freshModuleRequests, closeOwnContext } from './live-guard.mjs';
 import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { routeSettings } from './client-route.mjs';
 
 const moduleId = 'bg3-video-hud';
 
@@ -29,6 +30,7 @@ export function settings() {
   mkdirSync(state, { recursive: true, mode: 0o700 });
   if (lstatSync(state).isSymbolicLink() || (lstatSync(state).mode & 0o077)) throw Error('Private state directory required');
   return { url: url.href, world, tokens, createFixtures, recoveryOnly, sourceProbeOnly, clientProbeOnly,
+    connectionRoute: routeSettings().mode,
     journal: join(state, 'hud-snapshot.json'), fixtureJournal: join(state, 'created-fixtures.json') };
 }
 

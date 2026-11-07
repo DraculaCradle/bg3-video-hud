@@ -85,7 +85,7 @@ export async function observeControlFrames(page) {
   session.on('Network.webSocketCreated', event => {
     try {
       const url = new URL(event.url);
-      if (url.origin !== 'wss://redmagic.club' || !url.pathname.startsWith('/socket.io')) return;
+      if (url.origin !== 'wss://redmagic.club' || !['/socket.io', '/socket.io/'].includes(url.pathname)) return;
       sockets.add(event.requestId); lifecycle.opened++;
     } catch { /* No raw endpoint or session identifiers enter the report. */ }
   });
@@ -98,11 +98,11 @@ export async function observeControlFrames(page) {
   };
   reset();
   const receive = (event, direction) => {
-    if (event.response.opcode !== 1) return;
-    if (sockets.has(event.requestId)) {
-      if (direction === 'received' && event.response.payloadData === '2') lifecycle.pings++;
-      if (direction === 'sent' && event.response.payloadData === '3') lifecycle.pongs++;
-    }
+    // Scope correlation as well as lifecycle counters. A different endpoint
+    // using the same event names must never make this native check pass.
+    if (!sockets.has(event.requestId) || event.response.opcode !== 1) return;
+    if (direction === 'received' && event.response.payloadData === '2') lifecycle.pings++;
+    if (direction === 'sent' && event.response.payloadData === '3') lifecycle.pongs++;
     const frame = controlFrame(event.response.payloadData);
     if (!frame) return;
     const key = `${event.requestId}:${frame.id}`;

@@ -3,6 +3,7 @@ import { createInterface } from 'node:readline';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { openGuard, GuardError } from './live-guard.mjs';
 import { settings, cleanup, runScenario } from './scenario.mjs';
+import { clientBrowserOptions } from './browser-client.mjs';
 
 let browser, guard;
 const reply = value => process.stdout.write(JSON.stringify(value) + '\n');
@@ -12,7 +13,7 @@ function failure(error) {
 }
 try {
   const config = settings();
-  browser = await chromium.launch();
+  browser = await chromium.launch(clientBrowserOptions());
   guard = await openGuard(browser, config);
   reply({ ok: true, value: await guard.check() });
   for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {

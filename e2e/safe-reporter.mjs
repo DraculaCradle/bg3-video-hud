@@ -4,7 +4,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 // Persist only controlled test titles, status, versions and assertion counts.
 export default class SafeReporter {
   results = [];
+  browserChannel = 'unknown';
   onBegin(_config, suite) {
+    this.browserChannel = _config.projects?.[0]?.use?.channel === 'chromium' ? 'chromium' : 'unknown';
     process.stdout.write(`ModsTest: ${suite.allTests().length} live scenario(s) discovered\n`);
   }
   onTestEnd(test, result) {
@@ -22,6 +24,7 @@ export default class SafeReporter {
     mkdirSync('results', { recursive: true });
     writeFileSync('results/report.json', JSON.stringify({
       status: this.results.length ? result.status : 'not-run', executedAt: new Date().toISOString(),
+      browserChannel: this.browserChannel,
       mode: process.env.MODSTEST_CLIENT_PROBE === 'true' ? 'client-inspection'
         : process.env.MODSTEST_SOURCE_PROBE === 'true' ? 'source-inspection'
         : process.env.MODSTEST_RECOVER_ONLY === 'true' ? 'recovery-only' : 'acceptance',

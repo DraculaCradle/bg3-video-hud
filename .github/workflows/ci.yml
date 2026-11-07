@@ -26,6 +26,8 @@ jobs:
       - run: npm run test:modstest-deploy
       - name: Validate live test discovery (no server login)
         run: npm --prefix e2e ci --ignore-scripts --no-audit --no-fund && cd e2e && npx --no-install playwright test --list
+      - name: Full Chromium WebGL2 smoke (no server access)
+        run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" node e2e/browser-smoke.mjs
       - name: Chromium fixture integration
         run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
       - name: Upload synthetic viewport measurements

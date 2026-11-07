@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
-import { routeSettings } from './client-route.mjs';
+import { clientBrowserOptions } from './browser-client.mjs';
+
+const { channel, headless, ...launchOptions } = clientBrowserOptions();
 
 export default defineConfig({
   testDir: '.',
@@ -13,8 +15,9 @@ export default defineConfig({
   reporter: [['./safe-reporter.mjs']],
   use: {
     browserName: 'chromium',
-    headless: true,
-    launchOptions: { args: routeSettings().args },
+    channel,
+    headless,
+    launchOptions,
     ignoreHTTPSErrors: false,
     screenshot: 'off',
     video: 'off',

@@ -11,6 +11,33 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
   const delay = () => new Promise(resolve => setTimeout(resolve, 0));
   hud.setActor(hero, token);
   try {
+    await test('NPC spell grids, counts, levels and editors honor native hidden and cached spellbook visibility without deleting sources', async () => {
+      const normal = Array.from({ length: 3 }, (_, i) => item(`real-${i}`, 'spell', { level: 3 }, { name: `模拟法术${i}` }));
+      const shadows = normal.map((s, i) => item(`hidden-${i}`, 'spell', { level: 3 }, { name: s.name, isHidden: true }));
+      const internal = item('internal', 'spell', { level: 9, linkedActivity: { displayInSpellbook: false } }, { flags: { dnd5e: { cachedFor: 'Item.source.Activity.internal' } } });
+      const cached = item('cached', 'spell', { level: 3, linkedActivity: { displayInSpellbook: true } }, { name: normal[0].name, flags: { dnd5e: { cachedFor: 'Item.source.Activity.book' } } });
+      const hiddenByActor = item('actor-hidden', 'spell', { level: 9 });
+      const candidate = actor('native-npc', [...normal, ...shadows, internal, cached, hiddenByActor],
+        { type: 'npc', hiddenItems: new Set(['actor-hidden']) });
+      const before = JSON.stringify([...candidate.items]), writes = user.writes.length;
+      const expected = ['cached', 'real-0', 'real-1', 'real-2'];
+      try {
+        hud.setActor(candidate);
+        const list = hud.root.querySelector('[data-group=Spells] .bg3-video-hud-items');
+        equal([...list.children].map(row => row.dataset.itemId).sort(), expected);
+        equal(hud.columnCounts[3], 4);
+        assert(!hud.root.querySelector('[data-action=filter-level][data-value="9"]'));
+        equal(hud.root.querySelector('[data-action=filter-level][data-value="3"] .bg3-video-hud-level-pips').textContent, '4');
+        // A deliberately visible native cache keeps its own source and ID,
+        // even when another genuine spell shares its name.
+        assert(list.querySelector('[data-item-id=cached]') && list.querySelector('[data-item-id=real-0]'));
+        hud.beginEdit('Spells');
+        equal([...hud.editorDialog.querySelectorAll('[data-action=visibility]')].map(el => el.dataset.itemId).sort(), expected);
+        hud.bulkEdit('none'); await flush(); equal([...hud.draft.hidden].sort(), expected);
+        hud.editorDialog.querySelector('[data-action=cancel-edit]').click(); await flush();
+        equal(JSON.stringify([...candidate.items]), before); equal(user.writes.length, writes);
+      } finally { hud.setActor(hero, token); }
+    });
     await test('character records and passive items are absent from all four HUD groups and editors; bulk counts and draft edits include only combat items', async () => {
       const records = ['class', 'subclass', 'background', 'race', 'species', 'facility'].map(type => item(`record-${type}`, type));
       const combat = [item('blade', 'weapon'), item('potion', 'consumable', { activation: { type: 'action' } }), item('racial-action', 'feat'),

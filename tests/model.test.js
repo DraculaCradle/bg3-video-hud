@@ -125,6 +125,26 @@ test('custom order wins over system sort and does not mutate actor items', () =>
   assert.deepEqual([...hero.items.values()], before);
 });
 
+test('native hidden items and inactive dependent copies stay out of display and editing without document changes', () => {
+  const entries = [item('real', 'spell', { level: 1 }), item('shadow', 'spell', { level: 1 }, { isHidden: true }),
+    item('actor-hidden', 'spell', { level: 9 }), item('inactive', 'spell', {}, { dependentOrigin: { active: false } }),
+    item('hidden-weapon', 'weapon', {}, { isHidden: true })];
+  const npc = actor('npc', entries, { hiddenItems: new Set(['actor-hidden']) }), before = JSON.stringify(entries);
+  for (const edit of [false, true]) assert.deepEqual(itemsFor(npc, { order: ['shadow', 'actor-hidden'], pinned: ['shadow'] }, { edit }).map(i => i.id), ['real']);
+  assert.deepEqual(spellLevels(npc), [0, 1]);
+  assert.equal(JSON.stringify(entries), before); assert.deepEqual([...npc.hiddenItems], ['actor-hidden']);
+});
+
+test('cached cast spells follow native displayInSpellbook rather than hiding every cache or merging same-name sources', () => {
+  const cache = (id, visible) => item(id, 'spell', { level: 3, ...(visible === undefined ? {} : { linkedActivity: { displayInSpellbook: visible } }) },
+    { name: '同名法术', flags: { dnd5e: { cachedFor: `Item.source.Activity.${id}` } } });
+  const entries = [item('learned', 'spell', { level: 3 }, { name: '同名法术' }),
+    item('innate', 'spell', { level: 3 }, { name: '同名法术' }), cache('internal', false), cache('orphan', undefined), cache('book', true)];
+  const npc = actor('npc', entries), before = JSON.stringify(entries);
+  for (const edit of [false, true]) assert.deepEqual(new Set(itemsFor(npc, {}, { edit }).map(i => i.id)), new Set(['learned', 'innate', 'book']));
+  assert.equal(JSON.stringify(entries), before);
+});
+
 test('hidden/pinned/level filters compose and edit mode exposes every item', () => {
   const hero = actor('a', [item('blade', 'weapon'), item('light', 'spell', { level: 0 }), item('hex', 'spell', { level: 1 })]);
   const prefs = { hidden: ['blade'], pinned: ['light'], pinnedOnly: true };

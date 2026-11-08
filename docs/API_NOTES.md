@@ -89,3 +89,10 @@ v0.1.11 的整体收窄规则被用户新要求替代。Root 宽度恢复仅由 
 ## v0.1.13 完整网格填满固定总宽
 
 v0.1.12 的按比例分摊余量会造成各栏末端不足一列的空条，本版取代该逻辑。autoColumnWidths 在同一总预算内分配全部整列（稀疏角色允许完整空位），按同一 fitted cell 填满；列数向上取整，因此图标不超出视口基准，也不把第二行推出 HUD。DOM 用显式列数＋等宽轨道消除小数舍入导致的自动少一列，按钮 width:100% 配合 aspect-ratio:1 保持正方形。自动列表预留稳定滚动条槽，避免滚动前后网格变宽；边框／内距按实际小数测量，滚动槽从实际列表而非隐藏探针读取，保证四栏图标大小一致。返回 cell 为统一参考尺寸，实际轨道只允许浏览器子像素舍入差。总宽、>=3最少两列、过滤稳定、手动模式和权限守卫保持。
+
+
+## v0.1.14 原生法术可见性
+
+对照D&D5e 6.0.6 [BaseActorSheet._isItemVisible与_prepareSpellbook](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/applications/actor/api/base-actor-sheet.mjs)、[Item5e.isHidden](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/documents/item.mjs)及CastActivity缓存创建逻辑：系统隐藏集合、isHidden、失活来源不进入HUD；带flags.dnd5e.cachedFor的法术只有system.linkedActivity.displayInSpellbook===true时才显示。内部缓存仍留在原actor.items中，由系统管理。普通与编辑模式、编辑统计和批量操作均遵循这套规则；spellLevels及未使用法术位时的数量指示也一致。用户自行隐藏的可见法术仍可在编辑器找回。
+
+没有按名称、图标或compendiumSource去重，也没有删除/合并文档、修改次数或施法来源；明确显示的缓存和不同来源同名法术保留独立ID及原生使用流程。源码确认旧HUD缺少这些过滤，但尚无该用户NPC的只读诊断，不能宣称截图中每一对都已确证为某种缓存。

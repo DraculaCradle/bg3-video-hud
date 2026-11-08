@@ -336,6 +336,7 @@ export class VideoHUD {
     nav.dataset.scrollGroup = 'spell-levels';
     nav.setAttribute('aria-label', '法术环阶');
     const pools = slotPools(this.actor);
+    const spells = itemsFor(this.actor, {}, { edit: true }).filter(i => i.type === 'spell');
     for (const level of ['all', ...spellLevels(this.actor)]) {
       const text = level === 'all' ? '全部' : level === 0 ? '戏法' : ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][level];
       const control = button('', 'filter-level', `法术环阶：${level === 'all' ? '全部' : `${level}环`}`, { value: String(level) });
@@ -347,7 +348,7 @@ export class VideoHUD {
         for (let i = 0; i < Math.min(12, Number(pool.max) || 0); i++) {
           const pip = node('i'); pip.classList.toggle('available', i < pool.value); indicators.append(pip);
         }
-      } else indicators.textContent = level === 'all' ? '◇' : String(values(this.actor.items).filter(i => i.type === 'spell' && spellLevel(i) === level).length);
+      } else indicators.textContent = level === 'all' ? '◇' : String(spells.filter(i => spellLevel(i) === level).length);
       indicators.setAttribute('aria-hidden', 'true'); control.append(indicators);
       control.setAttribute('aria-pressed', String(String(this.level) === String(level)));
       control.disabled = this.edit;
@@ -588,7 +589,7 @@ export class VideoHUD {
   editToolbar(prefs) {
     const bar = node('div', undefined, 'bg3-video-hud-help');
     bar.dataset.scrollGroup = 'edit-toolbar'; bar.setAttribute('aria-label', '快捷栏编辑工具');
-    const items = values(this.actor.items).filter(i => groupFor(i) && (!this.editGroup || groupFor(i) === this.editGroup));
+    const items = itemsFor(this.actor, {}, { edit: true }).filter(i => !this.editGroup || groupFor(i) === this.editGroup);
     bar.append(node('span', `编辑${this.editGroup ? groupLabels[this.editGroup] : '全部'}：已显示 ${items.filter(i => !prefs.hidden.includes(i.id)).length}/${items.length}`));
     for (const [value, label] of [['all', '全选'], ['none', '清空'], ['reset', '恢复自动全部']]) {
       const control = button(label, 'bulk-edit', value === 'reset' ? '恢复此分类的自动显示和排序' : `${label}当前分类搜索结果`, { value });
@@ -603,7 +604,7 @@ export class VideoHUD {
 
   bulkEdit(value) {
     if (!this.edit || this.saving) return;
-    const all = values(this.actor.items).filter(i => groupFor(i) && (!this.editGroup || groupFor(i) === this.editGroup));
+    const all = itemsFor(this.actor, {}, { edit: true }).filter(i => !this.editGroup || groupFor(i) === this.editGroup);
     const selected = value === 'reset' ? all : all.filter(i => String(i.name ?? '').toLocaleLowerCase()
       .includes((this.queries[groupFor(i)] ?? '').trim().toLocaleLowerCase()));
     const ids = new Set(selected.map(i => i.id));

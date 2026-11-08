@@ -62,7 +62,7 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(user.writes.length, writes);
       } finally { delete entry.img; hud.tooltip.hide(); hud.render(); }
     });
-    await test('automatic widths follow actor counts, shrink sparse content and stay stable through search and action/level filters without writes', async () => {
+    await test('automatic widths follow actor counts while total width stays fixed for sparse content, inventory updates and filters without writes', async () => {
       const make = (id, itemCount, spellCount) => actor(id, [item('weapon', 'weapon'), item('feature', 'feat'),
         ...Array.from({ length: itemCount }, (_, i) => item(`item-${i}`, 'consumable', { activation: { type: 'action' } })),
         ...Array.from({ length: spellCount }, (_, i) => item(`spell-${i}`, 'spell', { level: i % 2 }))]);
@@ -72,9 +72,13 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         hud.setActor(make('many-items', 30, 1));
         let widths = sizes(); assert(widths[1] > widths[0] && widths[1] > widths[3]);
         const crowdedWidth = hud.root.getBoundingClientRect().width;
-        hud.setActor(make('few-items', 1, 1)); assert(hud.root.getBoundingClientRect().width < crowdedWidth);
+        hud.setActor(make('few-items', 1, 1)); assert(Math.abs(hud.root.getBoundingClientRect().width - crowdedWidth) < .6);
+        hud.setActor(actor('empty-character', []));
+        assert(Math.abs(hud.root.getBoundingClientRect().width - crowdedWidth) < .6);
+        assert(sizes().every(width => width > 0));
         hud.setActor(make('many-spells', 1, 30));
         widths = sizes(); assert(widths[3] > widths[1] && widths[3] > widths[0]);
+        assert(Math.abs(hud.root.getBoundingClientRect().width - crowdedWidth) < .6);
         hud.level = 1; hud.action = 'bonus'; hud.queries.Items = 'no match'; hud.render();
         sizes().forEach((width, i) => assert(Math.abs(width - widths[i]) < .6));
         // A live inventory change in the same actor must grow the appropriate group.
@@ -82,8 +86,32 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         const previous = widths[1];
         for (let i = 1; i <= 60; i++) hud.actor.items.set(`new-${i}`, item(`new-${i}`, 'consumable', { activation: { type: 'action' } }));
         hud.render(); assert(sizes()[1] > previous);
+        assert(Math.abs(hud.root.getBoundingClientRect().width - crowdedWidth) < .6);
         equal(user.writes.length, writes); equal(JSON.stringify(user.flags), flags);
       } finally { hud.setActor(hero, token); }
+    });
+    await test('three-item groups keep two actual square icon columns with many spells and a narrow sidebar budget', async () => {
+      const entries = [
+        ...Array.from({ length: 3 }, (_, i) => item(`w-${i}`, 'weapon')),
+        ...Array.from({ length: 3 }, (_, i) => item(`i-${i}`, 'consumable', { activation: { type: 'action' } })),
+        ...Array.from({ length: 3 }, (_, i) => item(`f-${i}`, 'feat')),
+        ...Array.from({ length: 100 }, (_, i) => item(`s-${i}`, 'spell'))];
+      const sidebar = document.createElement('aside'); sidebar.id = 'sidebar';
+      sidebar.style.cssText = `position:fixed;right:0;top:0;bottom:0;width:${innerWidth * .4}px`;
+      try {
+        hud.setActor(actor('minimum-cols', entries));
+        for (const narrow of [false, true]) {
+          if (narrow) document.body.append(sidebar);
+          hud.render();
+          for (const list of hud.root.querySelectorAll('.bg3-video-hud-items')) {
+            const cards = [...list.querySelectorAll('.bg3-video-hud-use')];
+            const first = cards[0].getBoundingClientRect(), second = cards[1].getBoundingClientRect();
+            assert(Math.abs(first.top - second.top) < 1, 'First two icons must share a row');
+            assert(second.left > first.right && second.right <= list.getBoundingClientRect().right + 1);
+            assert(Math.abs(first.width - first.height) < .6);
+          }
+        }
+      } finally { sidebar.remove(); hud.setActor(hero, token); }
     });
     await test('reference structure separates portrait, four framed decks and circular native action controls', async () => {
       assert(hud.root.querySelector('.bg3-video-hud-end .bg3-video-hud-turn'));

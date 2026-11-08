@@ -387,10 +387,7 @@ export class VideoHUD {
     const geometryKey = JSON.stringify([innerWidth, innerHeight, devicePixelRatio, reserved, root.clientHeight, this.columnCounts, root.dataset.columnSizing]);
     if (!this.resizing && root.columnGeometryKey !== geometryKey) {
       root.columnGeometryKey = geometryKey;
-      // Measure the viewport-bounded budget afresh, never the previous compacted
-      // width: the next actor/item change must be able to grow again.
-      root.style.removeProperty('--video-auto-width');
-      const maximum = root.getBoundingClientRect().width;
+      // The root stays viewport-sized; count changes only redistribute its deck.
       const available = panels.getBoundingClientRect().width;
       if (available <= 0) return;
       const probe = document.createElement('div');
@@ -411,10 +408,16 @@ export class VideoHUD {
       const rows = Math.max(1, Math.floor((lists[0].clientHeight + gap) / (cell + gap)));
       // The allocator's gap is the grid gap. Panel gaps are reserved separately.
       const plan = autoColumnWidths(this.columnCounts, { width: available - panelGap * 3 + gap * 3, cell, gap, frame, rows });
-      const used = plan.used - gap * 3 + panelGap * 3;
-      root.style.setProperty('--video-auto-width', `${Math.min(maximum, maximum - available + used)}px`);
       if (root.dataset.columnSizing !== 'manual') {
         root.style.setProperty('--video-columns', plan.widths.map(width => `${width}px`).join(' '));
+        // Preserve two real grid columns for groups with >=3 items, even when
+        // a narrow sidebar budget requires smaller (still square) local tiles.
+        const sections = [...panels.querySelectorAll('.bg3-video-hud-panel')];
+        sections.forEach((section, i) => {
+          const minimum = this.columnCounts[i] >= 3 ? 2 : 1;
+          const fit = (plan.widths[i] - frame[i] - (minimum - 1) * gap) / minimum;
+          section.style.setProperty('--video-cell', `${Math.min(cell, Math.max(1, fit))}px`);
+        });
       }
     }
     const bounds = panels.getBoundingClientRect();

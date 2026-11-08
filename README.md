@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.11：按角色能力数量自动分配栏宽。** 内容多的栏获得更多图标列，较少的栏收窄，整体有视口上限。保留正方形图标和底部名称，搜索／环阶筛选不跳宽；手动拖动后可用 Home 恢复自动。GM 不选角色时安静返回原界面，无需分配角色。自动部署和自动实机测试关闭。
+> **v0.1.12：保持 HUD 总宽度。** 同一视口和侧栏条件下，角色能力数量只影响四栏内部分配；数量≥3的分类自动保留至少两列，总数少或为空也不缩小整体，允许保留空位。保留正方形图标、底部名称、主动筛选与 GM 空闲无提示。自动部署和自动实机测试继续关闭。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Not yet verified in a running Foundry VTT v14 / D&D5e 6.0.6 world. Manifest compatibility declares the intended target, not a completed in-game certification.
 
@@ -41,7 +41,7 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 4. GM 和 Player 均自动启用。**原版界面** 可在当前页面临时返回；Token 工具栏的 **临时切换原版／BG3 界面** 可恢复，刷新页面自动恢复。也可为此临时操作设置快捷键。
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.11. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.12. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 
@@ -49,7 +49,7 @@ For Linux server installation or upgrades, use the [deployment guide](docs/DEPLO
 
 中文化与本轮功能由 v0.1.2 发布。模组自身控件、设置、提示与可访问名称现使用中文。角色、物品名及系统弹窗采用 Foundry／D&D5e 提供的内容，不自动修改世界语言或重命名数据。地图目标选择已按用户确认的单体点选／多目标范围选择实现，尚待 Foundry 实机验收；详见[中文界面与视频提供说明](docs/CHINESE_UI.md)。
 
-- 底栏按实际 CSS 视口自动调整，720P～4K 有界增大；头像、四栏和右侧操作组独立，按真实侧栏宽度避让。默认按四栏可显示项目数量自动分配整列宽度，内容少时整体收窄；搜索／动作／环阶筛选保持宽度稳定。拖动／方向键可保存手动比例，双击／Home 恢复按数量自动分配。名称和环阶显示在图标上，完整说明通过悬停／焦点查看；每栏独立滚动。各档实测与原创预览见 [自适应说明](docs/COMPACT_HUD.md)。
+- 底栏按实际 CSS 视口自动调整，720P～4K 有界增大；头像、四栏和右侧操作组独立，按真实侧栏宽度避让。默认按四栏可显示项目数量自动分配整列宽度，总宽只随视口／侧栏变化，不随角色能力数收窄；数量不足保留空位。搜索／动作／环阶筛选保持栏宽稳定。拖动／方向键可保存手动比例，双击／Home 恢复按数量自动分配。名称和环阶显示在图标上，完整说明通过悬停／焦点查看；每栏独立滚动。各档实测与原创预览见 [自适应说明](docs/COMPACT_HUD.md)。
 - 普通单一活动和无来源选择的戏法点击后直接进入目标／原生流程；单一活动的等级法术直接显示环阶和来源；多活动物品仍明确选择。底栏 **详细** 可打开完整活动、重复次数、手动分配和原生模式选项；需要选择的活动、环阶／来源和手动分配都在独立弹窗中；Esc、关闭按钮和取消均可退出，系统流程开始前会关闭自有弹窗。单体点选／多目标框选保持原设计，实际配置、掷骰及消费仍由系统处理。See [targeting and cancellation boundaries](docs/TARGETING.md).
 - **武器 / 物品 / 特性 / 法术** 为四个独立栏位。物品与特性只显示具备主动活动的项目；普通铠甲、盾牌、弹药、宝石、羊皮纸及纯被动特性隐藏。主动魔法物品、卷轴、反应和无动作消耗的能力保留；次数耗尽本身不隐藏主动能力。职业、背景等资料及角色卡数据不变，法术列表规则保持。 Level tabs include cantrips (0). Regular and pact slots are separate read-only pools, including zero remaining slots. Innate/unprepared spells are not silently removed: the system remains responsible for eligibility and consumption.
 - **动作 / 附赠动作 / 反应** filter activities and show locally observed native uses in the current combat turn position. They are not authoritative remaining-action limits and never enforce combat rules.

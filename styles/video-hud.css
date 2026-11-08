@@ -79,11 +79,11 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
 }
 .bg3-video-hud-item { min-width: 0; min-height: 0; margin: 0; padding: 0; }
 .bg3-video-hud .bg3-video-hud-use {
-  display: block; position: relative; width: 100%; height: var(--video-cell); min-height: 0; padding: 0;
+  display: block; position: relative; width: min(100%, var(--video-cell)); height: auto; aspect-ratio: 1; box-sizing: border-box; min-height: 0; padding: 0;
   overflow: hidden; text-align: center; background: linear-gradient(135deg, #343947, #161b24);
   border-color: #8b7750; box-shadow: inset 0 0 0 1px #0008;
 }
-.bg3-video-hud-use img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; }
+.bg3-video-hud-use img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; }
 .bg3-video-hud-item-initial { display: grid; place-items: center; height: 100%; font-size: calc(16 * var(--video-unit)); color: var(--video-gold); }
 /* The complete name and details remain in the accessible name and native tooltip. */
 .bg3-video-hud-item-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -268,7 +268,9 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
 .bg3-video-hud-panel-heading h3 { max-width: 42%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bg3-video-hud-panel-heading button { position: absolute; left: 50%; transform: translateX(-50%); padding: 1px; min-height: 18px; width: 20px; background: #18252c; }
 .bg3-video-hud-panel-heading input { margin-left: auto; max-width: 37%; min-width: 0; }
-.bg3-video-hud-items { grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(30px, calc(40 * var(--video-unit)), 74px)), 1fr)); }
+.bg3-video-hud-items { grid-template-columns: repeat(auto-fill, minmax(0, min(100%, var(--video-cell)))); grid-auto-rows: max-content; }
+.bg3-video-hud-use.has-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; flex: none; }
+.bg3-video-hud-use.has-icon .bg3-video-hud-item-initial { display: none; }
 .bg3-video-hud-item-label { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: auto; margin: 0; clip-path: none; padding: 2px; font-size: clamp(9px, calc(9 * var(--video-unit)), 17px); line-height: 1.2; text-overflow: ellipsis; background: linear-gradient(transparent, #080e17ee); }
 .bg3-video-hud-item-badge { position: absolute; left: 2px; top: 1px; padding: 0 2px; color: #ffe6b3; background: #0d1725bb; font: bold var(--video-small) Georgia, serif; }
 .bg3-video-hud .bg3-video-hud-uses { top: 0; bottom: auto; }

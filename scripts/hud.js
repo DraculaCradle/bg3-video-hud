@@ -893,11 +893,12 @@ export class VideoHUD {
     initial.setAttribute('aria-hidden', 'true');
     use.append(initial);
     if (item.img) {
+      use.classList.add('has-icon');
       const image = node('img');
       image.src = item.img;
       image.alt = '';
       image.loading = 'lazy';
-      image.addEventListener('error', () => image.remove(), { once: true });
+      image.addEventListener('error', () => { image.remove(); use.classList.remove('has-icon'); }, { once: true });
       use.append(image);
     }
     const label = node('span', item.name ?? '未命名物品', 'bg3-video-hud-item-label');

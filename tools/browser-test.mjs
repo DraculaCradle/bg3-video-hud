@@ -105,6 +105,7 @@ try {
         assert.ok(layout.scrollWidth <= layout.clientWidth + 1, 'HUD overflows horizontally');
         assert.ok(layout.controlsFit, 'Edit, Original HUD and rests must stay within the dock');
         assert.equal(layout.lists.length, 4);
+        assert.ok(layout.lists.every(list => list.square), 'All item buttons must remain square at this viewport');
         assert.ok(layout.lists.every(list => list.height > 0 && list.firstFits && list.left >= layout.left && list.right <= layout.right), JSON.stringify(layout));
         assert.ok(layout.height <= Math.max(145, height * .4), 'Dock leaves useful map height even in short zoomed viewports');
         assert.equal(layout.dpr, deviceScaleFactor);

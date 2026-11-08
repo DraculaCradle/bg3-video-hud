@@ -19,7 +19,10 @@ export function measureHUD() {
     lists: [...root.querySelectorAll('.bg3-video-hud-items')].map(list => {
       const box = list.getBoundingClientRect(), first = list.querySelector('button')?.getBoundingClientRect();
       return { height: box.height, left: box.left, right: box.right,
-        twoRowsFit: list.clientHeight + 1 >= parseFloat(getComputedStyle(list).gridAutoRows) * 2 + parseFloat(getComputedStyle(list).rowGap),
+        twoRowsFit: list.clientHeight + 1 >= (first?.height ?? Math.min(list.clientWidth, cell.height)) * 2 + parseFloat(getComputedStyle(list).rowGap),
+        square: [...list.querySelectorAll('.bg3-video-hud-use')].every(button => {
+          const r = button.getBoundingClientRect(); return Math.abs(r.width - r.height) < 0.6;
+        }),
         firstFits: !first || (first.top >= box.top - 1 && first.bottom <= box.bottom + 1 && first.right <= box.right + 1) };
     }),
     controlsFit: [...root.querySelectorAll('.bg3-video-hud-controls button, .bg3-video-hud-end button, footer button')].every(button => {

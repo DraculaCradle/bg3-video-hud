@@ -39,6 +39,29 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(JSON.stringify([...candidate.items.values()]), before); equal(user.writes.length, writes);
       } finally { hud.setActor(hero, token); }
     });
+    await test('transparent icons hide background initials while preserving bottom names; failures restore fallback and accessible names', async () => {
+      const entry = gear[0], writes = user.writes.length;
+      entry.img = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><path d="M0 0L80 40" stroke="red"/></svg>');
+      try {
+        hud.render();
+        const use = hud.root.querySelector(`[data-action="use"][data-item-id="${entry.id}"]`);
+        const initial = use.querySelector('.bg3-video-hud-item-initial'), label = use.querySelector('.bg3-video-hud-item-label');
+        equal(getComputedStyle(initial).display, 'none'); assert(getComputedStyle(label).display !== 'none');
+        assert(label.getBoundingClientRect().height > 0); equal(label.textContent, entry.name);
+        assert(use.getAttribute('aria-label').includes(entry.name)); assert(use.title.includes(entry.name));
+        const box = use.getBoundingClientRect(), image = use.querySelector('img').getBoundingClientRect();
+        assert(Math.abs(box.width - box.height) < .6); assert(Math.abs(image.width - image.height) < .6);
+        equal(getComputedStyle(use.querySelector('img')).objectFit, 'contain');
+        use.focus(); use.dispatchEvent(new FocusEvent('focusin', { bubbles: true })); await flush();
+        await new Promise(resolve => setTimeout(resolve, 150));
+        assert(document.activeElement === use); assert(hud.tooltip.root?.textContent.includes(entry.name));
+        equal(use.getAttribute('aria-describedby'), 'bg3-video-hud-tooltip');
+        assert(getComputedStyle(use.querySelector('.bg3-video-hud-item-badge')).display !== 'none');
+        use.querySelector('img').dispatchEvent(new Event('error'));
+        assert(getComputedStyle(initial).display !== 'none'); assert(getComputedStyle(label).display !== 'none');
+        equal(user.writes.length, writes);
+      } finally { delete entry.img; hud.tooltip.hide(); hud.render(); }
+    });
     await test('reference structure separates portrait, four framed decks and circular native action controls', async () => {
       assert(hud.root.querySelector('.bg3-video-hud-end .bg3-video-hud-turn'));
       equal(hud.root.querySelectorAll('.bg3-video-hud-panel').length, 4);

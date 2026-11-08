@@ -47,8 +47,8 @@ export function resizeColumns(widths, index, delta, minimum = 56) {
   return result;
 }
 
-// Allocate whole square-icon columns. Extra space goes to the largest remaining
-// per-column load. Remaining capacity stays as empty space within the fixed budget.
+// Fill the fixed deck with whole columns, then fit one shared square tile size.
+// Empty capacity is whole slots, never a fractional strip beside the grid.
 export function autoColumnWidths(counts, { width, cell, gap = 0, frame = [0, 0, 0, 0], rows = 2 }) {
   const n = GROUPS.length;
   if (![width, cell, gap, rows].every(Number.isFinite) || width <= 0 || cell <= 0 || gap < 0 || rows < 1
@@ -58,31 +58,26 @@ export function autoColumnWidths(counts, { width, cell, gap = 0, frame = [0, 0, 
   const load = GROUPS.map((_, i) => Number.isFinite(counts?.[i]) ? Math.max(0, Math.floor(counts[i])) : 0);
   const columns = load.map(count => count >= 3 ? 2 : 1);
   const minimum = columns.reduce((sum, count) => sum + count, 0);
-  const demand = load.map((count, i) => Math.max(columns[i], Math.ceil(count / rows)));
   const room = Math.max(0, width - gap * (n - 1));
-  const budget = Math.floor((room - frame.reduce((a, b) => a + b, 0) + n * gap) / (cell + gap));
-  if (budget < minimum) {
+  const space = room - frame.reduce((a, b) => a + b, 0) + n * gap;
+  if (space <= minimum * gap) {
     const widths = columns.map(count => room * count / minimum);
-    return { columns, widths, used: widths.reduce((a, b) => a + b, 0) + gap * (n - 1) };
+    return { columns, widths, cell: 1, used: widths.reduce((a, b) => a + b, 0) + gap * (n - 1) };
   }
-  const limit = Math.min(budget, demand.reduce((a, b) => a + b, 0), 10000);
+  // Round up, so fitting the width never grows tiles past the viewport's size
+  // (and never pushes the second row out of the fixed-height dock).
+  const limit = Math.max(minimum, Math.min(10000, Math.ceil(space / (cell + gap))));
   for (let allocated = minimum; allocated < limit; allocated++) {
     let best = -1;
     for (let i = 0; i < n; i++) {
-      if (columns[i] >= demand[i]) continue;
-      if (best < 0 || load[i] / columns[i] > load[best] / columns[best]) best = i;
+      if (best < 0 || Math.max(1, load[i]) / columns[i] > Math.max(1, load[best]) / columns[best]) best = i;
     }
     if (best < 0) break;
     columns[best]++;
   }
-  const widths = columns.map((count, i) => frame[i] + count * cell + (count - 1) * gap);
-  // The viewport owns the total width. Even sparse/empty actors consume the
-  // same budget; only the shares change, and unused icon positions may remain.
-  const spare = Math.max(0, room - widths.reduce((a, b) => a + b, 0));
-  const weights = load.map(count => Math.max(1, count));
-  const total = weights.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < n; i++) widths[i] += spare * weights[i] / total;
-  return { columns, widths, used: widths.reduce((a, b) => a + b, 0) + gap * (n - 1) };
+  const fittedCell = space / limit - gap;
+  const widths = columns.map((count, i) => frame[i] + count * fittedCell + (count - 1) * gap);
+  return { columns, widths, cell: fittedCell, used: widths.reduce((a, b) => a + b, 0) + gap * (n - 1) };
 }
 
 // Prepared native activities and optional automation visibility are read only.

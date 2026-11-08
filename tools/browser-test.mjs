@@ -106,7 +106,7 @@ try {
         assert.ok(layout.controlsFit, 'Edit, Original HUD and rests must stay within the dock');
         assert.equal(layout.lists.length, 4);
         assert.ok(layout.lists.every(list => list.square), 'All item buttons must remain square at this viewport');
-        assert.ok(layout.lists.every(list => list.tail >= -1), JSON.stringify(layout.lists));
+        assert.ok(layout.lists.every(list => Math.abs(list.tail) < 1), JSON.stringify(layout.lists));
         await evaluate('window.bg3LayoutTest.crowded()');
         const crowdedWidth = (await measure()).width;
         assert.ok(Math.abs(crowdedWidth - layout.width) < .6, 'Actor counts must not change total HUD width');
@@ -115,7 +115,10 @@ try {
         assert.ok(layout.lists.every(list => list.height > 0 && list.firstFits && list.left >= layout.left && list.right <= layout.right), JSON.stringify(layout));
         assert.ok(layout.height <= Math.max(145, height * .4), 'Dock leaves useful map height even in short zoomed viewports');
         assert.equal(layout.dpr, deviceScaleFactor);
-        assert.ok(layout.cell >= 31.5 && layout.cell <= 96 && layout.font >= 11 && layout.font <= 24);
+        // Whole columns fit the fixed width with a small downward adjustment,
+        // rather than leaving fractional strips or growing beyond two rows.
+        assert.ok(layout.cell >= layout.nominalCell * .9 - .5 && layout.cell <= layout.nominalCell + .5
+          && layout.font >= 11 && layout.font <= 24, JSON.stringify({ cell: layout.cell, nominal: layout.nominalCell }));
         if (height <= 720 && width > 650) assert.ok(layout.height <= 228, '720P dock stays compact');
       });
     }

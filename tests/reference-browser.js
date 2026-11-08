@@ -90,6 +90,39 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(user.writes.length, writes); equal(JSON.stringify(user.flags), flags);
       } finally { hud.setActor(hero, token); }
     });
+    await test('full-width allocation fills actual grid tracks without fractional right strips for screenshot counts, sparse actors and narrow sidebars', async () => {
+      const make = counts => actor('full-grid', counts.flatMap((count, group) => Array.from({ length: count }, (_, i) =>
+        item(`g${group}-${i}`, ['weapon', 'consumable', 'feat', 'spell'][group], { activation: { type: 'action' } }))));
+      const sidebar = document.createElement('aside'); sidebar.id = 'sidebar';
+      sidebar.style.cssText = `position:fixed;right:0;top:0;bottom:0;width:${innerWidth * .4}px`;
+      const writes = user.writes.length;
+      try {
+        for (const narrow of [false, true]) {
+          if (narrow) document.body.append(sidebar);
+          let total;
+          for (const counts of [[3, 16, 3, 3], [0, 1, 2, 1], [0, 0, 0, 0], [3, 100, 3, 3]]) {
+            hud.setActor(make(counts));
+            const width = hud.root.getBoundingClientRect().width;
+            if (total !== undefined) assert(Math.abs(total - width) < .6); total = width;
+            const tileWidths = [];
+            for (const [i, list] of [...hud.root.querySelectorAll('.bg3-video-hud-items')].entries()) {
+              const css = getComputedStyle(list), cols = css.gridTemplateColumns.split(' ').map(parseFloat);
+              const tail = list.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight)
+                - cols.reduce((sum, n) => sum + n, 0) - (cols.length - 1) * parseFloat(css.columnGap);
+              assert(Math.abs(tail) < 1, `No fractional blank strip: group ${i}, tail ${tail}`);
+              assert(cols.length >= (counts[i] >= 3 ? 2 : 1));
+              for (const use of list.querySelectorAll('.bg3-video-hud-use')) {
+                const box = use.getBoundingClientRect();
+                tileWidths.push(box.width);
+                assert(Math.abs(box.width - box.height) < .6 && Math.abs(box.width - cols[0]) < .2);
+              }
+            }
+            if (tileWidths.length) assert(Math.max(...tileWidths) - Math.min(...tileWidths) < .6, 'Shared square tile size across all categories');
+          }
+        }
+        equal(user.writes.length, writes);
+      } finally { sidebar.remove(); hud.setActor(hero, token); }
+    });
     await test('three-item groups keep two actual square icon columns with many spells and a narrow sidebar budget', async () => {
       const entries = [
         ...Array.from({ length: 3 }, (_, i) => item(`w-${i}`, 'weapon')),

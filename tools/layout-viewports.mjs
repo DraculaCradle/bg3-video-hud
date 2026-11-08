@@ -11,9 +11,12 @@ export const ZOOM_CASES = SCREEN_SIZES.flatMap(([screenWidth, screenHeight]) => 
 export function measureHUD() {
   const root = document.getElementById('bg3-video-hud'), rect = root.getBoundingClientRect();
   const css = getComputedStyle(root), cell = root.querySelector('.bg3-video-hud-use').getBoundingClientRect();
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--video-cell)'; root.append(probe);
+  const nominalCell = probe.getBoundingClientRect().width; probe.remove();
   return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
     height: rect.height, width: rect.width, clientWidth: root.clientWidth, scrollWidth: root.scrollWidth,
-    font: parseFloat(css.fontSize), gap: parseFloat(css.rowGap), cell: cell.height,
+    font: parseFloat(css.fontSize), gap: parseFloat(css.rowGap), cell: cell.height, nominalCell,
     portrait: root.querySelector('.bg3-video-hud-portrait').getBoundingClientRect().height,
     dpr: window.devicePixelRatio,
     lists: [...root.querySelectorAll('.bg3-video-hud-items')].map(list => {

@@ -63,7 +63,7 @@ test('automatic widths reserve full icon columns and give the crowded category m
   const items = autoColumnWidths([4, 40, 4, 4], geometry);
   assert.equal(items.widths[1], spells.widths[3]); assert.equal(items.widths[3], spells.widths[1]);
   assert.ok(Math.abs(spells.used - geometry.width) < 1e-8);
-  for (let i = 0; i < 4; i++) assert.ok(spells.widths[i] >= 20 + spells.columns[i] * 50 + (spells.columns[i] - 1) * 6);
+  for (let i = 0; i < 4; i++) assert.ok(Math.abs(spells.widths[i] - (20 + spells.columns[i] * spells.cell + (spells.columns[i] - 1) * 6)) < 1e-8);
 });
 
 test('three or more items reserve at least two columns even beside a much larger category or in a narrow budget', () => {
@@ -74,22 +74,37 @@ test('three or more items reserve at least two columns even beside a much larger
     assert.ok(Math.abs(plan.used - width) < 1e-8);
   }
   const small = autoColumnWidths([0, 1, 2, 3], options);
-  assert.deepEqual(small.columns.slice(0, 3), [1, 1, 1]); assert.ok(small.columns[3] >= 2);
+  assert.ok(small.columns.slice(0, 3).every(count => count >= 1)); assert.ok(small.columns[3] >= 2);
+});
+
+test('fixed total width is entirely whole square slots, including sparse actors and uneven screenshot counts', () => {
+  for (const counts of [[3, 16, 3, 3], [0, 0, 0, 0], [0, 1, 2, 1], [3, 500, 3, 3]]) {
+    for (const width of [300, 792.5, 1150, 1827.25]) {
+      const options = { width, cell: 70, gap: 5.25, frame: [16.5, 16.5, 16.5, 16.5] };
+      const plan = autoColumnWidths(counts, options);
+      assert.ok(plan.cell > 0 && plan.cell <= options.cell);
+      assert.ok(Math.abs(plan.used - width) < 1e-8);
+      plan.widths.forEach((w, i) => {
+        assert.ok(plan.columns[i] >= (counts[i] >= 3 ? 2 : 1));
+        assert.ok(Math.abs(w - options.frame[i] - plan.columns[i] * plan.cell - (plan.columns[i] - 1) * options.gap) < 1e-8);
+      });
+    }
+  }
 });
 
 test('automatic layout keeps its full width for sparse, empty or crowded actors and rejects invalid geometry', () => {
   const options = { width: 1000, cell: 50, gap: 6, frame: [20, 20, 20, 20] };
   const counts = [0, 1, 2, 1], before = [...counts];
   const sparse = autoColumnWidths(counts, options);
-  assert.deepEqual(sparse.columns, [1, 1, 1, 1]); assert.ok(Math.abs(sparse.used - options.width) < 1e-8);
+  assert.ok(sparse.columns.every(count => count >= 1)); assert.ok(Math.abs(sparse.used - options.width) < 1e-8);
   const empty = autoColumnWidths([0, 0, 0, 0], options);
   const crowded = autoColumnWidths([60, 80, 30, 100], options);
   for (const plan of [empty, crowded]) assert.ok(Math.abs(plan.used - sparse.used) < 1e-8);
-  assert.ok(Math.max(...empty.widths) - Math.min(...empty.widths) < 1e-8);
+  assert.ok(Math.max(...empty.columns) - Math.min(...empty.columns) <= 1);
   assert.deepEqual(counts, before);
   const narrow = autoColumnWidths([0, 100, 2, 30], { ...options, width: 100 });
   assert.ok(narrow.widths.every(w => w > 0)); assert.ok(narrow.used <= 100);
-  assert.deepEqual(autoColumnWidths([NaN, -1, Infinity, null], options).columns, [1, 1, 1, 1]);
+  assert.deepEqual(autoColumnWidths([NaN, -1, Infinity, null], options), empty);
   assert.throws(() => autoColumnWidths(counts, { ...options, cell: 0 }));
 });
 

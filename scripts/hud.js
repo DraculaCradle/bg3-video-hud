@@ -391,32 +391,32 @@ export class VideoHUD {
       const available = panels.getBoundingClientRect().width;
       if (available <= 0) return;
       const probe = document.createElement('div');
-      probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--video-cell);height:10px;overflow-y:scroll;scrollbar-width:thin';
-      const inner = document.createElement('div'); inner.style.height = '20px'; probe.append(inner); root.append(probe);
-      const cell = probe.getBoundingClientRect().width;
-      const scrollbar = probe.offsetWidth - probe.clientWidth; probe.remove();
+      probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--video-cell)'; root.append(probe);
+      const cell = probe.getBoundingClientRect().width; probe.remove();
       if (cell <= 0) return;
       const lists = [...panels.querySelectorAll('.bg3-video-hud-items')];
       const gap = parseFloat(getComputedStyle(lists[0]).columnGap) || 0;
       const panelGap = parseFloat(getComputedStyle(panels).columnGap) || 0;
       const frame = lists.map(list => {
         const section = getComputedStyle(list.parentElement), css = getComputedStyle(list);
-        return Math.ceil(['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+        return ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
           .reduce((sum, key) => sum + (parseFloat(section[key]) || 0), 0)
-          + (parseFloat(css.paddingLeft) || 0) + (parseFloat(css.paddingRight) || 0) + scrollbar) + .25;
+          + (parseFloat(css.paddingLeft) || 0) + (parseFloat(css.paddingRight) || 0)
+          // A hidden probe can report overlay scrollbars even when the real
+          // list reserves a gutter. Measure each actual list (borders included).
+          + list.offsetWidth - list.clientWidth;
       });
       const rows = Math.max(1, Math.floor((lists[0].clientHeight + gap) / (cell + gap)));
       // The allocator's gap is the grid gap. Panel gaps are reserved separately.
       const plan = autoColumnWidths(this.columnCounts, { width: available - panelGap * 3 + gap * 3, cell, gap, frame, rows });
       if (root.dataset.columnSizing !== 'manual') {
         root.style.setProperty('--video-columns', plan.widths.map(width => `${width}px`).join(' '));
-        // Preserve two real grid columns for groups with >=3 items, even when
-        // a narrow sidebar budget requires smaller (still square) local tiles.
+        // Explicit whole columns fill every list. The common tile size fits
+        // the entire deck; spare capacity remains usable empty icon slots.
         const sections = [...panels.querySelectorAll('.bg3-video-hud-panel')];
         sections.forEach((section, i) => {
-          const minimum = this.columnCounts[i] >= 3 ? 2 : 1;
-          const fit = (plan.widths[i] - frame[i] - (minimum - 1) * gap) / minimum;
-          section.style.setProperty('--video-cell', `${Math.min(cell, Math.max(1, fit))}px`);
+          section.style.setProperty('--video-icon-columns', String(plan.columns[i]));
+          section.style.setProperty('--video-cell', `${plan.cell}px`);
         });
       }
     }
@@ -433,6 +433,10 @@ export class VideoHUD {
     const widths = () => [...panels.querySelectorAll('.bg3-video-hud-panel')].map(el => el.getBoundingClientRect().width);
     const resize = (initial, i, delta) => resizeColumns(initial, i, delta, Math.min(56, initial[i] * .85, initial[i + 1] * .85));
     const apply = next => {
+      root.dataset.columnSizing = 'manual';
+      for (const section of panels.querySelectorAll('.bg3-video-hud-panel')) {
+        section.style.removeProperty('--video-icon-columns'); section.style.removeProperty('--video-cell');
+      }
       root.style.setProperty('--video-columns', next.map(n => `minmax(0, ${n}fr)`).join(' '));
       this.positionChrome();
     };

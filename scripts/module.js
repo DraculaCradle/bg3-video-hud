@@ -4,6 +4,9 @@ import { VideoHUD } from './hud.js';
 import { reactionResources } from './reactions.js';
 
 let hud;
+// Module activation starts every client automatically. This is only an in-memory
+// escape to the native interface; old persisted `enabled=false` is never read.
+let sessionEnabled = true;
 let canvasReady = false;
 let refreshQueued = false;
 let compatibilityWarning = false;
@@ -20,7 +23,7 @@ function status() {
   const tokens = values(globalThis.canvas?.tokens?.controlled);
   const owned = tokens.filter(t => selectActor([t], game.user));
   const assignedOwner = !!selectActor([], game.user);
-  const enabled = game.settings.get(MODULE_ID, 'enabled') === true;
+  const enabled = sessionEnabled;
   const ready = canvasReady && globalThis.canvas?.ready === true;
   const reason = !enabled ? 'disabled' : !compatible() ? 'incompatible'
     : !ready ? 'canvas-not-ready' : tokens.length && !owned.length ? 'selected-not-owned'
@@ -33,7 +36,7 @@ function status() {
 function refresh() {
   if (!hud) return;
   try {
-    if (!game.settings.get(MODULE_ID, 'enabled')) { selectionWarning = null; hud.clear(); return; }
+    if (!sessionEnabled) { selectionWarning = null; hud.clear(); return; }
     if (!compatible()) {
       hud.clear();
       if (!compatibilityWarning) {
@@ -70,26 +73,22 @@ function scheduleRefresh() {
 }
 
 Hooks.once('init', () => {
-  game.settings.register(MODULE_ID, 'enabled', {
-    name: '启用 BG3 视频界面',
-    hint: '默认关闭。可在任意世界手动开启，仅对当前客户端生效；需 Foundry VTT V14 与 D&D5e 6.0.6。关闭后恢复原版界面。',
-    scope: 'client', config: true, type: Boolean, default: false, onChange: scheduleRefresh
-  });
   game.keybindings.register(MODULE_ID, 'toggle', {
-    name: '切换 BG3 视频界面', editable: [],
+    name: '临时切换原版／BG3 界面', editable: [],
     onDown: () => { toggle().catch(e => ui.notifications.error(e.message)); return true; }
   });
 });
 
 async function toggle() {
-  await game.settings.set(MODULE_ID, 'enabled', !game.settings.get(MODULE_ID, 'enabled'));
+  sessionEnabled = !sessionEnabled;
+  scheduleRefresh();
 }
 
 Hooks.once('ready', () => {
   canvasReady = globalThis.canvas?.ready === true;
   hud = new VideoHUD({
     user: game.user, store: new LayoutStore(game.user),
-    onDisable: () => game.settings.set(MODULE_ID, 'enabled', false),
+    onDisable: () => { sessionEnabled = false; scheduleRefresh(); },
     onError: message => ui.notifications.error(`BG3 视频界面：${message}`)
   });
   // Small public API for macros; no upstream source imports or monkey patches.
@@ -100,9 +99,8 @@ Hooks.once('ready', () => {
 Hooks.on('getSceneControlButtons', controls => {
   if (!controls.tokens?.tools) return;
   controls.tokens.tools.bg3VideoHUD = {
-    name: 'bg3VideoHUD', title: '切换 BG3 视频界面', icon: 'fas fa-table-cells',
-    // A momentary button reads the current setting each click. A cached toggle's
-    // active state could become stale after the HUD button or a macro disables it.
+    name: 'bg3VideoHUD', title: '临时切换原版／BG3 界面', icon: 'fas fa-table-cells',
+    // The escape is session-only. Reload always resumes the activated module.
     button: true, order: 101,
     onChange: () => toggle()
   };

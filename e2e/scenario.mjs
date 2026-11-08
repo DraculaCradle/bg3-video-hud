@@ -122,8 +122,9 @@ async function select(page, tokenId) {
     const token = canvas.tokens.get(tokenId);
     if (!token?.actor?.testUserPermission(game.user, 'OWNER')) throw Error('Fixture unavailable or unowned');
     token.control({ releaseOthers: true });
-    await game.settings.set(moduleId, 'enabled', true);
-    game.modules.get(moduleId).api.refresh();
+    const api = game.modules.get(moduleId).api;
+    if (!api.status().enabled) await api.toggle();
+    api.refresh();
     return { name: token.actor.name, hp: token.actor.system.attributes.hp.value,
       max: token.actor.system.attributes.hp.max, ac: token.actor.system.attributes.ac.value };
   }, { tokenId, moduleId });

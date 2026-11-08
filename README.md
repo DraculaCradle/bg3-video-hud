@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.6：修复地图目标点击穿透。** 单击武器目标不再被画布原生选择事件抢先处理；补充 Player 角色权限提示与只读状态查询。Player 不显示 HUD 的具体现场原因仍待用户提供状态，未声称实机通过。保留原作者布局、自适应与独立弹窗，无需 BG3 模组。自动部署与自动实机测试关闭，由用户人工验收。
+> **v0.1.7：激活模组即自动启用。** GM 与 Player 无需分别打开设置开关，旧版关闭值也不会阻止显示。选择拥有权限的角色 Token 后显示 HUD；“原版界面”只临时返回，工具栏可恢复，重新载入会自动启用。保留目标点击修复、自适应与独立弹窗，无需 BG3 模组。自动部署与自动实机测试关闭，由用户人工验收。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Not yet verified in a running Foundry VTT v14 / D&D5e 6.0.6 world. Manifest compatibility declares the intended target, not a completed in-game certification.
 
@@ -37,11 +37,11 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 
 1. Use the existing Foundry v14 instance with D&D5e **6.0.6**. Current source needs no other HUD module; no upstream code is bundled. Do not change other worlds or enable/disable optional modules automatically.
 2. Run `npm run package` from this checkout (Node >=22.8 and Python 3 required). Extract `dist/bg3-video-hud.zip` into `<Foundry User Data>/Data/modules/bg3-video-hud/`, with `module.json` directly inside that directory. Alternatively copy `module.json`, `scripts/`, and `styles/` into that directory.
-3. 在需要使用的世界中，先通过“管理模组”启用 **BG3 视频界面**，再到“配置设定 → BG3 视频界面”勾选“启用 BG3 视频界面”。此开关默认关闭，仅影响当前客户端。 If package discovery or manifest changes need a reload/restart, the administrator schedules a maintenance window; this project never controls the service automatically.
-4. Each player opts in using **Game Settings → Configure Settings → BG3 视频界面 → 启用 BG3 视频界面**, or the **切换 BG3 视频界面** token scene tool. It is off by default. A keybinding can be assigned in Foundry's controls configuration.
+3. 在需要使用的世界中，通过“管理模组”启用 **BG3 视频界面** 并重新载入。所有客户端自动起效，无需额外设置开关。 If package discovery or manifest changes need a reload/restart, the administrator schedules a maintenance window; this project never controls the service automatically.
+4. GM 和 Player 均自动启用。**原版界面** 可在当前页面临时返回；Token 工具栏的 **临时切换原版／BG3 界面** 可恢复，刷新页面自动恢复。也可为此临时操作设置快捷键。
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.6. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.7. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 
@@ -55,7 +55,7 @@ For Linux server installation or upgrades, use the [deployment guide](docs/DEPLO
 - **动作 / 附赠动作 / 反应** filter activities and show locally observed native uses in the current combat turn position. They are not authoritative remaining-action limits and never enforce combat rules.
 - Search each category; hover or focus an item for a safe rich description. **编辑** opens the full draft; category gears open a separate scrollable editor dialog: show/hide, pin, drag/arrow order, bulk select/clear/reset, then Save or Cancel. Short/long rests still call official dialogs.
 - Settings are stored on the current **User**, under `flags.bg3-video-hud.layouts`, keyed by full actor UUID. Players can configure their own layout without permission to modify another user's document. Synthetic token actors have separate identities. Same-client edits are serialized; simultaneous sessions for the same user use last-write-wins semantics.
-- **原版界面** 关闭本 HUD，恢复 Foundry 原生快捷栏及可选 BG3 HUD 原有的显示状态。仅在本 HUD 已挂载时临时隐藏它们的 DOM 外壳；不修改快捷栏内容、BG3 设置、用户 flags 或源码，也不会主动启用其他模组。
+- **原版界面** 在当前页面会话临时隐藏本 HUD（刷新自动恢复），恢复 Foundry 原生快捷栏及可选 BG3 HUD 原有的显示状态。仅在本 HUD 已挂载时临时隐藏它们的 DOM 外壳；不修改快捷栏内容、BG3 设置、用户 flags 或源码，也不会主动启用其他模组。
 - Optional macro: `await game.modules.get("bg3-video-hud").api.toggle()`.
 
 新增来源管理、目标预览、可选重复分配、队伍概览与骰子／动画联动状态的中文操作与边界，见[视频功能补齐](docs/COMPLETE_HUD.md)及[视频对照](docs/VIDEO_COMPARISON.md)。这些代码已纳入 v0.1.2 发布；发布不会自动安装到线上。
@@ -77,6 +77,6 @@ See [the test report](docs/TEST_REPORT.md) for executed checks, including real C
 
 ## Safety
 
-For the existing shared Foundry instance at redmagic.club, see [ModsTest deployment and runner setup](docs/MODSTEST_SETUP.md). Automation verifies the active world and test-only sessions before updating only `Data/modules/bg3-video-hud`, keeps verified backups and recovery journals, and never stops/restarts Foundry or switches worlds. First installation or any manifest/version change requires an administrator's maintenance window. The HUD may be manually enabled in any world; automated deployment and live test scripts remain strictly restricted to ModsTest. [The test report](docs/AUTOMATION_REPORT.md) distinguishes local validation from live checks that have not run.
+For the existing shared Foundry instance at redmagic.club, see [ModsTest deployment and runner setup](docs/MODSTEST_SETUP.md). Automation verifies the active world and test-only sessions before updating only `Data/modules/bg3-video-hud`, keeps verified backups and recovery journals, and never stops/restarts Foundry or switches worlds. First installation or any manifest/version change requires an administrator's maintenance window. The HUD automatically runs in any world where the administrator activates the module; automated deployment and live test scripts remain strictly restricted to ModsTest. [The test report](docs/AUTOMATION_REPORT.md) distinguishes local validation from live checks that have not run.
 
 Test only in a backed-up test world first. Spell/item consumption, ownership permissions, PC token switches and chat cards must be verified before real sessions.

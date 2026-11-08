@@ -100,7 +100,17 @@ export function hasActiveUse(item) {
   return activeType(item?.system?.activation?.type);
 }
 
+// Follow the native sheet's visibility rules, not names: cached CastActivity
+// spells can be real spellbook entries or internal-only implementation items.
+export function nativeItemVisible(item, actor = item?.actor) {
+  if (!item || item.isHidden === true || actor?.hiddenItems?.has?.(item.id)
+    || item.dependentOrigin?.active === false) return false;
+  return item.type !== 'spell' || !item.flags?.dnd5e?.cachedFor
+    || item.system?.linkedActivity?.displayInSpellbook === true;
+}
+
 export function groupFor(item) {
+  if (!nativeItemVisible(item)) return null;
   if (item?.type === 'spell') return 'Spells';
   const subtype = item?.system?.type?.value ?? item?.system?.consumableType;
   if (subtype === 'ammo') return null;
@@ -126,7 +136,7 @@ export function itemsFor(actor, layout, { edit = false, level = 'all', action = 
   const prefs = normalizeLayout(layout);
   const order = new Map(prefs.order.map((id, index) => [id, index]));
   return values(actor?.items).filter(item => {
-    if (!item.id || !groupFor(item)) return false;
+    if (!item.id || !nativeItemVisible(item, actor) || !groupFor(item)) return false;
     if (edit) return true; // Hidden combat items remain discoverable; character records stay excluded.
     if (prefs.hidden.includes(item.id)) return false;
     if (action !== 'all' && !activationTypes(item).includes(action)) return false;
@@ -176,7 +186,7 @@ export function slotPools(actor) {
 }
 
 export function spellLevels(actor) {
-  const max = Math.max(0, ...values(actor?.items).filter(i => i.type === 'spell').map(spellLevel),
+  const max = Math.max(0, ...values(actor?.items).filter(i => i.type === 'spell' && nativeItemVisible(i, actor)).map(spellLevel),
     ...slotPools(actor).map(p => p.level ?? 0));
   return Array.from({ length: Math.min(9, max) + 1 }, (_, i) => i);
 }

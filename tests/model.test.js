@@ -62,15 +62,19 @@ test('automatic widths reserve full icon columns and give the crowded category m
   assert.ok(spells.widths[3] > spells.widths[0] * 2);
   const items = autoColumnWidths([4, 40, 4, 4], geometry);
   assert.equal(items.widths[1], spells.widths[3]); assert.equal(items.widths[3], spells.widths[1]);
-  assert.ok(spells.used <= geometry.width && geometry.width - spells.used < 56);
-  for (let i = 0; i < 4; i++) assert.equal(spells.widths[i], 20 + spells.columns[i] * 50 + (spells.columns[i] - 1) * 6);
+  assert.ok(Math.abs(spells.used - geometry.width) < 1e-8);
+  for (let i = 0; i < 4; i++) assert.ok(spells.widths[i] >= 20 + spells.columns[i] * 50 + (spells.columns[i] - 1) * 6);
 });
 
-test('automatic layout shrinks sparse content, handles empty/narrow groups and rejects invalid geometry', () => {
+test('automatic layout keeps its full width for sparse, empty or crowded actors and rejects invalid geometry', () => {
   const options = { width: 1000, cell: 50, gap: 6, frame: [20, 20, 20, 20] };
   const counts = [0, 1, 2, 1], before = [...counts];
   const sparse = autoColumnWidths(counts, options);
-  assert.deepEqual(sparse.columns, [1, 1, 1, 1]); assert.ok(sparse.used < 400);
+  assert.deepEqual(sparse.columns, [1, 1, 1, 1]); assert.ok(Math.abs(sparse.used - options.width) < 1e-8);
+  const empty = autoColumnWidths([0, 0, 0, 0], options);
+  const crowded = autoColumnWidths([60, 80, 30, 100], options);
+  for (const plan of [empty, crowded]) assert.ok(Math.abs(plan.used - sparse.used) < 1e-8);
+  assert.ok(Math.max(...empty.widths) - Math.min(...empty.widths) < 1e-8);
   assert.deepEqual(counts, before);
   const narrow = autoColumnWidths([0, 100, 2, 30], { ...options, width: 100 });
   assert.ok(narrow.widths.every(w => w > 0)); assert.ok(narrow.used <= 100);

@@ -78,3 +78,7 @@ PIXI/Foundry 的画布事件可能先在 document 捕获阶段处理；在 `#boa
 新 User 布局叶 `columnSizing: manual` 仅由明确拖动／键盘调整写入，搭配 ratios 使用；没有此标记（含旧 ratios）默认自动，不主动迁移旧数据。Home／双击恢复自动时仅移除此用户、此角色的 sizing 与 ratios，保留隐藏、顺序等字段。自动计算不写文档。
 
 GM 没有受控 Token 且未分配角色时，HUD 安静清理，原界面恢复，status.reason=gm-idle；不弹 OWNER 警告，也不要求 GM 分配角色。玩家权限检查与实际选中无角色 Token 的检查保持。
+
+## v0.1.12 固定总宽预算
+
+v0.1.11 的整体收窄规则被用户新要求替代。Root 宽度恢复仅由 CSS 有效视口／侧栏／上限决定，删除 --video-auto-width 的读写。autoColumnWidths 先分配基本整列，再按数量权重分配剩余空白；返回的 used 始终等于输入预算，稀疏／全空角色也是如此。手动比例仍只重新分配内部空间。不要为了消除空位缩小 Root。搜索稳定、滚动恢复、图标正方形和 GM 空闲守卫保持。

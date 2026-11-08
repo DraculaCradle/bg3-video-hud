@@ -213,7 +213,7 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
   --video-rail: calc(36 * var(--video-unit));
   --video-left: 16px; --video-right: 12px;
   height: clamp(140px, calc(224 * var(--video-unit)), 35dvh);
-  width: var(--video-auto-width, min(calc(1120 * var(--video-unit)), calc((100vw - var(--video-left) - var(--video-right)) * .75 + 50 * var(--video-unit))));
+  width: min(calc(1120 * var(--video-unit)), calc((100vw - var(--video-left) - var(--video-right)) * .75 + 50 * var(--video-unit)));
   grid-template-columns: calc(108 * var(--video-unit)) minmax(0, 1fr) calc(76 * var(--video-unit));
   grid-template-rows: var(--video-rail) minmax(0, 1fr) var(--video-row);
   grid-template-areas: 'identity filters end' 'identity panels end' 'footer footer footer';
@@ -353,7 +353,7 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
 .bg3-video-hud-spells > small { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
 .bg3-video-hud-spells > small:focus-visible { position: fixed; width: auto; height: auto; max-width: 80vw; bottom: 100%; left: 10%; clip-path: none; padding: 6px; background: #14212b; z-index: 3; }
 @media (max-height: 500px), (max-width: 800px) {
-  .bg3-video-hud { width: var(--video-auto-width, calc(100vw - var(--video-left) - var(--video-right))); }
+  .bg3-video-hud { width: calc(100vw - var(--video-left) - var(--video-right)); }
   .bg3-video-hud-vitals { flex-direction: column; gap: 1px; }
   .bg3-video-hud-vitals .bg3-video-hud-health { flex: auto; width: 100%; }
 }

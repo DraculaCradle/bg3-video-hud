@@ -48,7 +48,7 @@ export function resizeColumns(widths, index, delta, minimum = 56) {
 }
 
 // Allocate whole square-icon columns. Extra space goes to the largest remaining
-// per-column load, capped once two rows can hold that group's visible items.
+// per-column load. Remaining capacity stays as empty space within the fixed budget.
 export function autoColumnWidths(counts, { width, cell, gap = 0, frame = [0, 0, 0, 0], rows = 2 }) {
   const n = GROUPS.length;
   if (![width, cell, gap, rows].every(Number.isFinite) || width <= 0 || cell <= 0 || gap < 0 || rows < 1
@@ -75,6 +75,12 @@ export function autoColumnWidths(counts, { width, cell, gap = 0, frame = [0, 0, 
     columns[best]++;
   }
   const widths = columns.map((count, i) => frame[i] + count * cell + (count - 1) * gap);
+  // The viewport owns the total width. Even sparse/empty actors consume the
+  // same budget; only the shares change, and unused icon positions may remain.
+  const spare = Math.max(0, room - widths.reduce((a, b) => a + b, 0));
+  const weights = load.map(count => Math.max(1, count));
+  const total = weights.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < n; i++) widths[i] += spare * weights[i] / total;
   return { columns, widths, used: widths.reduce((a, b) => a + b, 0) + gap * (n - 1) };
 }
 

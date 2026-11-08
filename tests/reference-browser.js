@@ -62,6 +62,29 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(user.writes.length, writes);
       } finally { delete entry.img; hud.tooltip.hide(); hud.render(); }
     });
+    await test('automatic widths follow actor counts, shrink sparse content and stay stable through search and action/level filters without writes', async () => {
+      const make = (id, itemCount, spellCount) => actor(id, [item('weapon', 'weapon'), item('feature', 'feat'),
+        ...Array.from({ length: itemCount }, (_, i) => item(`item-${i}`, 'consumable', { activation: { type: 'action' } })),
+        ...Array.from({ length: spellCount }, (_, i) => item(`spell-${i}`, 'spell', { level: i % 2 }))]);
+      const sizes = () => [...hud.root.querySelectorAll('.bg3-video-hud-panel')].map(el => el.getBoundingClientRect().width);
+      const writes = user.writes.length, flags = JSON.stringify(user.flags);
+      try {
+        hud.setActor(make('many-items', 30, 1));
+        let widths = sizes(); assert(widths[1] > widths[0] && widths[1] > widths[3]);
+        const crowdedWidth = hud.root.getBoundingClientRect().width;
+        hud.setActor(make('few-items', 1, 1)); assert(hud.root.getBoundingClientRect().width < crowdedWidth);
+        hud.setActor(make('many-spells', 1, 30));
+        widths = sizes(); assert(widths[3] > widths[1] && widths[3] > widths[0]);
+        hud.level = 1; hud.action = 'bonus'; hud.queries.Items = 'no match'; hud.render();
+        sizes().forEach((width, i) => assert(Math.abs(width - widths[i]) < .6));
+        // A live inventory change in the same actor must grow the appropriate group.
+        hud.level = 'all'; hud.action = 'all'; hud.queries = {};
+        const previous = widths[1];
+        for (let i = 1; i <= 60; i++) hud.actor.items.set(`new-${i}`, item(`new-${i}`, 'consumable', { activation: { type: 'action' } }));
+        hud.render(); assert(sizes()[1] > previous);
+        equal(user.writes.length, writes); equal(JSON.stringify(user.flags), flags);
+      } finally { hud.setActor(hero, token); }
+    });
     await test('reference structure separates portrait, four framed decks and circular native action controls', async () => {
       assert(hud.root.querySelector('.bg3-video-hud-end .bg3-video-hud-turn'));
       equal(hud.root.querySelectorAll('.bg3-video-hud-panel').length, 4);
@@ -77,10 +100,10 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
       hud.root.querySelector('[data-divider="0"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
       await flush(); await delay();
       const after = [...hud.root.querySelectorAll('.bg3-video-hud-panel')].map(e => e.getBoundingClientRect().width);
-      assert(after[0] > before[0]); assert(after[1] < before[1]); assert(Math.abs(after[2] - before[2]) < 1);
+      assert(after[0] > before[0], JSON.stringify({ before, after, prefs: store.read(hero), root: hud.root.getBoundingClientRect().toJSON() })); assert(after[1] < before[1]); assert(Math.abs(after[2] - before[2]) < 1);
       equal(store.read(hero).hidden, ['gear2']);
       hud.root.querySelector('[data-divider="0"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
-      await flush(); equal(store.read(hero).ratios, [2, 2, 3, 5]); equal(store.read(hero).hidden, ['gear2']);
+      await flush(); equal(store.read(hero).ratios, undefined); equal(store.read(hero).columnSizing, undefined); equal(store.read(hero).hidden, ['gear2']);
     });
     await test('group editor is a separate scrollable popup; cancel and actor change discard draft', async () => {
       const before = user.writes.length; hud.beginEdit('Weapons');

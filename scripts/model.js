@@ -27,6 +27,7 @@ export function normalizeLayout(data = {}) {
   return {
     version: 1, order: idList(data?.order), hidden: idList(data?.hidden),
     pinned: idList(data?.pinned), pinnedOnly: data?.pinnedOnly === true,
+    ...(data?.columnSizing === 'manual' && (validRatios(data?.ratios) || validRatios(data?.ratios, 3)) ? { columnSizing: 'manual' } : {}),
     ...(validRatios(data?.ratios) ? { ratios: [...data.ratios] }
       : validRatios(data?.ratios, 3) ? { ratios: [data.ratios[0] / 2, data.ratios[0] / 2, ...data.ratios.slice(1)] } : {})
   };
@@ -44,6 +45,37 @@ export function resizeColumns(widths, index, delta, minimum = 56) {
   result[index] = Math.max(floor, Math.min(sum - floor, widths[index] + delta));
   result[index + 1] = sum - result[index];
   return result;
+}
+
+// Allocate whole square-icon columns. Extra space goes to the largest remaining
+// per-column load, capped once two rows can hold that group's visible items.
+export function autoColumnWidths(counts, { width, cell, gap = 0, frame = [0, 0, 0, 0], rows = 2 }) {
+  const n = GROUPS.length;
+  if (![width, cell, gap, rows].every(Number.isFinite) || width <= 0 || cell <= 0 || gap < 0 || rows < 1
+    || !Array.isArray(frame) || frame.length !== n || frame.some(v => !Number.isFinite(v) || v < 0)) {
+    throw new Error('Invalid automatic column geometry');
+  }
+  const load = GROUPS.map((_, i) => Number.isFinite(counts?.[i]) ? Math.max(0, Math.floor(counts[i])) : 0);
+  const columns = GROUPS.map(() => 1);
+  const demand = load.map(count => Math.max(1, Math.ceil(count / rows)));
+  const room = Math.max(0, width - gap * (n - 1));
+  const budget = Math.floor((room - frame.reduce((a, b) => a + b, 0) + n * gap) / (cell + gap));
+  if (budget < n) {
+    const widths = GROUPS.map(() => room / n);
+    return { columns, widths, used: widths.reduce((a, b) => a + b, 0) + gap * (n - 1) };
+  }
+  const limit = Math.min(budget, demand.reduce((a, b) => a + b, 0), 10000);
+  for (let allocated = n; allocated < limit; allocated++) {
+    let best = -1;
+    for (let i = 0; i < n; i++) {
+      if (columns[i] >= demand[i]) continue;
+      if (best < 0 || load[i] / columns[i] > load[best] / columns[best]) best = i;
+    }
+    if (best < 0) break;
+    columns[best]++;
+  }
+  const widths = columns.map((count, i) => frame[i] + count * cell + (count - 1) * gap);
+  return { columns, widths, used: widths.reduce((a, b) => a + b, 0) + gap * (n - 1) };
 }
 
 // Prepared native activities and optional automation visibility are read only.

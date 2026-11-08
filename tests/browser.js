@@ -387,6 +387,22 @@ try {
     }
     Object.assign(game, { version, system });
   });
+  await test('GM can deselect all tokens with no assigned character, no warning and normal native HUD', async () => {
+    const previousCharacter = user.character, previousGM = user.isGM, controlled = canvas.tokens.controlled;
+    try {
+      user.isGM = true; user.character = null; canvas.tokens.controlled = [];
+      const before = notifications.length;
+      await enable(); await Hooks.emit('controlToken'); await Hooks.emit('updateUser', user);
+      assert(!root()); assert(originalVisible()); equal(notifications.length, before);
+      equal(game.modules.get(MODULE_ID).api.status().reason, 'gm-idle');
+      canvas.tokens.controlled = [{ actor: hero }]; await Hooks.emit('controlToken'); assert(root());
+      canvas.tokens.controlled = []; await Hooks.emit('controlToken'); assert(!root());
+      equal(notifications.length, before);
+    } finally {
+      user.isGM = previousGM; user.character = previousCharacter; canvas.tokens.controlled = controlled;
+      await Hooks.emit('controlToken');
+    }
+  });
   await test('Player OWNER sees HUD; denied ownership produces a safe status and warning without bypass', async () => {
     canvas.tokens.controlled = [{ actor: hero }];
     await enable(); assert(!game.user.isGM); assert(root());

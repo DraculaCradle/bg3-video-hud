@@ -1,5 +1,5 @@
 import { MODULE_ID, GROUPS, DEFAULT_RATIOS, actorStats, groupFor, itemsFor, normalizeLayout, reorder, slotPools,
-  spellLevels, spellLevel, toggleId, usesLabel, values, resizeColumns } from './model.js';
+  spellLevels, spellLevel, toggleId, usesLabel, values, resizeColumns, autoColumnWidths } from './model.js';
 import { restActor, endTurn, canEndTurn } from './actions.js';
 import { TargetWorkflow } from './targeting.js';
 import { node, button, RichTooltip, modal } from './ui.js';
@@ -215,7 +215,11 @@ export class VideoHUD {
     controls.append(edit, button('原版界面', 'disable', '关闭本 HUD，返回 Foundry 或已启用的其他 HUD'));
     header.append(controls);
     root.append(header);
-    const ratios = prefs.ratios ?? DEFAULT_RATIOS;
+    const ratios = prefs.columnSizing === 'manual' ? prefs.ratios : DEFAULT_RATIOS;
+    root.dataset.columnSizing = prefs.columnSizing ?? 'auto';
+    const countPrefs = this.edit ? this.store.read(actor) : prefs;
+    const countItems = itemsFor(actor, countPrefs);
+    this.columnCounts = GROUPS.map(group => countItems.filter(item => groupFor(item) === group).length);
     root.style.setProperty('--video-columns', ratios.map(n => `minmax(0, ${n}fr)`).join(' '));
 
     const filters = node('div', undefined, 'bg3-video-hud-filters');
@@ -251,7 +255,7 @@ export class VideoHUD {
       const section = node('section', undefined, 'bg3-video-hud-panel');
       section.dataset.group = group;
       const heading = node('div', undefined, 'bg3-video-hud-panel-heading');
-      heading.append(node('h3', groupLabels[group]));
+      const title = node('h3', groupLabels[group]); title.title = groupLabels[group]; heading.append(title);
       const search = node('input'); search.type = 'search'; search.placeholder = '搜索…';
       search.dataset.queryGroup = group; search.value = this.queries[group] ?? '';
       search.setAttribute('aria-label', `搜索${groupLabels[group]}`); heading.append(search);
@@ -304,6 +308,9 @@ export class VideoHUD {
     this.root = root;
     this.chromeObserver.disconnect(); this.chromeObserver.observe(root);
     const sidebar = document.getElementById('sidebar'); if (sidebar) this.chromeObserver.observe(sidebar);
+    // Finish geometry before restoring offsets: interim wide grids can clamp
+    // scrollTop/scrollLeft and lose the focused high-level spell filter.
+    this.positionChrome();
     for (const list of root.querySelectorAll('[data-scroll-group]')) {
       const position = scroll.get(list.dataset.scrollGroup);
       if (position) { list.scrollTop = position.top; list.scrollLeft = position.left; }
@@ -319,7 +326,6 @@ export class VideoHUD {
         try { focused.setSelectionRange(...selection); } catch { /* Numeric input has no selection API. */ }
       }
     }
-    this.positionChrome();
     this.syncChoiceDialog();
     this.syncEditor();
   }
@@ -378,6 +384,39 @@ export class VideoHUD {
       && sidebar.right >= innerWidth - 50 ? innerWidth - sidebar.left + 12 : 12;
     root.style.setProperty('--video-right', `${reserved}px`);
     const panels = root.querySelector('.bg3-video-hud-panels');
+    const geometryKey = JSON.stringify([innerWidth, innerHeight, devicePixelRatio, reserved, root.clientHeight, this.columnCounts, root.dataset.columnSizing]);
+    if (!this.resizing && root.columnGeometryKey !== geometryKey) {
+      root.columnGeometryKey = geometryKey;
+      // Measure the viewport-bounded budget afresh, never the previous compacted
+      // width: the next actor/item change must be able to grow again.
+      root.style.removeProperty('--video-auto-width');
+      const maximum = root.getBoundingClientRect().width;
+      const available = panels.getBoundingClientRect().width;
+      if (available <= 0) return;
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--video-cell);height:10px;overflow-y:scroll;scrollbar-width:thin';
+      const inner = document.createElement('div'); inner.style.height = '20px'; probe.append(inner); root.append(probe);
+      const cell = probe.getBoundingClientRect().width;
+      const scrollbar = probe.offsetWidth - probe.clientWidth; probe.remove();
+      if (cell <= 0) return;
+      const lists = [...panels.querySelectorAll('.bg3-video-hud-items')];
+      const gap = parseFloat(getComputedStyle(lists[0]).columnGap) || 0;
+      const panelGap = parseFloat(getComputedStyle(panels).columnGap) || 0;
+      const frame = lists.map(list => {
+        const section = getComputedStyle(list.parentElement), css = getComputedStyle(list);
+        return Math.ceil(['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']
+          .reduce((sum, key) => sum + (parseFloat(section[key]) || 0), 0)
+          + (parseFloat(css.paddingLeft) || 0) + (parseFloat(css.paddingRight) || 0) + scrollbar) + .25;
+      });
+      const rows = Math.max(1, Math.floor((lists[0].clientHeight + gap) / (cell + gap)));
+      // The allocator's gap is the grid gap. Panel gaps are reserved separately.
+      const plan = autoColumnWidths(this.columnCounts, { width: available - panelGap * 3 + gap * 3, cell, gap, frame, rows });
+      const used = plan.used - gap * 3 + panelGap * 3;
+      root.style.setProperty('--video-auto-width', `${Math.min(maximum, maximum - available + used)}px`);
+      if (root.dataset.columnSizing !== 'manual') {
+        root.style.setProperty('--video-columns', plan.widths.map(width => `${width}px`).join(' '));
+      }
+    }
     const bounds = panels.getBoundingClientRect();
     const sections = [...panels.querySelectorAll('.bg3-video-hud-panel')].map(el => el.getBoundingClientRect());
     for (const handle of panels.querySelectorAll('[data-divider]')) {
@@ -389,13 +428,17 @@ export class VideoHUD {
 
   installDividers(root, panels) {
     const widths = () => [...panels.querySelectorAll('.bg3-video-hud-panel')].map(el => el.getBoundingClientRect().width);
+    const resize = (initial, i, delta) => resizeColumns(initial, i, delta, Math.min(56, initial[i] * .85, initial[i + 1] * .85));
     const apply = next => {
       root.style.setProperty('--video-columns', next.map(n => `minmax(0, ${n}fr)`).join(' '));
       this.positionChrome();
     };
     const save = async (actor, next) => {
       requireActor(actor, this.user);
-      await this.store.update(actor, prefs => ({ ...prefs, ratios: next }));
+      await this.store.update(actor, prefs => {
+        if (next) return { ...prefs, ratios: next, columnSizing: 'manual' };
+        const reset = { ...prefs }; delete reset.ratios; delete reset.columnSizing; return reset;
+      });
       if (this.actor === actor) this.render();
     };
     for (let i = 0; i < GROUPS.length - 1; i++) {
@@ -404,13 +447,13 @@ export class VideoHUD {
       handle.setAttribute('role', 'separator'); handle.setAttribute('aria-orientation', 'vertical');
       handle.setAttribute('aria-label', `调整${groupLabels[GROUPS[i]]}与${groupLabels[GROUPS[i + 1]]}宽度`);
       handle.setAttribute('aria-valuemin', '1'); handle.setAttribute('aria-valuemax', '99');
-      handle.title = '拖动或方向键调整宽度；双击或 Home 恢复 2:2:3:5';
+      handle.title = '拖动或方向键调整宽度；双击或 Home 恢复按数量自动分配';
       const available = () => !this.busy.size && !this.edit && !this.saving && !this.resizing;
-      handle.ondblclick = () => { if (available()) this.run(() => save(this.actor, DEFAULT_RATIOS)); };
+      handle.ondblclick = () => { if (available()) this.run(() => save(this.actor, null)); };
       handle.onkeydown = event => {
         if (!available() || !['ArrowLeft', 'ArrowRight', 'Home'].includes(event.key)) return;
         event.preventDefault(); event.stopPropagation();
-        const next = event.key === 'Home' ? DEFAULT_RATIOS : resizeColumns(widths(), i,
+        const next = event.key === 'Home' ? null : resize(widths(), i,
           (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 20 : 5));
         this.run(() => save(this.actor, next));
       };
@@ -432,7 +475,7 @@ export class VideoHUD {
         const options = { signal: abort.signal };
         handle.addEventListener('pointermove', ev => {
           if (ev.pointerId !== id) return;
-          next = resizeColumns(initial, i, ev.clientX - x); apply(next);
+          next = resize(initial, i, ev.clientX - x); apply(next);
         }, options);
         handle.addEventListener('pointerup', ev => { if (ev.pointerId === id) finish(true); }, options);
         handle.addEventListener('pointercancel', this.cancelResize, options);

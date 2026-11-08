@@ -102,10 +102,11 @@ try {
         const layout = await measure();
         measurements.push({ ...viewport, viewportWidth: width, viewportHeight: height, ...layout });
         assert.ok(layout.left >= -1 && layout.right <= width + 1 && layout.top >= 0 && layout.bottom <= height, JSON.stringify(layout));
-        assert.ok(layout.scrollWidth <= layout.clientWidth + 1, 'HUD overflows horizontally');
+        assert.ok(layout.scrollWidth <= layout.clientWidth + 1, JSON.stringify(layout));
         assert.ok(layout.controlsFit, 'Edit, Original HUD and rests must stay within the dock');
         assert.equal(layout.lists.length, 4);
         assert.ok(layout.lists.every(list => list.square), 'All item buttons must remain square at this viewport');
+        assert.ok(layout.lists.every(list => list.tail >= -1 && list.tail < 12), JSON.stringify(layout.lists));
         assert.ok(layout.lists.every(list => list.height > 0 && list.firstFits && list.left >= layout.left && list.right <= layout.right), JSON.stringify(layout));
         assert.ok(layout.height <= Math.max(145, height * .4), 'Dock leaves useful map height even in short zoomed viewports');
         assert.equal(layout.dpr, deviceScaleFactor);

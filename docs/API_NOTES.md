@@ -32,7 +32,7 @@ Additional inspected official 6.0.6 interfaces:
 
 ## Deliberate boundaries
 
-The HUD uses standard Foundry hooks, client settings, keybindings, scene controls and DOM APIs. It is not an upstream subclass and does not patch upstream methods. `module.json` requires both public modules. Runtime guards limit activation to Foundry 14 and D&D5e 6.0.6; unsupported systems leave the original HUD alone.
+The HUD uses standard Foundry hooks, keybindings, scene controls and DOM APIs. It is not an upstream subclass and does not patch upstream methods. `module.json` has no required HUD modules. Runtime guards limit activation to Foundry 14 and D&D5e 6.0.6; unsupported systems leave the original HUD alone.
 
 The integration's sole upstream DOM dependency is the Core 0.8.0 application id `bg3-hotbar`. Scoped CSS suppresses that shell only while `body.bg3-video-hud-active` is present. Because it is CSS, late renders and upstream inline visibility changes remain suppressed. Removing the body class restores the upstream shell's own state. No render-order wait or upstream setting writes are needed. A future upstream release changing this id requires revalidation. Public HUD auto-population and any other behavior it performs independently remain upstream responsibilities.
 
@@ -58,3 +58,9 @@ Node tests exercise real module logic with small document doubles. Chromium test
 PIXI/Foundry 的画布事件可能先在 document 捕获阶段处理；在 `#board` 上捕获已太迟。本 HUD 在 window 捕获，仅拦截地图及正在拖动的指针，不拦截弹窗或侧栏。完成时立即解除 pointer 监听，只将同次兼容鼠标点击的拦截保留到下个任务；取消、场景切换、销毁会清理监听。最终仍通过原生活动使用／掷骰，不控制敌方 Token，也不改角色权限。
 
 `game.modules.get('bg3-video-hud').api.status()` 只读返回 enabled、compatible、canvasReady、controlled/owned 数量、assignedOwner、hudVisible、version、reason。原因码为 disabled / incompatible / canvas-not-ready / selected-not-owned / no-owned-character / render-error / ready，不包含角色或账号名称、ID、凭据。ready 表示选择门槛满足，hudVisible 单独反映挂载；不表示武器攻击或实机验收通过。
+
+## v0.1.7 自动启用
+
+模组随世界激活后，所有客户端自动运行。删除旧 `enabled` 设置的注册／读取／写入；不迁移或删除旧值，因此旧 false 不会阻挡显示，也不写入其他设置或角色数据。`api.toggle()`／原版界面按钮／工具栏只切换本页面的内存状态，刷新页面重新自动启用。`api.status().enabled` 表示此会话状态，reason=disabled 表示本次临时返回原版，不是持久化设置。原有角色 OWNER、兼容版本和画布就绪守卫保持不变。
+
+用户已确认先前 Player 不显示是客户端开关未开启。此结论来自用户人工检查，不代表其他规则流程的自动实机验收通过。

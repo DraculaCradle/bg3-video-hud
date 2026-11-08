@@ -33,7 +33,7 @@ globalThis.Hooks = {
 };
 const notifications = [];
 globalThis.ui = { notifications: { error: text => notifications.push(text), warn: text => notifications.push(text) } };
-const settings = new Map(), definitions = new Map();
+const settings = new Map([[`${MODULE_ID}.enabled`, false]]), definitions = new Map();
 const user = userWithFlags();
 user.isGM = false; user.role = 1;
 user.flags['bg3-hud-core'] = { layout: ['untouched'] };
@@ -61,9 +61,9 @@ globalThis.game = {
   user, version: '14.0', system: { id: 'dnd5e', version: '6.0.6' },
   modules: new Map([[MODULE_ID, {}]]),
   settings: {
-    register(scope, key, definition) { definitions.set(`${scope}.${key}`, definition); settings.set(`${scope}.${key}`, definition.default); },
-    get(scope, key) { return settings.get(`${scope}.${key}`); },
-    async set(scope, key, value) { settings.set(`${scope}.${key}`, value); definitions.get(`${scope}.${key}`)?.onChange?.(value); await flush(); }
+    register() { throw new Error('HUD must not register an activation setting'); },
+    get() { throw new Error('HUD must not read legacy activation setting'); },
+    async set() { throw new Error('HUD must not write activation settings'); }
   }, keybindings: { register() {} }
 };
 const root = () => document.getElementById(MODULE_ID);
@@ -76,7 +76,8 @@ async function click(action, itemId) {
   }
   assert(root()?.getAttribute('aria-busy') !== 'true', 'Layout saving did not settle');
 }
-async function enable() { await game.settings.set(MODULE_ID, 'enabled', true); }
+async function enable() { const api = game.modules.get(MODULE_ID).api; if (!api.status().enabled) await api.toggle(); api.refresh(); await flush(); }
+async function pause() { if (game.modules.get(MODULE_ID).api.status().enabled) await game.modules.get(MODULE_ID).api.toggle(); await flush(); }
 async function select(next) { canvas.tokens.controlled = next ? [{ actor: next }] : []; await Hooks.emit('controlToken'); }
 
 try {
@@ -84,19 +85,21 @@ try {
   await Hooks.emit('init');
   await Hooks.emit('ready');
 
-  await test('defaults to original HUD; does not write upstream flags/settings', async () => {
+  await test('active module automatically starts Player HUD despite legacy false; no settings or flag writes', async () => {
     assert(!game.modules.has('bg3-hud-core') && !game.modules.has('bg3-hud-dnd5e'));
-    assert(!root()); assert(originalVisible()); equal(JSON.stringify(user.flags), oldFlags);
+    assert(root()); assert(!originalVisible()); equal(JSON.stringify(user.flags), oldFlags);
     equal([...settings.keys()], [`${MODULE_ID}.enabled`]);
   });
-  await test('scene control enables complete HUD and scopes suppression to original shell', async () => {
+  await test('scene control temporarily returns and resumes complete HUD without an activation setting', async () => {
     const controls = { tokens: { tools: {} } };
     await Hooks.emit('getSceneControlButtons', controls);
-    await controls.tokens.tools.bg3VideoHUD.onChange({}, true); await flush();
+    await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
+    assert(!root()); assert(originalVisible());
+    await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
     assert(root()); assert(!originalVisible());
     for (const label of ['装备', '特性', '法术', '生命 9/12', '护甲 15', '契约2环：1/1', '1环：0/2']) assert(root().textContent.includes(label), label);
     for (const label of ['编辑', '原版界面', '附赠动作', '反应', '仅固定', '短休', '长休']) assert(root().textContent.includes(label), label);
-    equal(definitions.get(`${MODULE_ID}.enabled`).name, '启用 BG3 视频界面');
+    equal(definitions.size, 0); equal(settings.get(`${MODULE_ID}.enabled`), false);
     equal([...root().querySelectorAll('[data-group]')].map(section => section.dataset.group), ['Equipment', 'Features', 'Spells']);
     equal(root().querySelector('.bg3-video-hud-summary strong').textContent, hero.name);
   });
@@ -275,7 +278,7 @@ try {
     assert(user.writes.every(w => w.scope === MODULE_ID));
     equal([...settings.keys()], [`${MODULE_ID}.enabled`]);
   });
-  await test('scene tool reads live setting after other controls toggle the HUD', async () => {
+  await test('scene tool reads session state after other controls temporarily return to native', async () => {
     const controls = { tokens: { tools: {} } };
     await Hooks.emit('getSceneControlButtons', controls);
     const tool = controls.tokens.tools.bg3VideoHUD;
@@ -339,40 +342,48 @@ try {
     await enable(); assert(root());
     window.dispatchEvent(new Event('beforeunload')); assert(!root()); assert(originalVisible());
   });
-  await test('a manually enabled module exposes client settings in any world but defaults off', async () => {
+  await test('module activation automatically starts HUD in another world with no client setting', async () => {
     handlers.clear();
     game.world = { id: 'campaign', title: 'Campaign' };
     game.modules.set(MODULE_ID, {});
+    canvas.tokens.controlled = [{ actor: hero }];
     const flags = JSON.stringify(user.flags);
     await import('../scripts/module.js?foreign-world-bootstrap');
     await Hooks.emit('init'); await Hooks.emit('ready');
-    const definition = definitions.get(`${MODULE_ID}.enabled`);
-    assert(definition.config); equal(definition.scope, 'client'); equal(definition.default, false);
-    assert(!root()); assert(originalVisible());
-    equal(game.settings.get(MODULE_ID, 'enabled'), false);
+    equal(definitions.size, 0);
+    assert(root()); assert(!originalVisible());
+    equal(settings.get(`${MODULE_ID}.enabled`), false);
     assert(game.modules.get(MODULE_ID).api);
     equal(JSON.stringify(user.flags), flags);
   });
-  await test('another world requires explicit client opt-in and can return to original HUD without flag writes', async () => {
+  await test('temporary native return survives refresh and token changes; tool resumes without flag writes', async () => {
     const flags = JSON.stringify(user.flags);
-    canvas.tokens.controlled = [{ actor: hero }];
+    await click('disable'); assert(!root()); assert(originalVisible());
+    await Hooks.emit('updateUser', user); await Hooks.emit('controlToken'); assert(!root());
     const controls = { tokens: { tools: {} } };
     await Hooks.emit('getSceneControlButtons', controls);
-    assert(controls.tokens.tools.bg3VideoHUD);
     await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
     assert(root()); assert(!originalVisible());
-    await game.modules.get(MODULE_ID).api.toggle(); await flush();
-    assert(!root()); assert(originalVisible());
     equal(JSON.stringify(user.flags), flags);
   });
-  await test('all-world opt-in preserves Foundry and system version guards', async () => {
+  await test('a fresh GM client automatically starts again after a previous session pause', async () => {
+    await pause(); assert(!root());
+    window.dispatchEvent(new Event('beforeunload'));
+    handlers.clear(); game.modules.set(MODULE_ID, {}); user.isGM = true;
+    await import('../scripts/module.js?fresh-gm-client');
+    await Hooks.emit('init'); await Hooks.emit('ready');
+    assert(root()); equal(game.modules.get(MODULE_ID).api.status().enabled, true);
+    equal(settings.get(`${MODULE_ID}.enabled`), false); equal(definitions.size, 0);
+    user.isGM = false;
+  });
+  await test('automatic activation preserves Foundry and system version guards', async () => {
     const version = game.version, system = { ...game.system };
     for (const unsupported of [{ version: '13.0', system },
       { version, system: { ...system, version: '6.0.5' } },
       { version, system: { ...system, id: 'other' } }]) {
       Object.assign(game, unsupported);
       await enable(); assert(!root()); assert(originalVisible());
-      await game.settings.set(MODULE_ID, 'enabled', false);
+      await pause();
     }
     Object.assign(game, { version, system });
   });
@@ -388,7 +399,7 @@ try {
     assert(notifications.at(-1).includes('OWNER'));
     assert(!JSON.stringify(state).includes(hero.id));
     hero.isOwner = true; await Hooks.emit('controlToken'); assert(root());
-    await game.settings.set(MODULE_ID, 'enabled', false);
+    await pause();
   });
 } catch (error) { failed++; lines.push(`HARNESS FAILURE: ${error.stack ?? error}`); }
 results.textContent = `${lines.join('\n')}\n${passed} passed, ${failed} failed${failed ? `\nFixture notifications: ${JSON.stringify(notifications.slice(-5))}` : ''}`;

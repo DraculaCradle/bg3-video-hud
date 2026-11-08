@@ -7,8 +7,8 @@ Use only the existing ModsTest world and uniquely marked temporary test characte
 ## Installation and first load
 
 - [ ] Build `npm run package`; extract the ZIP with `module.json` directly in `Data/modules/bg3-video-hud/`. Foundry discovers the module and enforces system/dependency requirements.
-- [ ] Enable all required modules. Reload as GM and as an ordinary player. No console errors occur. This module is opt-in and original HUD initially looks unchanged.
-- [ ] Enable the client option or token toolbar toggle. Exactly one HUD appears. Reload with it enabled to check persistence and late upstream rendering. Assign a toggle keybinding and exercise it.
+- [ ] Enable all required modules. Reload as GM and as an ordinary player. No console errors occur. The activated module automatically starts on both clients; old enabled=false does not block it.
+- [ ] Select an owned character Token after module activation; exactly one HUD appears without a client setting. Temporarily return to native, then reload to confirm automatic restoration and late upstream rendering. Assign a toggle keybinding and exercise it.
 - [ ] Disable this module entirely, reload and confirm the public HUD still works. Re-enable and toggle off with **原版界面**. Check an originally hidden/minimized upstream HUD retains its own preference.
 
 ## Actors, permissions and display
@@ -46,7 +46,7 @@ Map-targeting behavior is implemented but not live-certified. Follow the additio
 - [ ] Enter Edit: hide/show items, pin/unpin spells, reorder via drag and both arrow buttons. Hidden and unpinned items stay discoverable there. Save commits the whole draft; Cancel discards every pending visibility/pin/order change. Repeated arrows must follow draft order, not the old saved order. Exiting Edit enables use again. Pinned-only and level filters compose correctly.
 - [ ] Reload/logout/login and switch actors/users: each user's layout persists independently; linked/unlinked token identities behave as documented. Add/delete/rename items without remapping IDs or corrupting order.
 - [ ] Reject cross-actor, foreign UUID, malformed and cross-group drag payloads. None creates or consumes an item.
-- [ ] Snapshot public HUD settings and actor/user flags before edits, rests, token switches, disabling and reloading. Verify layout edits write only this module's User flags and client toggle; only an explicit source-editor Save creates/updates the marked native source feature on the current actor. Original spells, unrelated features, public HUD layouts and other-world settings are unchanged.
+- [ ] Snapshot public HUD settings and actor/user flags before edits, rests, token switches, disabling and reloading. Verify layout edits write only this module's User layout flags; only an explicit source-editor Save creates/updates the marked native source feature on the current actor. Original spells, unrelated features, public HUD layouts and other-world settings are unchanged.
 - [ ] Navigate controls with keyboard only; inspect focus, accessible names, tooltips, arrow-order controls and errors. Resize below 650px and use browser zoom; all groups remain reachable by scrolling and no control is stranded.
 
 ## Added video feature acceptance
@@ -79,6 +79,6 @@ Release sign-off requires all applicable required checkboxes above, with recorde
 
 ## v0.1.6 Player 与点击回归
 
-- GM 和 Player 分别在各自客户端启用 HUD，Player 仅选择 OWNER 角色的 Token；不自动授予或提升权限。先保持 ModsTest 人工验收。
-- 若 Player 未显示，记录黄色／红色提示；如可使用开发者工具，运行 `game.modules.get('bg3-video-hud').api.status()`，只反馈原因码及布尔状态。浏览器阻止粘贴则跳过，不关闭保护。当前现场原因待确认。
+- GM 激活世界内模组后，GM／Player 客户端均自动启用 HUD；Player 仅选择 OWNER 角色的 Token；不自动授予或提升权限。先保持 ModsTest 人工验收。
+- 若 Player 未显示，记录黄色／红色提示；如可使用开发者工具，运行 `game.modules.get('bg3-video-hud').api.status()`，只反馈原因码及布尔状态。浏览器阻止粘贴则跳过，不关闭保护。先前现场原因已由用户确认是旧客户端开关关闭；新版移除此开关。
 - 普通武器进入点选后点击可见 Token：应使用原生攻击流程，当前受控 Token 保持操作者；取消不消耗。随后普通地图点击应恢复选择功能。

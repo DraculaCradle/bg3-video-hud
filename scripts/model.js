@@ -56,16 +56,17 @@ export function autoColumnWidths(counts, { width, cell, gap = 0, frame = [0, 0, 
     throw new Error('Invalid automatic column geometry');
   }
   const load = GROUPS.map((_, i) => Number.isFinite(counts?.[i]) ? Math.max(0, Math.floor(counts[i])) : 0);
-  const columns = GROUPS.map(() => 1);
-  const demand = load.map(count => Math.max(1, Math.ceil(count / rows)));
+  const columns = load.map(count => count >= 3 ? 2 : 1);
+  const minimum = columns.reduce((sum, count) => sum + count, 0);
+  const demand = load.map((count, i) => Math.max(columns[i], Math.ceil(count / rows)));
   const room = Math.max(0, width - gap * (n - 1));
   const budget = Math.floor((room - frame.reduce((a, b) => a + b, 0) + n * gap) / (cell + gap));
-  if (budget < n) {
-    const widths = GROUPS.map(() => room / n);
+  if (budget < minimum) {
+    const widths = columns.map(count => room * count / minimum);
     return { columns, widths, used: widths.reduce((a, b) => a + b, 0) + gap * (n - 1) };
   }
   const limit = Math.min(budget, demand.reduce((a, b) => a + b, 0), 10000);
-  for (let allocated = n; allocated < limit; allocated++) {
+  for (let allocated = minimum; allocated < limit; allocated++) {
     let best = -1;
     for (let i = 0; i < n; i++) {
       if (columns[i] >= demand[i]) continue;

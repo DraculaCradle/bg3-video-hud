@@ -66,6 +66,17 @@ test('automatic widths reserve full icon columns and give the crowded category m
   for (let i = 0; i < 4; i++) assert.ok(spells.widths[i] >= 20 + spells.columns[i] * 50 + (spells.columns[i] - 1) * 6);
 });
 
+test('three or more items reserve at least two columns even beside a much larger category or in a narrow budget', () => {
+  const options = { width: 1000, cell: 50, gap: 6, frame: [20, 20, 20, 20] };
+  for (const width of [1000, 300]) {
+    const plan = autoColumnWidths([3, 4, 3, 500], { ...options, width });
+    assert.ok(plan.columns.every(count => count >= 2));
+    assert.ok(Math.abs(plan.used - width) < 1e-8);
+  }
+  const small = autoColumnWidths([0, 1, 2, 3], options);
+  assert.deepEqual(small.columns.slice(0, 3), [1, 1, 1]); assert.ok(small.columns[3] >= 2);
+});
+
 test('automatic layout keeps its full width for sparse, empty or crowded actors and rejects invalid geometry', () => {
   const options = { width: 1000, cell: 50, gap: 6, frame: [20, 20, 20, 20] };
   const counts = [0, 1, 2, 1], before = [...counts];

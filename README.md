@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.12：保持 HUD 总宽度。** 同一视口和侧栏条件下，角色能力数量只影响四栏内部分配，总数少或为空也不缩小整体，允许保留空位。保留正方形图标、底部名称、主动筛选与 GM 空闲无提示。自动部署和自动实机测试继续关闭。
+> **v0.1.12：保持 HUD 总宽度。** 同一视口和侧栏条件下，角色能力数量只影响四栏内部分配；数量≥3的分类自动保留至少两列，总数少或为空也不缩小整体，允许保留空位。保留正方形图标、底部名称、主动筛选与 GM 空闲无提示。自动部署和自动实机测试继续关闭。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Not yet verified in a running Foundry VTT v14 / D&D5e 6.0.6 world. Manifest compatibility declares the intended target, not a completed in-game certification.
 

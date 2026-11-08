@@ -90,6 +90,29 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(user.writes.length, writes); equal(JSON.stringify(user.flags), flags);
       } finally { hud.setActor(hero, token); }
     });
+    await test('three-item groups keep two actual square icon columns with many spells and a narrow sidebar budget', async () => {
+      const entries = [
+        ...Array.from({ length: 3 }, (_, i) => item(`w-${i}`, 'weapon')),
+        ...Array.from({ length: 3 }, (_, i) => item(`i-${i}`, 'consumable', { activation: { type: 'action' } })),
+        ...Array.from({ length: 3 }, (_, i) => item(`f-${i}`, 'feat')),
+        ...Array.from({ length: 100 }, (_, i) => item(`s-${i}`, 'spell'))];
+      const sidebar = document.createElement('aside'); sidebar.id = 'sidebar';
+      sidebar.style.cssText = `position:fixed;right:0;top:0;bottom:0;width:${innerWidth * .4}px`;
+      try {
+        hud.setActor(actor('minimum-cols', entries));
+        for (const narrow of [false, true]) {
+          if (narrow) document.body.append(sidebar);
+          hud.render();
+          for (const list of hud.root.querySelectorAll('.bg3-video-hud-items')) {
+            const cards = [...list.querySelectorAll('.bg3-video-hud-use')];
+            const first = cards[0].getBoundingClientRect(), second = cards[1].getBoundingClientRect();
+            assert(Math.abs(first.top - second.top) < 1, 'First two icons must share a row');
+            assert(second.left > first.right && second.right <= list.getBoundingClientRect().right + 1);
+            assert(Math.abs(first.width - first.height) < .6);
+          }
+        }
+      } finally { sidebar.remove(); hud.setActor(hero, token); }
+    });
     await test('reference structure separates portrait, four framed decks and circular native action controls', async () => {
       assert(hud.root.querySelector('.bg3-video-hud-end .bg3-video-hud-turn'));
       equal(hud.root.querySelectorAll('.bg3-video-hud-panel').length, 4);

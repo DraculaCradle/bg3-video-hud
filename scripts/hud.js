@@ -410,6 +410,14 @@ export class VideoHUD {
       const plan = autoColumnWidths(this.columnCounts, { width: available - panelGap * 3 + gap * 3, cell, gap, frame, rows });
       if (root.dataset.columnSizing !== 'manual') {
         root.style.setProperty('--video-columns', plan.widths.map(width => `${width}px`).join(' '));
+        // Preserve two real grid columns for groups with >=3 items, even when
+        // a narrow sidebar budget requires smaller (still square) local tiles.
+        const sections = [...panels.querySelectorAll('.bg3-video-hud-panel')];
+        sections.forEach((section, i) => {
+          const minimum = this.columnCounts[i] >= 3 ? 2 : 1;
+          const fit = (plan.widths[i] - frame[i] - (minimum - 1) * gap) / minimum;
+          section.style.setProperty('--video-cell', `${Math.min(cell, Math.max(1, fit))}px`);
+        });
       }
     }
     const bounds = panels.getBoundingClientRect();

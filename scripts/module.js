@@ -26,7 +26,7 @@ function status() {
   const enabled = sessionEnabled;
   const ready = canvasReady && globalThis.canvas?.ready === true;
   const reason = !enabled ? 'disabled' : !compatible() ? 'incompatible'
-    : !ready ? 'canvas-not-ready' : tokens.length && !owned.length ? 'selected-not-owned'
+    : !ready ? 'canvas-not-ready' : game.user.isGM && !tokens.length && !assignedOwner ? 'gm-idle' : tokens.length && !owned.length ? 'selected-not-owned'
     : !owned.length && !assignedOwner ? 'no-owned-character' : renderFailed ? 'render-error' : 'ready';
   return { version: game.modules.get(MODULE_ID)?.version, enabled, compatible: compatible(),
     canvasReady: ready, controlled: tokens.length, owned: owned.length, assignedOwner,
@@ -48,7 +48,7 @@ function refresh() {
     const tokens = values(globalThis.canvas?.tokens?.controlled);
     const actor = selectActor(tokens, game.user, canvasReady);
     const token = tokens.find(t => t.actor === actor) ?? null;
-    if (!actor && canvasReady) {
+    if (!actor && canvasReady && !(game.user.isGM && !tokens.length)) {
       const reason = tokens.length ? 'selected-not-owned' : 'no-owned-character';
       if (selectionWarning !== reason) {
         selectionWarning = reason;
@@ -56,7 +56,7 @@ function refresh() {
           ? 'BG3 视频界面：所选 Token 没有关联可操作的角色，或当前账号没有该角色的 OWNER（所有者）权限。请由 GM 核实角色权限。'
           : 'BG3 视频界面：请先选择拥有 OWNER（所有者）权限的角色 Token，或让 GM 为当前玩家分配角色。');
       }
-    } else if (actor) selectionWarning = null;
+    } else if (actor || !tokens.length) selectionWarning = null;
     hud.setActor(actor, token);
     renderFailed = false;
   } catch (error) {

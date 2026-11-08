@@ -18,7 +18,10 @@ export function measureHUD() {
     dpr: window.devicePixelRatio,
     lists: [...root.querySelectorAll('.bg3-video-hud-items')].map(list => {
       const box = list.getBoundingClientRect(), first = list.querySelector('button')?.getBoundingClientRect();
-      return { height: box.height, left: box.left, right: box.right,
+      const style = getComputedStyle(list), columns = style.gridTemplateColumns.split(' ').map(parseFloat).filter(Number.isFinite);
+      const tail = list.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0)
+        - columns.reduce((sum, n) => sum + n, 0) - Math.max(0, columns.length - 1) * (parseFloat(style.columnGap) || 0);
+      return { height: box.height, left: box.left, right: box.right, tail,
         twoRowsFit: list.clientHeight + 1 >= (first?.height ?? Math.min(list.clientWidth, cell.height)) * 2 + parseFloat(getComputedStyle(list).rowGap),
         square: [...list.querySelectorAll('.bg3-video-hud-use')].every(button => {
           const r = button.getBoundingClientRect(); return Math.abs(r.width - r.height) < 0.6;

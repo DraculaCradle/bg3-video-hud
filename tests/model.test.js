@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { actor, item } from './fixtures.js';
 import { activationTypes, actorStats, canUseActor, groupFor, itemsFor, normalizeLayout,
-  reorder, selectActor, slotPools, spellLevels, toggleId, usesLabel } from '../scripts/model.js';
+  reorder, selectActor, slotPools, spellLevels, toggleId, usesLabel, autoColumnWidths } from '../scripts/model.js';
 
 test('four combat groups separate weapons and active items; passive inventory never enters editing', () => {
   const items = [item('blade', 'weapon'), item('armor', 'equipment'), item('bag', 'container'),
@@ -53,6 +53,39 @@ test('native free actions, reactions, linked spells and depleted active items re
   const cpr = item('cpr', 'feat', { activities: [{ id: 'helper', ...active('action') }] },
     { flags: { 'chris-premades': { hiddenActivities: ['helperKey'], activityIdentifiers: { helperKey: 'helper' } } } });
   assert.equal(groupFor(cpr), null);
+});
+
+test('automatic widths reserve full icon columns and give the crowded category most space', () => {
+  const geometry = { width: 1150, cell: 50, gap: 6, frame: [20, 20, 20, 20], rows: 2 };
+  const spells = autoColumnWidths([4, 4, 4, 40], geometry);
+  assert.deepEqual(spells.columns.slice(0, 3), [2, 2, 2]);
+  assert.ok(spells.widths[3] > spells.widths[0] * 2);
+  const items = autoColumnWidths([4, 40, 4, 4], geometry);
+  assert.equal(items.widths[1], spells.widths[3]); assert.equal(items.widths[3], spells.widths[1]);
+  assert.ok(spells.used <= geometry.width && geometry.width - spells.used < 56);
+  for (let i = 0; i < 4; i++) assert.equal(spells.widths[i], 20 + spells.columns[i] * 50 + (spells.columns[i] - 1) * 6);
+});
+
+test('automatic layout shrinks sparse content, handles empty/narrow groups and rejects invalid geometry', () => {
+  const options = { width: 1000, cell: 50, gap: 6, frame: [20, 20, 20, 20] };
+  const counts = [0, 1, 2, 1], before = [...counts];
+  const sparse = autoColumnWidths(counts, options);
+  assert.deepEqual(sparse.columns, [1, 1, 1, 1]); assert.ok(sparse.used < 400);
+  assert.deepEqual(counts, before);
+  const narrow = autoColumnWidths([0, 100, 2, 30], { ...options, width: 100 });
+  assert.ok(narrow.widths.every(w => w > 0)); assert.ok(narrow.used <= 100);
+  assert.deepEqual(autoColumnWidths([NaN, -1, Infinity, null], options).columns, [1, 1, 1, 1]);
+  assert.throws(() => autoColumnWidths(counts, { ...options, cell: 0 }));
+});
+
+test('only explicit new manual sizing overrides automatic layout; legacy ratios and unrelated preferences survive reads', () => {
+  const legacy = { ratios: [2, 3, 5], hidden: ['a'], order: ['b', 'a'] };
+  const before = structuredClone(legacy), prefs = normalizeLayout(legacy);
+  assert.deepEqual(prefs.ratios, [1, 1, 3, 5]); assert.equal(prefs.columnSizing, undefined);
+  assert.deepEqual(normalizeLayout({ ...legacy, columnSizing: 'manual' }).ratios, [1, 1, 3, 5]);
+  assert.equal(normalizeLayout({ ...legacy, columnSizing: 'manual' }).columnSizing, 'manual');
+  assert.equal(normalizeLayout({ columnSizing: 'manual', ratios: [0, 0] }).columnSizing, undefined);
+  assert.deepEqual(legacy, before);
 });
 
 test('custom order wins over system sort and does not mutate actor items', () => {

@@ -57,7 +57,7 @@ Node tests exercise real module logic with small document doubles. Chromium test
 
 PIXI/Foundry 的画布事件可能先在 document 捕获阶段处理；在 `#board` 上捕获已太迟。本 HUD 在 window 捕获，仅拦截地图及正在拖动的指针，不拦截弹窗或侧栏。完成时立即解除 pointer 监听，只将同次兼容鼠标点击的拦截保留到下个任务；取消、场景切换、销毁会清理监听。最终仍通过原生活动使用／掷骰，不控制敌方 Token，也不改角色权限。
 
-`game.modules.get('bg3-video-hud').api.status()` 只读返回 enabled、compatible、canvasReady、controlled/owned 数量、assignedOwner、hudVisible、version、reason。原因码为 disabled / incompatible / canvas-not-ready / selected-not-owned / no-owned-character / render-error / ready，不包含角色或账号名称、ID、凭据。ready 表示选择门槛满足，hudVisible 单独反映挂载；不表示武器攻击或实机验收通过。
+`game.modules.get('bg3-video-hud').api.status()` 只读返回 enabled、compatible、canvasReady、controlled/owned 数量、assignedOwner、hudVisible、version、reason。原因码为 disabled / incompatible / canvas-not-ready / gm-idle / selected-not-owned / no-owned-character / render-error / ready，不包含角色或账号名称、ID、凭据。ready 表示选择门槛满足，hudVisible 单独反映挂载；不表示武器攻击或实机验收通过。
 
 ## v0.1.7 自动启用
 
@@ -70,3 +70,11 @@ PIXI/Foundry 的画布事件可能先在 document 捕获阶段处理；在 `#boa
 分组为 Weapons / Items / Features / Spells。groupFor 对物品／特性要求主动活动；支持原生 action、bonus、reaction 系列、none（无动作消耗）、special、较长施用时间、传奇等类型，attack/cast 活动也属于主动。现代活动存在时不使用旧 activation 字段兜底；不以名称、剩余次数或是否装备猜测。没有活动时可识别旧 activation 数据。空激活／被动记录、原生隐藏活动、CPR hiddenActivities 和 automationOnly 均不能令条目变为可见；弹药始终排除。法术列表保持原规则。
 
 原生 D&D5e 6.0.6 的 abilityActivationTypes 明确将 none 定义为无动作消耗，与空类型不同；Item.canUse / Activity.canUse 主要涉及隐藏／可用性，不以耗尽次数作为分组条件。耗尽仍由原生使用流程裁定。筛选不修改角色文档和被动效果；保存布局只作用于当前用户。
+
+## v0.1.11 数量分配与 GM 空闲
+
+`autoColumnWidths` 是按项目数量和几何预算分配整列的纯函数；先给每栏一列，然后把额外列给未达到容量、每列承载数量最多的一栏。列数受宽度预算与每栏条目数／可见行数约束，预留边框、内距及滚动条。搜索、action 和 spell level 筛选不参与计数，避免输入和焦点位置跳动。渲染前完成宽度计算，再恢复滚动与焦点；相同几何的 ResizeObserver 回调不重复放大测量，防止中间布局夹断滚动位置。
+
+新 User 布局叶 `columnSizing: manual` 仅由明确拖动／键盘调整写入，搭配 ratios 使用；没有此标记（含旧 ratios）默认自动，不主动迁移旧数据。Home／双击恢复自动时仅移除此用户、此角色的 sizing 与 ratios，保留隐藏、顺序等字段。自动计算不写文档。
+
+GM 没有受控 Token 且未分配角色时，HUD 安静清理，原界面恢复，status.reason=gm-idle；不弹 OWNER 警告，也不要求 GM 分配角色。玩家权限检查与实际选中无角色 Token 的检查保持。

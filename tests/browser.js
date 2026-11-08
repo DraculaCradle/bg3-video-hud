@@ -97,10 +97,10 @@ try {
     assert(!root()); assert(originalVisible());
     await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
     assert(root()); assert(!originalVisible());
-    for (const label of ['装备', '特性', '法术', '生命 9/12', '护甲 15', '契约2环：1/1', '1环：0/2']) assert(root().textContent.includes(label), label);
+    for (const label of ['武器', '物品', '特性', '法术', '生命 9/12', '护甲 15', '契约2环：1/1', '1环：0/2']) assert(root().textContent.includes(label), label);
     for (const label of ['编辑', '原版界面', '附赠动作', '反应', '仅固定', '短休', '长休']) assert(root().textContent.includes(label), label);
     equal(definitions.size, 0); equal(settings.get(`${MODULE_ID}.enabled`), false);
-    equal([...root().querySelectorAll('[data-group]')].map(section => section.dataset.group), ['Equipment', 'Features', 'Spells']);
+    equal([...root().querySelectorAll('[data-group]')].map(section => section.dataset.group), ['Weapons', 'Items', 'Features', 'Spells']);
     equal(root().querySelector('.bg3-video-hud-summary strong').textContent, hero.name);
   });
   await test('standalone HUD needs no BG3 shell; optional HUDs may be disabled or present without writes', async () => {
@@ -294,7 +294,7 @@ try {
   // The Node runner now drives actual viewport changes and keyboard events.
   await enable();
   const crowded = actor('crowded', Array.from({ length: 180 }, (_, i) => item(`crowded-${i}`,
-    i < 60 ? 'weapon' : i < 120 ? 'feat' : 'spell', { level: i % 10 },
+    i < 45 ? 'weapon' : i < 90 ? 'consumable' : i < 135 ? 'feat' : 'spell', { level: i % 10, activation: { type: 'action' } },
     { name: `超长名称 Long equipment, feature or spell ${i}` })), {
     name: '林间游侠（示例角色） Example Ranger — a very long character name',
     system: { attributes: { hp: { value: 12, max: 12 }, ac: { value: 14 } },

@@ -4,11 +4,14 @@ import { actor, item } from './fixtures.js';
 import { activationTypes, actorStats, canUseActor, groupFor, itemsFor, normalizeLayout,
   reorder, selectActor, slotPools, spellLevels, toggleId, usesLabel } from '../scripts/model.js';
 
-test('taxonomy includes all owned equipment, features and spells with stable IDs', () => {
-  const items = [item('blade', 'weapon'), item('armor', 'equipment'), item('bag', 'container'), item('feat'), item('light', 'spell')];
+test('four combat groups separate weapons and active items; passive inventory never enters editing', () => {
+  const items = [item('blade', 'weapon'), item('armor', 'equipment'), item('bag', 'container'),
+    item('potion', 'consumable', { activities: [{ type: 'heal', activation: { type: 'action' } }] }),
+    item('feat'), item('light', 'spell')];
   const hero = actor('a', items);
-  assert.deepEqual(items.map(groupFor), ['Equipment', 'Equipment', 'Equipment', 'Features', 'Spells']);
-  assert.deepEqual(new Set(itemsFor(hero, {}).map(i => i.id)), new Set(items.map(i => i.id)));
+  assert.deepEqual(items.map(groupFor), ['Weapons', null, null, 'Items', 'Features', 'Spells']);
+  for (const edit of [false, true]) assert.deepEqual(new Set(itemsFor(hero, {}, { edit }).map(i => i.id)),
+    new Set(['blade', 'potion', 'feat', 'light']));
   assert.equal(itemsFor(actor('a', [item(null)]), {}).length, 0);
 });
 
@@ -25,15 +28,31 @@ test('character records never enter combat groups or edit mode, including pinned
   assert.deepEqual({ items: [...hero.items.values()], prefs }, before);
 });
 
-test('racial and background granted feats stay visible along with ordinary inventory, regardless of names', () => {
-  const gear = ['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container'].map(type => item(type, type));
+test('only active granted feats remain visible and filtering never guesses from translated names', () => {
   const feats = [item('racial-action', 'feat', { activation: { type: 'action' } }, { name: '精灵' }),
-    item('background-passive', 'feat', {}, { name: '农民' })];
-  const hero = actor('a', [...gear, ...feats, item('background', 'background', {}, { name: '农民' })]);
-  assert.deepEqual(gear.map(groupFor), gear.map(() => 'Equipment'));
-  assert.deepEqual(feats.map(groupFor), ['Features', 'Features']);
-  assert.deepEqual(new Set(itemsFor(hero, {}).map(i => i.id)), new Set([...gear, ...feats].map(i => i.id)));
-  assert.deepEqual(itemsFor(hero, {}, { action: 'action' }).map(i => i.id), ['racial-action']);
+    item('background-passive', 'feat', { activation: { type: '' } }, { name: '农民' })];
+  const hero = actor('a', [...feats, item('background', 'background', {}, { name: '农民' })]);
+  assert.deepEqual(feats.map(groupFor), ['Features', null]);
+  assert.deepEqual(itemsFor(hero, {}).map(i => i.id), ['racial-action']);
+});
+
+test('native free actions, reactions, linked spells and depleted active items remain while ammo and helpers are excluded', () => {
+  const active = type => ({ activation: { type } });
+  for (const type of ['action', 'bonus', 'reactiondamage', 'none', 'special', 'minute', 'legendary']) {
+    assert.equal(groupFor(item(type, 'feat', { activities: [active(type)] })), 'Features');
+  }
+  const raw = [item('shield', 'equipment'), item('gem', 'loot'), item('paper', 'loot'),
+    item('passive', 'feat', { activities: [active('')] }),
+    item('ammo', 'consumable', { type: { value: 'ammo' }, activities: [active('action')] }),
+    item('auto', 'feat', { activities: [{ ...active('action'), midiProperties: { automationOnly: true } }] }),
+    item('hidden', 'feat', { activities: [{ ...active('action'), isHidden: true }] })];
+  assert.deepEqual(raw.map(groupFor), raw.map(() => null));
+  assert.equal(groupFor(item('scroll', 'consumable', { activities: [{ type: 'cast' }] })), 'Items');
+  assert.equal(groupFor(item('charged', 'equipment', { activities: [active('action')], uses: { max: 1, spent: 1 } })), 'Items');
+  assert.equal(groupFor(item('mixed', 'feat', { activities: [active(''), active('bonus')] })), 'Features');
+  const cpr = item('cpr', 'feat', { activities: [{ id: 'helper', ...active('action') }] },
+    { flags: { 'chris-premades': { hiddenActivities: ['helperKey'], activityIdentifiers: { helperKey: 'helper' } } } });
+  assert.equal(groupFor(cpr), null);
 });
 
 test('custom order wins over system sort and does not mutate actor items', () => {
@@ -56,7 +75,7 @@ test('action filters recognize all activities, not only the first', () => {
     ['a', { activation: { type: 'action' } }], ['b', { activation: { type: 'reaction' } }]
   ]) });
   assert.deepEqual(activationTypes(versatile), ['action', 'reaction']);
-  assert.deepEqual(itemsFor(actor('a', [versatile, item('passive')]), {}, { action: 'reaction' }).map(i => i.id), ['versatile']);
+  assert.deepEqual(itemsFor(actor('a', [versatile, item('passive', 'feat', { activation: { type: '' } })]), {}, { action: 'reaction' }).map(i => i.id), ['versatile']);
 });
 
 test('reorder handles missing IDs, deduplicates and moves relative to target', () => {

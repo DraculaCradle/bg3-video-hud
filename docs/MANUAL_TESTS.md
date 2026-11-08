@@ -41,7 +41,7 @@ Map-targeting behavior is implemented but not live-certified. Follow the additio
 - [ ] On actual displays, test browser zoom 100%/125%/150%/200%, OS scaling and moving between monitors. Record CSS viewport, DPR and observed results separately. Automated effective-viewport/DPR emulation does not certify these physical configurations. In particular, verify 640×360 effective CSS space still allows editing, sorting and returning to the original HUD, and a focused high-level spell remains visible after zoom/resize.
 - [ ] With many equipment items, features and spells, wheel-scroll each group to its last item. Updates from another client should preserve each group's scroll position; switching actors should start at the top. Check full bilingual names in hover hints, keyboard accessible names, missing images and use-count badges.
 - [ ] Verify spell levels through level 9, pact/regular slot summaries and Edit controls remain reachable without increasing the dock height. Explicit editing may require scrolling; no item should be usable while editing.
-- [ ] All owned items appear in Equipment/Features/Spells with stable IDs even when names collide. Levels 0–highest and separate regular/pact slot counts match the character sheet, including depleted pools.
+- [ ] Supported weapons, active items/features and spells appear in Weapons/Items/Features/Spells with stable IDs even when names collide. Passive inventory/features are excluded in normal and edit views. Levels 0–highest and separate regular/pact slot counts match the character sheet, including depleted pools.
 - [ ] Action/Bonus Action/Reaction filter activities, including multi-activity items. Observed-use counts update from native uses and reset with combat position, without enforcing invented remaining actions. Filters reset on actor change.
 - [ ] Enter Edit: hide/show items, pin/unpin spells, reorder via drag and both arrow buttons. Hidden and unpinned items stay discoverable there. Save commits the whole draft; Cancel discards every pending visibility/pin/order change. Repeated arrows must follow draft order, not the old saved order. Exiting Edit enables use again. Pinned-only and level filters compose correctly.
 - [ ] Reload/logout/login and switch actors/users: each user's layout persists independently; linked/unlinked token identities behave as documented. Add/delete/rename items without remapping IDs or corrupting order.
@@ -69,7 +69,7 @@ Release sign-off requires all applicable required checkboxes above, with recorde
 ## v0.1.4 优先人工验收
 
 1. 普通近战／远程武器点击后出现地图选目标提示，未点目标前没有聊天卡或消耗；点空地不使用，Esc／右键取消；点有效目标只进入一次原生流程。另测多活动武器的单／双手选择。
-2. 对照原作者：独立圆形头像及 AC／血条、三块金边技能栏、上方资源条、右侧圆形按钮；720P 与 4K、侧栏开关、浏览器缩放下可达。拖动分栏／方向键微调、Esc 撤销、Home 重置，重新载入后比例保留。
+2. 对照原作者：独立圆形头像及 AC／血条、四块金边技能栏、上方资源条、右侧圆形按钮；720P 与 4K、侧栏开关、浏览器缩放下可达。拖动分栏／方向键微调、Esc 撤销、Home 重置，重新载入后比例保留。
 3. 分组编辑在弹窗完成，保存与取消分开；施法环阶／来源卡片、删除来源二次确认不挤入 HUD。
 4. 本人当前回合可结束且连点不连跳；切其他 Token 不可结束；短休／长休保留系统确认。
 5. SRD 魔法飞弹在不启用额外战斗自动化的测试组合中：三枚／升环多枚目标分配、原生伤害卡和一次消费。启用 Midi-QOL／CPR 的组合单独验证其原生分配，不能把 mock 测试当认证。
@@ -83,7 +83,13 @@ Release sign-off requires all applicable required checkboxes above, with recorde
 - 若 Player 未显示，记录黄色／红色提示；如可使用开发者工具，运行 `game.modules.get('bg3-video-hud').api.status()`，只反馈原因码及布尔状态。浏览器阻止粘贴则跳过，不关闭保护。先前现场原因已由用户确认是旧客户端开关关闭；新版移除此开关。
 - 普通武器进入点选后点击可见 Token：应使用原生攻击流程，当前受控 Token 保持操作者；取消不消耗。随后普通地图点击应恢复选择功能。
 
-## v0.1.8 战斗分类
+## v0.1.8 战斗分类（历史；被动项目显示规则由 v0.1.9 替代）
 
 - 选择包含职业、子职业、背景、种族与独立种族／职业 feat 的角色。资料条目不出现在装备、特性、法术栏或编辑器；独立 feat、武器、防具、药水、工具、容器及杂物仍可显示。
 - 进入分组／全部编辑，计数和批量显示只针对上述支持项目。恢复自动显示或旧排序不能把背景等资料带回；角色卡上的职业、背景、等级、授予特性和原有数据保持不变。
+
+## v0.1.9 四栏与主动项目
+
+- 武器、物品、特性、法术分别显示且独立搜索／滚动／编辑，三个分隔条均支持键盘。旧三栏布局读取后转换，重置为 2:2:3:5；旧隐藏／排序仍按稳定 ID 生效。
+- 普通铠甲、盾牌、弹药、宝石、羊皮纸和被动 feat 不显示。药水、主动魔法物品、可施放卷轴、反应及无动作消耗能力保留。测试带多个活动、CPR 隐藏活动以及剩余次数为零的主动能力，避免漏显或让自动化助手冒充主动能力。
+- 验证被动效果仍影响角色卡统计，过滤只是 HUD 视图，不修改或删除项目。低分辨率、浏览器缩放、空物品栏和独立弹窗保持可用。

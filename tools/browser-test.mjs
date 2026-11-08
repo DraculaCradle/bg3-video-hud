@@ -104,7 +104,7 @@ try {
         assert.ok(layout.left >= -1 && layout.right <= width + 1 && layout.top >= 0 && layout.bottom <= height, JSON.stringify(layout));
         assert.ok(layout.scrollWidth <= layout.clientWidth + 1, 'HUD overflows horizontally');
         assert.ok(layout.controlsFit, 'Edit, Original HUD and rests must stay within the dock');
-        assert.equal(layout.lists.length, 3);
+        assert.equal(layout.lists.length, 4);
         assert.ok(layout.lists.every(list => list.height > 0 && list.firstFits && list.left >= layout.left && list.right <= layout.right), JSON.stringify(layout));
         assert.ok(layout.height <= Math.max(145, height * .4), 'Dock leaves useful map height even in short zoomed viewports');
         assert.equal(layout.dpr, deviceScaleFactor);
@@ -185,7 +185,7 @@ try {
     });
     mkdirSync('e2e/results', { recursive: true });
     writeFileSync('e2e/results/layout-metrics.json', JSON.stringify({ scope: 'Synthetic viewport/DPR emulation; not real hardware or Foundry acceptance', measurements }, null, 2) + '\n');
-    await test('crowded 720P dock keeps fixed height and all three groups reachable by real wheel scrolling', async () => {
+    await test('crowded 720P dock keeps fixed height and all four groups reachable by real wheel scrolling', async () => {
       await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false }, sessionId);
       await evaluate('window.bg3LayoutTest.crowded()');
       await evaluate('document.querySelector("#bg3-video-hud .bg3-video-hud-items li:first-child button").focus()');
@@ -386,6 +386,18 @@ try {
       const cancelled = await snapshot(); assert.equal(cancelled.writes, dragged.writes);
       assert.ok(cancelled.widths.every((n,i) => Math.abs(n - dragged.widths[i]) < 1));
       await evaluate('document.querySelector("[data-divider]").focus()'); await press('Home', 'Home', 36);
+    });
+    await test('third divider resizes features and spells without changing weapon or item widths', async () => {
+      await setViewport({ width: 1280, height: 720 });
+      await evaluate('window.bg3LayoutTest.enable(); window.bg3LayoutTest.crowded()');
+      const widths = () => evaluate(`[...document.querySelectorAll('#bg3-video-hud .bg3-video-hud-panel')].map(el => el.getBoundingClientRect().width)`);
+      const before = await widths();
+      await evaluate(`document.querySelector('[data-divider="2"]').focus()`);
+      await press('ArrowRight', 'ArrowRight', 39);
+      const after = await widths();
+      assert.ok(Math.abs(after[0] - before[0]) < 1 && Math.abs(after[1] - before[1]) < 1);
+      assert.ok(after[2] > before[2] && after[3] < before[3]);
+      await press('Home', 'Home', 36);
     });
     await test('sidebar geometry changes reserve actual width and reopening restores a bounded dock', async () => {
       await evaluate(`(() => { const sidebar = document.createElement('aside'); sidebar.id='sidebar'; sidebar.style.cssText='position:fixed;right:0;top:0;width:280px;height:100vh'; document.body.append(sidebar); })()`);

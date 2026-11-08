@@ -4,11 +4,11 @@ import { actor, item, userWithFlags } from './fixtures.js';
 
 // Original synthetic art/data only. No player documents or private reference assets.
 const icon = (symbol, color) => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><defs><radialGradient id="g"><stop stop-color="${color}"/><stop offset="1" stop-color="#101820"/></radialGradient></defs><rect width="64" height="64" fill="url(#g)"/><text x="32" y="44" text-anchor="middle" font-size="40" fill="#eee1bd">${symbol}</text></svg>`);
-const equipment = ['短剑 Shortsword', '长弓 Longbow', '匕首 Dagger', '火把 Torch', '药水 Potion', '背包 Backpack', '绳索 Rope', '工具 Tools', '皮甲 Leather Armor', '护符 Amulet', '补给 Rations', '钥匙 Key'];
-const features = ['宿敌 Favored Enemy', '自然探索者 Natural Explorer', '战斗风格 Fighting Style', '精灵血统 Fey Ancestry', '感知 Perception', '潜行 Stealth', '追踪 Tracking', '疾跑 Dash'];
+const equipment = ['短剑 Shortsword', '长弓 Longbow', '匕首 Dagger', '火把 Torch', '药水 Potion', '治疗药水 Healing Potion', '法术卷轴 Scroll', '炼金火 Alchemist Fire', '投掷炸弹 Bomb', '魔法护符 Amulet', '急救包 Healer Kit', '魔杖 Wand'];
+const features = ['疾跑 Dash', '撤离 Disengage', '躲藏 Hide', '第二风 Second Wind', '法术恢复 Arcane Recovery', '急救 Stabilize', '野性形态 Wild Shape', '宿敌标记 Favored Foe'];
 const spells = ['光亮术 Light', '魔法伎俩 Prestidigitation', '治疗伤口 Cure Wounds', '猎人印记 Hunter’s Mark', '侦测魔法 Detect Magic', '荆棘之雨 Hail of Thorns', '动物交谈 Speak with Animals', '神莓术 Goodberry', '跳跃术 Jump', '迷雾术 Fog Cloud'];
 const all = [
-  ...equipment.map((name, i) => item(`gear-${i}`, 'weapon', { activities: [{ activation: { type: 'action' } }] }, { name, img: icon(['⚔', '➶', '†', '♟'][i % 4], '#8e7044') })),
+  ...equipment.map((name, i) => item(`gear-${i}`, i < 3 ? 'weapon' : 'consumable', { activities: [{ activation: { type: 'action' } }] }, { name, img: icon(['⚔', '➶', '†', '♟'][i % 4], '#8e7044') })),
   ...features.map((name, i) => item(`feature-${i}`, 'feat', { activities: [{ activation: { type: i % 2 ? 'bonus' : 'action' } }] }, { name, img: icon(['❖', '✦', '◈', '✧'][i % 4], '#4a7957') })),
   ...spells.map((name, i) => item(`spell-${i}`, 'spell', { level: i < 2 ? 0 : 1, activities: [{ activation: { type: 'action' } }] }, { name, img: icon(['✺', '✹', '✚', '✧'][i % 4], '#6b5296') }))
 ];

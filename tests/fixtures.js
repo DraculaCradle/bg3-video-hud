@@ -1,5 +1,5 @@
 export function item(id, type = 'feat', system = {}, extra = {}) {
-  return { id, name: id, type, system, sort: 0, ...extra };
+  return { id, name: id, type, system: type === 'feat' && !Object.hasOwn(system, 'activities') && !Object.hasOwn(system, 'activation') ? { activation: { type: 'action' }, ...system } : system, sort: 0, ...extra };
 }
 
 export function actor(id = 'hero', items = [], extra = {}) {

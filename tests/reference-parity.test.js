@@ -39,13 +39,14 @@ test('blank-type weapon waits for map selection before native use; cancellation 
 });
 
 test('column resizing retains unaffected column, positive minimum and user layout data', () => {
-  const base = [200, 300, 500];
-  assert.deepEqual(resizeColumns(base, 0, 50), [250, 250, 500]);
-  assert.deepEqual(resizeColumns(base, 1, -10000), [200, 56, 744]);
-  assert.deepEqual(resizeColumns([30, 30, 40], 0, 999), [40, 20, 40]);
-  assert.deepEqual(base, [200, 300, 500]);
+  const base = [200, 200, 300, 500];
+  assert.deepEqual(resizeColumns(base, 0, 50), [250, 150, 300, 500]);
+  assert.deepEqual(resizeColumns(base, 1, -10000), [200, 56, 444, 500]);
+  assert.deepEqual(resizeColumns([30, 30, 40, 40], 0, 999), [40, 20, 40, 40]);
+  assert.deepEqual(resizeColumns(base, 2, 20), [200, 200, 320, 480]);
+  assert.deepEqual(base, [200, 200, 300, 500]);
   const prefs = normalizeLayout({ hidden: ['secret'], ratios: [2, 3, 5] });
-  assert.deepEqual(prefs.ratios, [2, 3, 5]); assert.deepEqual(prefs.hidden, ['secret']);
+  assert.deepEqual(prefs.ratios, [1, 1, 3, 5]); assert.deepEqual(prefs.hidden, ['secret']);
   for (const ratios of [null, [0, 2, 5], [1, Infinity, 3], [1, 2], 'abc']) assert.equal(normalizeLayout({ ratios }).ratios, undefined);
 });
 

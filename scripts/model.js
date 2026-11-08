@@ -1,5 +1,6 @@
 export const MODULE_ID = 'bg3-video-hud';
-export const GROUPS = ['Equipment', 'Features', 'Spells'];
+export const GROUPS = ['Weapons', 'Items', 'Features', 'Spells'];
+export const DEFAULT_RATIOS = [2, 2, 3, 5];
 
 export function values(collection) {
   if (!collection) return [];
@@ -26,17 +27,18 @@ export function normalizeLayout(data = {}) {
   return {
     version: 1, order: idList(data?.order), hidden: idList(data?.hidden),
     pinned: idList(data?.pinned), pinnedOnly: data?.pinnedOnly === true,
-    ...(validRatios(data?.ratios) ? { ratios: [...data.ratios] } : {})
+    ...(validRatios(data?.ratios) ? { ratios: [...data.ratios] }
+      : validRatios(data?.ratios, 3) ? { ratios: [data.ratios[0] / 2, data.ratios[0] / 2, ...data.ratios.slice(1)] } : {})
   };
 }
 
-export function validRatios(ratios) {
-  return Array.isArray(ratios) && ratios.length === 3
-    && ratios.every(n => Number.isFinite(n) && n >= 1 && n <= 10000);
+export function validRatios(ratios, length = GROUPS.length) {
+  return Array.isArray(ratios) && ratios.length === length
+    && ratios.every(n => Number.isFinite(n) && n > 0 && n <= 10000);
 }
 
 export function resizeColumns(widths, index, delta, minimum = 56) {
-  if (!validRatios(widths) || ![0, 1].includes(index) || !Number.isFinite(delta)) return [2, 3, 5];
+  if (!validRatios(widths) || ![0, 1, 2].includes(index) || !Number.isFinite(delta)) return [...DEFAULT_RATIOS];
   const result = [...widths], sum = widths[index] + widths[index + 1];
   const floor = Math.min(minimum, sum / 3);
   result[index] = Math.max(floor, Math.min(sum - floor, widths[index] + delta));
@@ -44,18 +46,40 @@ export function resizeColumns(widths, index, delta, minimum = 56) {
   return result;
 }
 
+// Prepared native activities and optional automation visibility are read only.
+export function manualActivities(item) {
+  const premades = item?.flags?.['chris-premades'] ?? {};
+  const hidden = new Set((Array.isArray(premades.hiddenActivities) ? premades.hiddenActivities : [])
+    .map(key => premades.activityIdentifiers?.[key]).filter(Boolean));
+  return values(item?.system?.activities).filter(a => a && a.canUse !== false && a.isHidden !== true
+    && a.midiProperties?.automationOnly !== true && !hidden.has(a.id));
+}
+
+export function hasActiveUse(item) {
+  if (item?.canUse === false || item?.isHidden === true) return false;
+  const activeType = type => ['none', 'special', 'action', 'bonus', 'minute', 'hour', 'day',
+    'legendary', 'mythic', 'lair', 'crew'].includes(type) || String(type ?? '').startsWith('reaction');
+  const activities = values(item?.system?.activities);
+  if (activities.length) return manualActivities(item).some(a => ['attack', 'cast'].includes(a.type)
+    || activeType(a.activation?.type));
+  // Legacy activation data is used only when no modern activities are present.
+  return activeType(item?.system?.activation?.type);
+}
+
 export function groupFor(item) {
   if (item?.type === 'spell') return 'Spells';
-  if (item?.type === 'feat') return 'Features';
-  // Character-building documents are not inventory. Their granted features
-  // remain separate feat items; never classify every unknown type as equipment.
-  if (['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container'].includes(item?.type)) return 'Equipment';
+  const subtype = item?.system?.type?.value ?? item?.system?.consumableType;
+  if (subtype === 'ammo') return null;
+  if (item?.type === 'weapon') return 'Weapons';
+  if (item?.type === 'feat') return hasActiveUse(item) ? 'Features' : null;
+  if (['equipment', 'consumable', 'tool', 'loot', 'container'].includes(item?.type)
+    && hasActiveUse(item)) return 'Items';
   return null;
 }
 
 export function activationTypes(item) {
-  const types = values(item.system?.activities).map(a => a.activation?.type).filter(Boolean);
-  if (item.system?.activation?.type) types.push(item.system.activation.type);
+  const types = manualActivities(item).map(a => a.activation?.type).filter(Boolean);
+  if (!values(item.system?.activities).length && item.system?.activation?.type) types.push(item.system.activation.type);
   return [...new Set(types.flatMap(type => type.startsWith('reaction') ? [type, 'reaction'] : [type]))];
 }
 

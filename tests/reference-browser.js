@@ -11,19 +11,27 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
   const delay = () => new Promise(resolve => setTimeout(resolve, 0));
   hud.setActor(hero, token);
   try {
-    await test('character records are absent from HUD and editors; bulk counts and draft edits include only combat items', async () => {
+    await test('character records and passive items are absent from all four HUD groups and editors; bulk counts and draft edits include only combat items', async () => {
       const records = ['class', 'subclass', 'background', 'race', 'species', 'facility'].map(type => item(`record-${type}`, type));
-      const combat = [item('blade', 'weapon'), item('potion', 'consumable'), item('racial-action', 'feat'),
-        item('background-passive', 'feat'), item('spell', 'spell')];
-      const candidate = actor('taxonomy', [...records, ...combat]);
+      const combat = [item('blade', 'weapon'), item('potion', 'consumable', { activation: { type: 'action' } }), item('racial-action', 'feat'),
+        item('background-active', 'feat'), item('spell', 'spell')];
+      const passive = [item('armor', 'equipment'), item('shield', 'equipment'), item('gem', 'loot'),
+        item('paper', 'loot'), item('passive-feat', 'feat', { activation: { type: '' } }),
+        item('ammo', 'consumable', { type: { value: 'ammo' }, activation: { type: 'action' } })];
+      const candidate = actor('taxonomy', [...records, ...passive, ...combat]);
       const before = JSON.stringify([...candidate.items.values()]), writes = user.writes.length;
       try {
         hud.setActor(candidate);
-        for (const record of records) assert(!hud.root.querySelector(`[data-item-id="${record.id}"]`));
+        for (const record of [...records, ...passive]) assert(!hud.root.querySelector(`[data-item-id="${record.id}"]`));
         for (const entry of combat) assert(hud.root.querySelector(`[data-item-id="${entry.id}"]`));
-        hud.beginEdit('Equipment'); assert(hud.editorDialog.open);
+        hud.beginEdit('Weapons'); assert(hud.editorDialog.open);
         for (const record of records) assert(!hud.editorDialog.querySelector(`[data-item-id="${record.id}"]`));
-        hud.bulkEdit('none'); await flush(); equal([...hud.draft.hidden].sort(), ['blade', 'potion']);
+        hud.bulkEdit('none'); await flush(); equal([...hud.draft.hidden].sort(), ['blade']);
+        hud.editorDialog.querySelector('[data-action=cancel-edit]').click(); await flush();
+        hud.beginEdit('Items');
+        assert(hud.editorDialog.querySelector('[data-item-id=potion]'));
+        for (const entry of passive) assert(!hud.editorDialog.querySelector(`[data-item-id="${entry.id}"]`));
+        hud.bulkEdit('none'); await flush(); equal(hud.draft.hidden, ['potion']);
         hud.editorDialog.querySelector('[data-action=cancel-edit]').click(); await flush();
         hud.beginEdit(); assert(hud.root.textContent.includes('已显示 5/5'));
         hud.bulkEdit('none'); await flush(); equal(hud.draft.hidden.length, 5);
@@ -31,10 +39,10 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(JSON.stringify([...candidate.items.values()]), before); equal(user.writes.length, writes);
       } finally { hud.setActor(hero, token); }
     });
-    await test('reference structure separates portrait, framed 2:3:5 decks and circular native action controls', async () => {
+    await test('reference structure separates portrait, four framed decks and circular native action controls', async () => {
       assert(hud.root.querySelector('.bg3-video-hud-end .bg3-video-hud-turn'));
-      equal(hud.root.querySelectorAll('.bg3-video-hud-panel').length, 3);
-      equal(hud.root.querySelectorAll('[role=separator]').length, 2);
+      equal(hud.root.querySelectorAll('.bg3-video-hud-panel').length, 4);
+      equal(hud.root.querySelectorAll('[role=separator]').length, 3);
       equal(getComputedStyle(hud.root).backgroundColor, 'rgba(0, 0, 0, 0)');
       const bar = hud.root.querySelector('.bg3-video-hud-health');
       assert(parseFloat(bar.style.getPropertyValue('--hp')) + parseFloat(bar.style.getPropertyValue('--temp')) <= 100);
@@ -49,14 +57,14 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
       assert(after[0] > before[0]); assert(after[1] < before[1]); assert(Math.abs(after[2] - before[2]) < 1);
       equal(store.read(hero).hidden, ['gear2']);
       hud.root.querySelector('[data-divider="0"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
-      await flush(); equal(store.read(hero).ratios, [2, 3, 5]); equal(store.read(hero).hidden, ['gear2']);
+      await flush(); equal(store.read(hero).ratios, [2, 2, 3, 5]); equal(store.read(hero).hidden, ['gear2']);
     });
     await test('group editor is a separate scrollable popup; cancel and actor change discard draft', async () => {
-      const before = user.writes.length; hud.beginEdit('Equipment');
+      const before = user.writes.length; hud.beginEdit('Weapons');
       assert(hud.editorDialog.open); assert(!hud.root.contains(hud.editorDialog));
       hud.editorDialog.querySelector('[data-action=visibility]').click(); await flush(); assert(hud.draft.hidden.length > 1);
       hud.editorDialog.close(); await delay(); assert(!hud.edit); equal(user.writes.length, before);
-      hud.beginEdit('Equipment'); hud.setActor(hero, { id: 'other-token' }); await delay();
+      hud.beginEdit('Weapons'); hud.setActor(hero, { id: 'other-token' }); await delay();
       assert(!hud.editorDialog); assert(!hud.edit); equal(user.writes.length, before); hud.setActor(hero, token);
     });
     await test('end turn cannot double advance or operate another token and native failure releases button', async () => {

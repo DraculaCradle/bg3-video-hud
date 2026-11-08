@@ -1,4 +1,4 @@
-import { MODULE_ID, GROUPS, actorStats, groupFor, itemsFor, normalizeLayout, reorder, slotPools,
+import { MODULE_ID, GROUPS, DEFAULT_RATIOS, actorStats, groupFor, itemsFor, normalizeLayout, reorder, slotPools,
   spellLevels, spellLevel, toggleId, usesLabel, values, resizeColumns } from './model.js';
 import { restActor, endTurn, canEndTurn } from './actions.js';
 import { TargetWorkflow } from './targeting.js';
@@ -9,7 +9,7 @@ import { TargetVisuals, partyRows, INTEGRATIONS } from './visuals.js';
 import { TurnLedger } from './turn-ledger.js';
 
 // Display labels only: stable model groups, item IDs and stored layouts are unchanged.
-const groupLabels = { Equipment: '装备', Features: '特性', Spells: '法术' };
+const groupLabels = { Weapons: '武器', Items: '物品', Features: '特性', Spells: '法术' };
 const itemLabels = { weapon: '武器', equipment: '装备', consumable: '消耗品', container: '容器',
   loot: '杂物', tool: '工具', feat: '特性', background: '背景', class: '职业',
   subclass: '子职业', race: '种族', species: '种族', facility: '设施' };
@@ -215,7 +215,7 @@ export class VideoHUD {
     controls.append(edit, button('原版界面', 'disable', '关闭本 HUD，返回 Foundry 或已启用的其他 HUD'));
     header.append(controls);
     root.append(header);
-    const ratios = prefs.ratios ?? [2, 3, 5];
+    const ratios = prefs.ratios ?? DEFAULT_RATIOS;
     root.style.setProperty('--video-columns', ratios.map(n => `minmax(0, ${n}fr)`).join(' '));
 
     const filters = node('div', undefined, 'bg3-video-hud-filters');
@@ -264,7 +264,7 @@ export class VideoHUD {
       list.setAttribute('aria-label', `${groupLabels[group]}列表`);
       if (groupItems.length) list.tabIndex = 0;
       for (const item of groupItems) list.append(this.itemRow(item, prefs, !this.editGroup));
-      if (!groupItems.length) section.append(node('p', this.edit ? '此分类没有角色物品。' : '没有符合筛选条件的物品。', 'bg3-video-hud-empty'));
+      if (!groupItems.length) list.append(node('li', this.edit ? '此分类没有角色物品。' : '没有符合筛选条件的物品。', 'bg3-video-hud-empty'));
       section.append(list);
       panels.append(section);
     }
@@ -398,19 +398,19 @@ export class VideoHUD {
       await this.store.update(actor, prefs => ({ ...prefs, ratios: next }));
       if (this.actor === actor) this.render();
     };
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < GROUPS.length - 1; i++) {
       const handle = node('div', '⋮', 'bg3-video-hud-divider');
       handle.dataset.divider = String(i); handle.tabIndex = 0;
       handle.setAttribute('role', 'separator'); handle.setAttribute('aria-orientation', 'vertical');
       handle.setAttribute('aria-label', `调整${groupLabels[GROUPS[i]]}与${groupLabels[GROUPS[i + 1]]}宽度`);
       handle.setAttribute('aria-valuemin', '1'); handle.setAttribute('aria-valuemax', '99');
-      handle.title = '拖动或方向键调整宽度；双击或 Home 恢复 2:3:5';
+      handle.title = '拖动或方向键调整宽度；双击或 Home 恢复 2:2:3:5';
       const available = () => !this.busy.size && !this.edit && !this.saving && !this.resizing;
-      handle.ondblclick = () => { if (available()) this.run(() => save(this.actor, [2, 3, 5])); };
+      handle.ondblclick = () => { if (available()) this.run(() => save(this.actor, DEFAULT_RATIOS)); };
       handle.onkeydown = event => {
         if (!available() || !['ArrowLeft', 'ArrowRight', 'Home'].includes(event.key)) return;
         event.preventDefault(); event.stopPropagation();
-        const next = event.key === 'Home' ? [2, 3, 5] : resizeColumns(widths(), i,
+        const next = event.key === 'Home' ? DEFAULT_RATIOS : resizeColumns(widths(), i,
           (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 20 : 5));
         this.run(() => save(this.actor, next));
       };

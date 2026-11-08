@@ -51,7 +51,7 @@ Node tests exercise real module logic with small document doubles. Chromium test
 - D&D5e 6.0.6 [Magic Missile data](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/packs/_source/spells/1st-level/magic-missile.yml) defines one unscaled 1d4+1 damage activity. A level+2 allocation requests that native damage activity after one native resource workflow. No item source rewrite.
 - Optional Midi-QOL [Activity mixin](https://github.com/tposney/midi-qol/blob/master/src/module/activities/MidiActivityMixin.ts), inspected 2026-11-07, awaits `midi-qol.preItemRollV2` before consumption and accepts false to abort. Shield source choice only augments the per-use native `cause`/`consume` configuration; the owned spell, macros, targets and dialog flags are untouched. This is a source-inspected contract, not certification against every installed Midi-QOL version.
 - Native save estimate reads `D20RollModificationField.combineFields`, prepared ability proficiency and save DC. Unknown formulas/permissions remain unknown. No rolls, workflow creation or effect-expression evaluation during hover.
-- Layout ratios add an optional validated leaf to version-1 user layouts; missing/invalid ratios use 2:3:5. Other actors/users/upstream flags are preserved.
+- Layout ratios add an optional validated leaf to version-1 user layouts; missing/invalid ratios use 2:2:3:5. Legacy three-column ratios are mapped read-only by splitting the equipment share in half; no eager flag migration. Other actors/users/upstream flags are preserved.
 
 ## v0.1.6 输入与玩家状态
 
@@ -64,3 +64,9 @@ PIXI/Foundry 的画布事件可能先在 document 捕获阶段处理；在 `#boa
 模组随世界激活后，所有客户端自动运行。删除旧 `enabled` 设置的注册／读取／写入；不迁移或删除旧值，因此旧 false 不会阻挡显示，也不写入其他设置或角色数据。`api.toggle()`／原版界面按钮／工具栏只切换本页面的内存状态，刷新页面重新自动启用。`api.status().enabled` 表示此会话状态，reason=disabled 表示本次临时返回原版，不是持久化设置。原有角色 OWNER、兼容版本和画布就绪守卫保持不变。
 
 用户已确认先前 Player 不显示是客户端开关未开启。此结论来自用户人工检查，不代表其他规则流程的自动实机验收通过。
+
+## v0.1.9 主动项目与四栏
+
+分组为 Weapons / Items / Features / Spells。groupFor 对物品／特性要求主动活动；支持原生 action、bonus、reaction 系列、none（无动作消耗）、special、较长施用时间、传奇等类型，attack/cast 活动也属于主动。现代活动存在时不使用旧 activation 字段兜底；不以名称、剩余次数或是否装备猜测。没有活动时可识别旧 activation 数据。空激活／被动记录、原生隐藏活动、CPR hiddenActivities 和 automationOnly 均不能令条目变为可见；弹药始终排除。法术列表保持原规则。
+
+原生 D&D5e 6.0.6 的 abilityActivationTypes 明确将 none 定义为无动作消耗，与空类型不同；Item.canUse / Activity.canUse 主要涉及隐藏／可用性，不以耗尽次数作为分组条件。耗尽仍由原生使用流程裁定。筛选不修改角色文档和被动效果；保存布局只作用于当前用户。

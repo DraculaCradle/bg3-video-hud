@@ -538,7 +538,7 @@ export class VideoHUD {
   editToolbar(prefs) {
     const bar = node('div', undefined, 'bg3-video-hud-help');
     bar.dataset.scrollGroup = 'edit-toolbar'; bar.setAttribute('aria-label', '快捷栏编辑工具');
-    const items = values(this.actor.items).filter(i => !this.editGroup || groupFor(i) === this.editGroup);
+    const items = values(this.actor.items).filter(i => groupFor(i) && (!this.editGroup || groupFor(i) === this.editGroup));
     bar.append(node('span', `编辑${this.editGroup ? groupLabels[this.editGroup] : '全部'}：已显示 ${items.filter(i => !prefs.hidden.includes(i.id)).length}/${items.length}`));
     for (const [value, label] of [['all', '全选'], ['none', '清空'], ['reset', '恢复自动全部']]) {
       const control = button(label, 'bulk-edit', value === 'reset' ? '恢复此分类的自动显示和排序' : `${label}当前分类搜索结果`, { value });
@@ -553,7 +553,7 @@ export class VideoHUD {
 
   bulkEdit(value) {
     if (!this.edit || this.saving) return;
-    const all = values(this.actor.items).filter(i => !this.editGroup || groupFor(i) === this.editGroup);
+    const all = values(this.actor.items).filter(i => groupFor(i) && (!this.editGroup || groupFor(i) === this.editGroup));
     const selected = value === 'reset' ? all : all.filter(i => String(i.name ?? '').toLocaleLowerCase()
       .includes((this.queries[groupFor(i)] ?? '').trim().toLocaleLowerCase()));
     const ids = new Set(selected.map(i => i.id));

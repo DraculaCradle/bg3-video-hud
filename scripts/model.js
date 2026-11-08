@@ -45,9 +45,12 @@ export function resizeColumns(widths, index, delta, minimum = 56) {
 }
 
 export function groupFor(item) {
-  if (item.type === 'spell') return 'Spells';
-  if (item.type === 'feat') return 'Features';
-  return 'Equipment';
+  if (item?.type === 'spell') return 'Spells';
+  if (item?.type === 'feat') return 'Features';
+  // Character-building documents are not inventory. Their granted features
+  // remain separate feat items; never classify every unknown type as equipment.
+  if (['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container'].includes(item?.type)) return 'Equipment';
+  return null;
 }
 
 export function activationTypes(item) {
@@ -65,8 +68,8 @@ export function itemsFor(actor, layout, { edit = false, level = 'all', action = 
   const prefs = normalizeLayout(layout);
   const order = new Map(prefs.order.map((id, index) => [id, index]));
   return values(actor?.items).filter(item => {
-    if (!item.id) return false;
-    if (edit) return true; // Hidden and unpinned items remain discoverable in edit mode.
+    if (!item.id || !groupFor(item)) return false;
+    if (edit) return true; // Hidden combat items remain discoverable; character records stay excluded.
     if (prefs.hidden.includes(item.id)) return false;
     if (action !== 'all' && !activationTypes(item).includes(action)) return false;
     if (item.type === 'spell') {

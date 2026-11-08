@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.7：激活模组即自动启用。** GM 与 Player 无需分别打开设置开关，旧版关闭值也不会阻止显示。选择拥有权限的角色 Token 后显示 HUD；“原版界面”只临时返回，工具栏可恢复，重新载入会自动启用。保留目标点击修复、自适应与独立弹窗，无需 BG3 模组。自动部署与自动实机测试关闭，由用户人工验收。
+> **v0.1.8：修复战斗物品分类。** 职业、子职业、背景、种族及设施等角色资料不再混入装备栏或编辑列表；它们授予的独立特性仍显示。激活模组后 GM／Player 自动启用，无需二次开关；保留自适应、目标点选和独立弹窗。自动部署与自动实机测试关闭，由用户人工验收。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Not yet verified in a running Foundry VTT v14 / D&D5e 6.0.6 world. Manifest compatibility declares the intended target, not a completed in-game certification.
 
@@ -41,7 +41,7 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 4. GM 和 Player 均自动启用。**原版界面** 可在当前页面临时返回；Token 工具栏的 **临时切换原版／BG3 界面** 可恢复，刷新页面自动恢复。也可为此临时操作设置快捷键。
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.7. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.8. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 
@@ -51,7 +51,7 @@ For Linux server installation or upgrades, use the [deployment guide](docs/DEPLO
 
 - 底栏按实际 CSS 视口自动调整，720P～4K 有界增大；头像、三栏和右侧操作组独立，按真实侧栏宽度避让。默认三栏 2:3:5，可拖动／方向键调整；双击／Home 恢复。名称和环阶显示在图标上，完整说明通过悬停／焦点查看；每栏独立滚动。各档实测与原创预览见 [自适应说明](docs/COMPACT_HUD.md)。
 - 普通单一活动和无来源选择的戏法点击后直接进入目标／原生流程；单一活动的等级法术直接显示环阶和来源；多活动物品仍明确选择。底栏 **详细** 可打开完整活动、重复次数、手动分配和原生模式选项；需要选择的活动、环阶／来源和手动分配都在独立弹窗中；Esc、关闭按钮和取消均可退出，系统流程开始前会关闭自有弹窗。单体点选／多目标框选保持原设计，实际配置、掷骰及消费仍由系统处理。See [targeting and cancellation boundaries](docs/TARGETING.md).
-- **装备 / 特性 / 法术** show owned embedded items. Level tabs include cantrips (0). Regular and pact slots are separate read-only pools, including zero remaining slots. Innate/unprepared spells are not silently removed: the system remains responsible for eligibility and consumption.
+- **装备 / 特性 / 法术** show supported owned inventory, feat and spell items. 职业、子职业、背景、种族／族系与设施资料不显示；它们授予的独立 feat 特性继续显示，角色卡原始数据不变。未知物品类型不再默认归入装备。 Level tabs include cantrips (0). Regular and pact slots are separate read-only pools, including zero remaining slots. Innate/unprepared spells are not silently removed: the system remains responsible for eligibility and consumption.
 - **动作 / 附赠动作 / 反应** filter activities and show locally observed native uses in the current combat turn position. They are not authoritative remaining-action limits and never enforce combat rules.
 - Search each category; hover or focus an item for a safe rich description. **编辑** opens the full draft; category gears open a separate scrollable editor dialog: show/hide, pin, drag/arrow order, bulk select/clear/reset, then Save or Cancel. Short/long rests still call official dialogs.
 - Settings are stored on the current **User**, under `flags.bg3-video-hud.layouts`, keyed by full actor UUID. Players can configure their own layout without permission to modify another user's document. Synthetic token actors have separate identities. Same-client edits are serialized; simultaneous sessions for the same user use last-write-wins semantics.

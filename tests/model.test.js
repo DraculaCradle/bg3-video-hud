@@ -12,6 +12,30 @@ test('taxonomy includes all owned equipment, features and spells with stable IDs
   assert.equal(itemsFor(actor('a', [item(null)]), {}).length, 0);
 });
 
+test('character records never enter combat groups or edit mode, including pinned and ordered legacy entries', () => {
+  const records = ['class', 'subclass', 'background', 'race', 'species', 'facility', 'unknown'].map(type => item(type, type));
+  const hero = actor('a', records);
+  const prefs = { order: records.map(i => i.id), pinned: records.map(i => i.id), pinnedOnly: true };
+  const before = structuredClone({ items: [...hero.items.values()], prefs });
+  assert.deepEqual(records.map(groupFor), records.map(() => null));
+  assert.equal(groupFor(null), null);
+  for (const options of [{}, { edit: true }, { level: 0 }, { action: 'action' }]) {
+    assert.deepEqual(itemsFor(hero, prefs, options), []);
+  }
+  assert.deepEqual({ items: [...hero.items.values()], prefs }, before);
+});
+
+test('racial and background granted feats stay visible along with ordinary inventory, regardless of names', () => {
+  const gear = ['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container'].map(type => item(type, type));
+  const feats = [item('racial-action', 'feat', { activation: { type: 'action' } }, { name: '精灵' }),
+    item('background-passive', 'feat', {}, { name: '农民' })];
+  const hero = actor('a', [...gear, ...feats, item('background', 'background', {}, { name: '农民' })]);
+  assert.deepEqual(gear.map(groupFor), gear.map(() => 'Equipment'));
+  assert.deepEqual(feats.map(groupFor), ['Features', 'Features']);
+  assert.deepEqual(new Set(itemsFor(hero, {}).map(i => i.id)), new Set([...gear, ...feats].map(i => i.id)));
+  assert.deepEqual(itemsFor(hero, {}, { action: 'action' }).map(i => i.id), ['racial-action']);
+});
+
 test('custom order wins over system sort and does not mutate actor items', () => {
   const hero = actor('a', [item('z', 'feat', {}, { sort: 1 }), item('a', 'feat', {}, { sort: 2 }), item('b')]);
   const before = [...hero.items.values()];

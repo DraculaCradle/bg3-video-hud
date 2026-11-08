@@ -11,6 +11,26 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
   const delay = () => new Promise(resolve => setTimeout(resolve, 0));
   hud.setActor(hero, token);
   try {
+    await test('character records are absent from HUD and editors; bulk counts and draft edits include only combat items', async () => {
+      const records = ['class', 'subclass', 'background', 'race', 'species', 'facility'].map(type => item(`record-${type}`, type));
+      const combat = [item('blade', 'weapon'), item('potion', 'consumable'), item('racial-action', 'feat'),
+        item('background-passive', 'feat'), item('spell', 'spell')];
+      const candidate = actor('taxonomy', [...records, ...combat]);
+      const before = JSON.stringify([...candidate.items.values()]), writes = user.writes.length;
+      try {
+        hud.setActor(candidate);
+        for (const record of records) assert(!hud.root.querySelector(`[data-item-id="${record.id}"]`));
+        for (const entry of combat) assert(hud.root.querySelector(`[data-item-id="${entry.id}"]`));
+        hud.beginEdit('Equipment'); assert(hud.editorDialog.open);
+        for (const record of records) assert(!hud.editorDialog.querySelector(`[data-item-id="${record.id}"]`));
+        hud.bulkEdit('none'); await flush(); equal([...hud.draft.hidden].sort(), ['blade', 'potion']);
+        hud.editorDialog.querySelector('[data-action=cancel-edit]').click(); await flush();
+        hud.beginEdit(); assert(hud.root.textContent.includes('已显示 5/5'));
+        hud.bulkEdit('none'); await flush(); equal(hud.draft.hidden.length, 5);
+        for (const record of records) assert(!hud.draft.hidden.includes(record.id));
+        equal(JSON.stringify([...candidate.items.values()]), before); equal(user.writes.length, writes);
+      } finally { hud.setActor(hero, token); }
+    });
     await test('reference structure separates portrait, framed 2:3:5 decks and circular native action controls', async () => {
       assert(hud.root.querySelector('.bg3-video-hud-end .bg3-video-hud-turn'));
       equal(hud.root.querySelectorAll('.bg3-video-hud-panel').length, 3);

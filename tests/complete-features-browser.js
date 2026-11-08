@@ -65,25 +65,25 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       equal(user.writes.length, 0);
     });
     await test('search filters one category, preserves focus/caret and does not mutate item/layout data', async () => {
-      await setQuery('Equipment', 'alpha');
-      equal([...hud.root.querySelector('[data-group=Equipment]').querySelectorAll('li[data-item-id]')].map(n => n.dataset.itemId), ['sword']);
+      await setQuery('Weapons', 'alpha');
+      equal([...hud.root.querySelector('[data-group=Weapons]').querySelectorAll('li[data-item-id]')].map(n => n.dataset.itemId), ['sword']);
       assert(hud.root.querySelector('[data-group=Spells] li'));
-      equal(document.activeElement.dataset.queryGroup, 'Equipment'); equal(document.activeElement.selectionStart, 5);
-      equal(user.writes.length, 0); await setQuery('Equipment', '');
+      equal(document.activeElement.dataset.queryGroup, 'Weapons'); equal(document.activeElement.selectionStart, 5);
+      equal(user.writes.length, 0); await setQuery('Weapons', '');
     });
     await test('group bulk editing is a draft; cancel restores layout and saving commits only the user leaf', async () => {
       const original = store.read(hero), writes = user.writes.length;
-      await click('edit-group', '[data-value=Equipment]');
+      await click('edit-group', '[data-value=Weapons]');
       await click('bulk-edit', '[data-value=none]');
       equal(user.writes.length, writes); equal(store.read(hero), original);
       assert(hud.draft.hidden.includes('sword')); assert(!hud.draft.hidden.includes('feature'));
       await click('cancel-edit'); equal(store.read(hero), original);
-      await click('edit-group', '[data-value=Equipment]'); await setQuery('Equipment', 'Alpha');
+      await click('edit-group', '[data-value=Weapons]'); await setQuery('Weapons', 'Alpha');
       await click('bulk-edit', '[data-value=none]'); await click('save-edit');
       equal(store.read(hero).hidden, ['sword']); equal(user.writes.length, writes + 1);
       assert(user.writes.at(-1).key.startsWith('layouts.'));
-      await click('edit-group', '[data-value=Equipment]'); await click('bulk-edit', '[data-value=reset]');
-      await click('save-edit'); await setQuery('Equipment', ''); equal(store.read(hero).hidden, []);
+      await click('edit-group', '[data-value=Weapons]'); await click('bulk-edit', '[data-value=reset]');
+      await click('save-edit'); await setQuery('Weapons', ''); equal(store.read(hero).hidden, []);
     });
     await test('a concurrent layout edit blocks stale draft overwrite and preserves the other client value', async () => {
       await click('edit'); await click('visibility', '[data-item-id=sword]');
@@ -224,8 +224,8 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
     await test('repeated arrow ordering follows the current unsaved draft and cancel discards every move', async () => {
       hero.items.set('third-weapon', item('third-weapon', 'weapon', {}, { name: '第三武器' }));
       const original = store.read(hero), before = user.writes.length;
-      await click('edit-group', '[data-value=Equipment]');
-      const order = () => [...hud.root.querySelectorAll('[data-group=Equipment] li[data-item-id]')].map(n => n.dataset.itemId);
+      await click('edit-group', '[data-value=Weapons]');
+      const order = () => [...hud.root.querySelectorAll('[data-group=Weapons] li[data-item-id]')].map(n => n.dataset.itemId);
       const first = order()[0];
       await click('move', `[data-item-id="${first}"][data-direction="1"]`);
       await click('move', `[data-item-id="${first}"][data-direction="1"]`);

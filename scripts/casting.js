@@ -1,15 +1,11 @@
-import { MODULE_ID, canUseActor, slotPools, values, spellLevel } from './model.js';
+import { MODULE_ID, canUseActor, slotPools, values, spellLevel, manualActivities } from './model.js';
 import { resolveOwnedItem } from './actions.js';
 
 export const SOURCE_ACTIVITY = 'bg3sourcecast001';
 export const RECOVERY = { '': '不自动恢复', sr: '短休', lr: '长休', day: '每日' };
 
 export function usableActivities(item) {
-  const premades = item?.flags?.['chris-premades'] ?? {};
-  const hidden = new Set((Array.isArray(premades.hiddenActivities) ? premades.hiddenActivities : [])
-    .map(key => premades.activityIdentifiers?.[key]).filter(Boolean));
-  return values(item?.system?.activities).filter(a => a.canUse === true && typeof a.use === 'function'
-    && a.midiProperties?.automationOnly !== true && !hidden.has(a.id));
+  return manualActivities(item).filter(a => a.canUse === true && typeof a.use === 'function');
 }
 
 export function castingSources(actor, spell) {

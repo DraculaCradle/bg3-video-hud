@@ -424,3 +424,19 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
   .bg3-video-hud-header { display: flex; align-items: center; }
   .bg3-video-hud-portrait-wrap { width: 58px; height: 58px; align-self: center; }
 }
+
+/* Pact slots have a separate read-only panel outside the scrolling level rail. */
+.bg3-video-hud-spell-controls {
+  grid-column: 4; display: flex; align-items: stretch; justify-self: center; gap: calc(5 * var(--video-unit));
+  min-width: 0; max-width: 100%; width: 100%;
+}
+.bg3-video-hud-spell-controls > .bg3-video-hud-spells { grid-column: auto; flex: 1 1 auto; min-width: 0; }
+.bg3-video-hud-pact-slots {
+  flex: 0 1 clamp(32px, calc(44 * var(--video-unit)), 78px); min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 1px 2px;
+  border: 1px solid #b89e79; border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(#3d2c4ffa, #181626fa); color: #e3c5ff;
+  font-size: var(--video-small); line-height: 1.1; white-space: nowrap;
+}
+.bg3-video-hud-pact-slots strong { font: 600 var(--video-small)/1.1 system-ui, sans-serif; }
+.bg3-video-hud-pact-slots:focus-visible { outline: 2px solid #92d7f7; outline-offset: -2px; }

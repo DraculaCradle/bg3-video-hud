@@ -66,6 +66,17 @@ test('automatic widths reserve full icon columns and give the crowded category m
   for (let i = 0; i < 4; i++) assert.ok(Math.abs(spells.widths[i] - (20 + spells.columns[i] * spells.cell + (spells.columns[i] - 1) * 6)) < 1e-8);
 });
 
+test('a header minimum reserves pact filter space without changing counts, uniform tiles or the fixed total', () => {
+  const counts = [0, 120, 0, 1], original = [...counts];
+  const options = { width: 800, cell: 50, gap: 4, frame: [20, 20, 20, 20] };
+  assert.equal(autoColumnWidths(counts, options).columns[3], 1);
+  const plan = autoColumnWidths(counts, { ...options, minimumColumns: [1, 1, 1, 2] });
+  assert.ok(plan.columns[3] >= 2); assert.ok(Math.abs(plan.used - options.width) < 1e-8);
+  plan.widths.forEach((w, i) => assert.ok(Math.abs(w - 20 - plan.columns[i] * plan.cell - (plan.columns[i] - 1) * 4) < 1e-8));
+  assert.deepEqual(counts, original);
+  assert.throws(() => autoColumnWidths(counts, { ...options, minimumColumns: [1, 1, 1, 0] }));
+});
+
 test('three or more items reserve at least two columns even beside a much larger category or in a narrow budget', () => {
   const options = { width: 1000, cell: 50, gap: 6, frame: [20, 20, 20, 20] };
   for (const width of [1000, 300]) {
@@ -201,9 +212,23 @@ test('slot pools display depleted regular slots and pact slots separately', () =
   assert.deepEqual(pools.map(p => p.key), ['spell1', 'spell2', 'pact']);
   assert.equal(pools[0].value, 0);
   assert.equal(pools[2].label, '契约3环');
-  assert.deepEqual(spellLevels(hero), [0, 1, 2, 3]);
+  assert.deepEqual(spellLevels(hero), [0, 1, 2]);
   assert.deepEqual(slotPools(null), []);
   assert.deepEqual(spellLevels(null), [0]);
+});
+
+test('pact-only pools preserve depleted and unknown counts without adding normal spell levels or mutating slots', () => {
+  const hero = actor('pact', [], { system: { spells: { pact: { level: 5, value: 0, max: 2 } } } });
+  const before = structuredClone(hero.system.spells);
+  assert.deepEqual(slotPools(hero).map(p => [p.key, p.value, p.max, p.level]), [['pact', 0, 2, 5]]);
+  assert.deepEqual(spellLevels(hero), [0]);
+  assert.deepEqual(hero.system.spells, before);
+  hero.items.set('known', item('known', 'spell', { level: 3 }));
+  assert.deepEqual(spellLevels(hero), [0, 1, 2, 3]);
+  hero.system.spells.pact.value = undefined;
+  assert.equal(slotPools(hero)[0].value, null);
+  hero.system.spells.pact = { level: 0, value: 0, max: 0 };
+  assert.deepEqual(slotPools(hero), []);
 });
 
 test('spell tabs include known high-level spells even without slots', () => {

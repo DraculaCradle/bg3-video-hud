@@ -105,8 +105,17 @@ conditions.js只读取传入的当前Actor和Token，优先使用核心actor.tem
 HUD没有footer DOM，去掉对应常驻布局行及高度，整体宽度算法不变。更多菜单用原生dialog提供旧操作，真实键盘Enter/Tab/Escape可达；目标取消/序列停止保留按需反馈。原有create/update/deleteActiveEffect和updateToken hooks刷新当前Actor；没有新增服务器轮询。状态列表为打开时快照，头像环按hooks持续刷新。
 
 
-## v0.1.16 顶部固定相邻槽位，无更多菜单
+## v0.1.16 顶部固定相邻槽位，无更多菜单（历史；居中规则由v0.1.17替代）
 
 conditionRing按固定10位的36度间隔，从头顶开始依次填充0、+1、-1、+2、-2等邻接槽位，而不是用当前状态数作整圈等分分母。因此1～5项始终优先上半圈，新增不移动已占槽位；原10位溢出只读列表保持。
 
 移除openMore、按钮、路由及菜单样式，以及旧队伍／联动弹窗和次要操作路由；没有隐藏或替代菜单。分类原有齿轮编辑保持，模块原有Token工具栏/API/快捷键临时返回不变。测试改为真实分类编辑、独立原生返回，不为迁就旧测试保留已删除按钮。没有修改用户布局或状态数据。
+
+
+## v0.1.17 整组居中与独立契约位
+
+conditionRing使用 `offset = i - (visible.length - 1) / 2`，仍按10位的36度相邻间距。奇数中心项位于头顶，偶数两项分居中线，整个可见集合（包含+N）左右对称；增删数量允许重新居中，覆盖v0.1.16的固定前缀规则。状态span通过data-condition-key恢复焦点；只读列表、名称、碰撞与边界检查保持。分类编辑弹窗排队关闭时，不再抢走用户已移到HUD内其他控件的焦点。
+
+对照D&D5e 6.0.6 [SingleLevelSpellcasting.prepareSlots](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/data/spellcasting/spellcasting-model.mjs)：现有slotPools继续读取原生准备后的value/max/level，不更改消费规则。HUD将pact池分离到spell-controls中的独立只读面板；普通summary/pips排除pact，spellLevels仅以已知可见法术和普通池计算上界，不因pact.level产生额外普通环阶。原生更新hooks与Token切换复用原渲染，无新增服务器请求或资源写入。不存在／0/0隐藏，0/x保留，未知显示?。
+
+autoColumnWidths增加可验证的minimumColumns选项；契约面板存在时法术栏起点至少两列，其他>=3项至少两列的规则不变。不改变真实能力数量、固定总预算及统一方格填满算法。独立面板缩放有界，筛选自身可滚动；不恢复底栏或任何次要操作菜单。

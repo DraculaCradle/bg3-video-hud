@@ -14,12 +14,20 @@ export function measureHUD() {
   const probe = document.createElement('div');
   probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--video-cell)'; root.append(probe);
   const nominalCell = probe.getBoundingClientRect().width; probe.remove();
+  const badges = [...root.querySelectorAll('.bg3-video-hud-condition-ring > li')].map(s => s.getBoundingClientRect());
+  const portrait = root.querySelector('.bg3-video-hud-portrait-wrap').getBoundingClientRect();
+  const pact = root.querySelector('.bg3-video-hud-pact-slots'), pactBox = pact?.getBoundingClientRect();
+  const rail = root.querySelector('.bg3-video-hud-spells').getBoundingClientRect();
   return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
     height: rect.height, width: rect.width, clientWidth: root.clientWidth, scrollWidth: root.scrollWidth,
     font: parseFloat(css.fontSize), gap: parseFloat(css.rowGap), cell: cell.height, nominalCell,
     portrait: root.querySelector('.bg3-video-hud-portrait').getBoundingClientRect().height,
     dpr: window.devicePixelRatio,
     noFooter: !root.querySelector('footer'),
+    conditionsCentered: !badges.length || Math.abs(badges.reduce((sum, b) => sum + b.x + b.width / 2, 0) / badges.length - portrait.x - portrait.width / 2) < 1,
+    pactFits: !pact || (pactBox.width > 0 && pactBox.height > 0 && pactBox.left >= rail.right - 1 && pactBox.right <= rect.right + 1
+      && pactBox.top >= rect.top - 1 && pactBox.bottom <= rect.bottom + 1
+      && pact.contains(document.elementFromPoint(pactBox.x + pactBox.width / 2, pactBox.y + pactBox.height / 2))),
     conditionsFit: [...root.querySelectorAll('.bg3-video-hud-condition-ring > li')].every(slot => {
       const box = slot.getBoundingClientRect(), wrap = slot.closest('.bg3-video-hud-portrait-wrap').getBoundingClientRect();
       const badge = slot.firstElementChild;

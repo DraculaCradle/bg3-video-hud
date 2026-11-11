@@ -48,13 +48,17 @@ test('ring overflow retains all names in a reachable badge and circular slots ne
   assert.deepEqual(conditionRing([]), []);
 });
 
-test('small sets occupy neighboring top slots; existing conditions never jump to opposite sides when another is added', () => {
-  const entries = Array.from({ length: 5 }, (_, i) => ({ key: String(i), name: `状态${i}` }));
-  const full = conditionRing(entries);
-  for (let n = 1; n <= 5; n++) {
+test('the whole neighboring arc is centred over the portrait for odd, even and overflowing condition counts', () => {
+  const entries = Array.from({ length: 18 }, (_, i) => ({ key: String(i), name: `状态${i}` }));
+  for (let n = 1; n <= 18; n++) {
     const ring = conditionRing(entries.slice(0, n));
-    assert.ok(ring.every(p => p.y < 50), 'The first five conditions belong above the portrait centre');
-    assert.deepEqual(ring, full.slice(0, n));
+    if (n <= 5) assert.ok(ring.every(p => p.y < 50), 'Small groups belong above the portrait centre');
+    assert.ok(Math.abs(ring.reduce((sum, p) => sum + p.x, 0) / ring.length - 50) < 1e-8);
+    ring.forEach((p, i) => {
+      const other = ring[ring.length - 1 - i];
+      assert.ok(Math.abs(p.x + other.x - 100) < 1e-8 && Math.abs(p.y - other.y) < 1e-8);
+    });
+    if (ring.length % 2) assert.ok(Math.abs(ring[Math.floor(ring.length / 2)].x - 50) < 1e-8);
     if (n > 1) assert.ok(Math.hypot(ring[0].x - ring[1].x, ring[0].y - ring[1].y) < 28, 'Two conditions must be adjacent, not opposite');
   }
 });

@@ -114,6 +114,7 @@ try {
         assert.ok(layout.scrollWidth <= layout.clientWidth + 1, JSON.stringify(layout));
         assert.ok(layout.controlsFit, 'Character card and rest controls must stay within the dock');
         assert.ok(layout.noFooter && layout.conditionsFit, 'No bottom bar; conditions remain inside portrait ring');
+        assert.ok(layout.conditionsCentered && layout.pactFits, 'The condition group stays centred and pact counts stay visible beside the level rail');
         assert.equal(layout.lists.length, 4);
         assert.ok(layout.lists.every(list => list.square), 'All item buttons must remain square at this viewport');
         assert.ok(layout.lists.every(list => Math.abs(list.tail) < 1), JSON.stringify(layout.lists));

@@ -105,7 +105,9 @@ try {
     assert(!root()); assert(originalVisible());
     await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
     assert(root()); assert(!originalVisible());
-    for (const label of ['武器', '物品', '特性', '法术', '生命 9/12', '护甲 15', '契约2环：1/1', '1环：0/2']) assert(root().textContent.includes(label), label);
+    for (const label of ['武器', '物品', '特性', '法术', '生命 9/12', '护甲 15', '1环：0/2']) assert(root().textContent.includes(label), label);
+    equal(root().querySelector('.bg3-video-hud-pact-slots').textContent, '契约1/1');
+    assert(root().querySelector('.bg3-video-hud-pact-slots').title.includes('契约2环'));
     for (const label of ['附赠动作', '反应', '仅固定', '短休', '长休']) assert(root().textContent.includes(label), label);
     assert(!root().querySelector('footer')); assert(!find('more'));
     equal(definitions.size, 0); equal(settings.get(`${MODULE_ID}.enabled`), false);
@@ -128,6 +130,18 @@ try {
       await Hooks.emit('updateToken'); await flush(); equal(root().querySelectorAll('.bg3-video-hud-condition').length, 1);
       equal(user.writes.length, before);
     } finally { delete hero.temporaryEffects; delete hero.statuses; await select(hero); }
+  });
+  await test('native actor resource updates refresh pact current/total and preserve keyboard focus without writes', async () => {
+    const before = user.writes.length, original = structuredClone(hero.system.spells.pact);
+    try {
+      root().querySelector('.bg3-video-hud-pact-slots').focus();
+      hero.system.spells.pact.value = 0; await Hooks.emit('updateActor', hero); await flush();
+      equal(root().querySelector('.bg3-video-hud-pact-slots').textContent, '契约0/1');
+      equal(document.activeElement.dataset.scrollGroup, 'pact-slots');
+      await select(actor('no-pact-resource', [])); assert(!root().querySelector('.bg3-video-hud-pact-slots'));
+      await select(hero); equal(root().querySelector('.bg3-video-hud-pact-slots').textContent, '契约0/1');
+      equal(user.writes.length, before);
+    } finally { hero.system.spells.pact = original; await select(hero); }
   });
   await test('standalone HUD needs no BG3 shell; optional HUDs may be disabled or present without writes', async () => {
     const shell = document.getElementById('bg3-hotbar'); shell.remove();
@@ -330,6 +344,7 @@ try {
       resources: { primary: { label: 'Very long resource name', value: 2, max: 4 } } }
   });
   hero.temporaryEffects = crowded.temporaryEffects = Array.from({ length: 16 }, (_, i) => ({ id: `layout-effect-${i}`, name: `模拟状态${i}`, statuses: new Set([`layout-status-${i}`]) }));
+  crowded.system.spells.pact = { level: 5, value: 1, max: 2 };
   window.bg3LayoutTest = {
     crowded: () => select(crowded), reset: () => select(hero),
     refresh: () => Hooks.emit('updateActor', crowded), writes: () => user.writes.length,

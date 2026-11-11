@@ -328,7 +328,7 @@ export class VideoHUD {
     // Never toggle upstream settings or touch its persistent player flags.
     document.body.classList.add('bg3-video-hud-active');
     if (focusKey) {
-      const focused = [...root.querySelectorAll('button, input, select, [data-scroll-group][tabindex], [data-divider]')]
+      const focused = [...root.querySelectorAll('button, input, select, [data-scroll-group][tabindex], [data-divider], [data-condition-key]')]
         .find(b => JSON.stringify(b.dataset) === focusKey);
       focused?.focus({ preventScroll: true });
       if (focused?.tagName === 'INPUT' && selection?.[0] !== null && selection?.[0] !== undefined) {
@@ -340,18 +340,21 @@ export class VideoHUD {
   }
 
   spellControls(prefs) {
+    const wrapper = node('div', undefined, 'bg3-video-hud-spell-controls');
     const box = node('div', undefined, 'bg3-video-hud-spells');
     const nav = node('nav');
     nav.dataset.scrollGroup = 'spell-levels';
     nav.setAttribute('aria-label', '法术环阶');
     const pools = slotPools(this.actor);
+    const regularPools = pools.filter(pool => pool.key !== 'pact');
+    const pact = pools.find(pool => pool.key === 'pact');
     const spells = itemsFor(this.actor, {}, { edit: true }).filter(i => i.type === 'spell');
     for (const level of ['all', ...spellLevels(this.actor)]) {
       const text = level === 'all' ? '全部' : level === 0 ? '戏法' : ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][level];
       const control = button('', 'filter-level', `法术环阶：${level === 'all' ? '全部' : `${level}环`}`, { value: String(level) });
       control.append(node('span', text));
       const indicators = node('span', undefined, 'bg3-video-hud-level-pips');
-      const pool = pools.find(p => p.key === `spell${level}`);
+      const pool = regularPools.find(p => p.key === `spell${level}`);
       if (pool) {
         control.title += ` · 法术位 ${pool.value}/${pool.max}`;
         for (let i = 0; i < Math.min(12, Number(pool.max) || 0); i++) {
@@ -368,14 +371,14 @@ export class VideoHUD {
     pinned.setAttribute('aria-pressed', String(prefs.pinnedOnly));
     nav.append(pinned);
     box.append(nav);
-    const slots = node('small', pools.length
-      ? pools.map(p => `${p.label}：${p.value ?? '?'}/${p.max ?? '?'}`).join(' · ')
-      : '无法术位。戏法与天赋施法按系统规则处理。');
+    const slots = node('small', regularPools.length
+      ? regularPools.map(p => `${p.label}：${p.value ?? '?'}/${p.max ?? '?'}`).join(' · ')
+      : '无普通法术位。戏法与天赋施法按系统规则处理。');
     slots.title = slots.textContent;
     slots.dataset.scrollGroup = 'spell-pools';
     slots.tabIndex = 0;
     const pips = node('span', undefined, 'bg3-video-hud-slot-pips'); pips.setAttribute('aria-hidden', 'true');
-    for (const pool of pools) {
+    for (const pool of regularPools) {
       const group = node('span'); group.title = `${pool.label}：${pool.value}/${pool.max}`;
       for (let i = 0; i < Math.min(Number(pool.max) || 0, 12); i++) {
         const pip = node('i'); if (i < pool.value) pip.className = 'available'; group.append(pip);
@@ -383,7 +386,17 @@ export class VideoHUD {
       pips.append(group);
     }
     slots.append(pips); box.append(slots);
-    return box;
+    wrapper.append(box);
+    if (pact) {
+      const indicator = node('div', undefined, 'bg3-video-hud-pact-slots');
+      indicator.tabIndex = 0; indicator.dataset.scrollGroup = 'pact-slots';
+      indicator.setAttribute('role', 'group');
+      indicator.setAttribute('aria-label', `${pact.label}法术位：当前 ${pact.value ?? '?'}，总数 ${pact.max ?? '?'}`);
+      indicator.title = `${pact.label}法术位：${pact.value ?? '?'}/${pact.max ?? '?'}（只读，使用与恢复由系统处理）`;
+      indicator.append(node('span', '契约'), node('strong', `${pact.value ?? '?'}/${pact.max ?? '?'}`));
+      wrapper.append(indicator);
+    }
+    return wrapper;
   }
 
   positionChrome() {
@@ -418,7 +431,8 @@ export class VideoHUD {
       });
       const rows = Math.max(1, Math.floor((lists[0].clientHeight + gap) / (cell + gap)));
       // The allocator's gap is the grid gap. Panel gaps are reserved separately.
-      const plan = autoColumnWidths(this.columnCounts, { width: available - panelGap * 3 + gap * 3, cell, gap, frame, rows });
+      const minimumColumns = [1, 1, 1, root.querySelector('.bg3-video-hud-pact-slots') ? 2 : 1];
+      const plan = autoColumnWidths(this.columnCounts, { width: available - panelGap * 3 + gap * 3, cell, gap, frame, rows, minimumColumns });
       if (root.dataset.columnSizing !== 'manual') {
         root.style.setProperty('--video-columns', plan.widths.map(width => `${width}px`).join(' '));
         // Explicit whole columns fill every list. The common tile size fits
@@ -524,6 +538,9 @@ export class VideoHUD {
   restoreEditorFocus(group, actor) {
     setTimeout(() => {
       if (this.destroyed || this.actor !== actor || this.edit || this.choiceDialog?.open || this.dialog?.open) return;
+      // A queued dialog close must not steal focus after the user has already
+      // moved to an item, a condition, or the read-only pact indicator.
+      if (this.root?.contains(document.activeElement)) return;
       [...(this.root?.querySelectorAll('[data-action="edit-group"]') ?? [])]
         .find(control => control.dataset.value === group)?.focus({ preventScroll: true });
     }, 0);

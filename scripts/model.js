@@ -49,14 +49,15 @@ export function resizeColumns(widths, index, delta, minimum = 56) {
 
 // Fill the fixed deck with whole columns, then fit one shared square tile size.
 // Empty capacity is whole slots, never a fractional strip beside the grid.
-export function autoColumnWidths(counts, { width, cell, gap = 0, frame = [0, 0, 0, 0], rows = 2 }) {
+export function autoColumnWidths(counts, { width, cell, gap = 0, frame = [0, 0, 0, 0], rows = 2, minimumColumns = [1, 1, 1, 1] }) {
   const n = GROUPS.length;
   if (![width, cell, gap, rows].every(Number.isFinite) || width <= 0 || cell <= 0 || gap < 0 || rows < 1
-    || !Array.isArray(frame) || frame.length !== n || frame.some(v => !Number.isFinite(v) || v < 0)) {
+    || !Array.isArray(frame) || frame.length !== n || frame.some(v => !Number.isFinite(v) || v < 0)
+    || !Array.isArray(minimumColumns) || minimumColumns.length !== n || minimumColumns.some(v => !Number.isInteger(v) || v < 1 || v > 100)) {
     throw new Error('Invalid automatic column geometry');
   }
   const load = GROUPS.map((_, i) => Number.isFinite(counts?.[i]) ? Math.max(0, Math.floor(counts[i])) : 0);
-  const columns = load.map(count => count >= 3 ? 2 : 1);
+  const columns = load.map((count, i) => Math.max(count >= 3 ? 2 : 1, minimumColumns[i]));
   const minimum = columns.reduce((sum, count) => sum + count, 0);
   const room = Math.max(0, width - gap * (n - 1));
   const space = room - frame.reduce((a, b) => a + b, 0) + n * gap;
@@ -187,7 +188,7 @@ export function slotPools(actor) {
 
 export function spellLevels(actor) {
   const max = Math.max(0, ...values(actor?.items).filter(i => i.type === 'spell' && nativeItemVisible(i, actor)).map(spellLevel),
-    ...slotPools(actor).map(p => p.level ?? 0));
+    ...slotPools(actor).filter(p => p.key !== 'pact').map(p => p.level ?? 0));
   return Array.from({ length: Math.min(9, max) + 1 }, (_, i) => i);
 }
 

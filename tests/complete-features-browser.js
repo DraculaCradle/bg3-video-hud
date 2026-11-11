@@ -47,7 +47,7 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
     ?? (hud.dialog?.open ? hud.dialog.querySelector(`[data-action="${action}"]${extra}`) : null)
     ?? hud.root?.querySelector(`[data-action="${action}"]${extra}`);
   const click = async (action, extra = '') => {
-    if (!find(action, extra) && ['edit', 'disable', 'party', 'integrations', 'detailed'].includes(action)) { hud.openMore(); await flush(); }
+    if (action === 'edit') { hud.root.querySelector('[data-action=edit-group][data-value=Weapons]').click(); await flush(); return; }
     const control = find(action, extra); assert(control, `Missing ${action} ${extra}`); control.click(); await flush();
     for (let i = 0; hud.saving && i < 100; i++) await new Promise(r => setTimeout(r, 0));
   };
@@ -102,7 +102,7 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       const use = find('use', '[data-item-id="full-spell"]');
       // Move focus onto the item; refocusing an already focused node emits no
       // focusin event and is not a keyboard-entry interaction.
-      find('more').focus(); use.focus();
+      find('edit-group', '[data-value=Spells]').focus(); use.focus();
       use.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       for (let i = 0; i < 50 && !document.querySelector('.bg3-video-hud-tooltip'); i++) await delay(20);
       const tooltip = document.querySelector('.bg3-video-hud-tooltip');
@@ -138,7 +138,7 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await flush();
       assert(!hud.pendingUse); equal(calls.length, 0); assert(!hud.busy.size);
     });
-    await test('ambiguous activities remain explicit; detailed mode and allocation cancel stay accessible', async () => {
+    await test('ambiguous activities remain explicit; native adapter options and allocation cancellation stay safe', async () => {
       const multi = item('multi-activity', 'weapon', { activities: new Map([
         ['one', { id: 'one', canUse: true, use() {} }], ['two', { id: 'two', canUse: true, use() {} }]
       ]) });
@@ -149,16 +149,16 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       assert(hud.pendingUse); native.remove();
       await click('close-choice'); equal(await pending, null);
       const before = user.writes.length;
-      await click('detailed'); equal(hud.detailed, true);
+      hud.detailed = true;
       const detail = hud.chooseUse(hero, spell); equal(hud.pendingUse.phase, 'activity');
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); equal(await detail, null);
       const allocation = hud.allocate({ item: spell, selected: [{ id: 'target', name: 'Fixture target' }], count: 2, consumed: true });
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); equal(await allocation, null);
       assert(!hud.pendingAllocation); equal(calls.length, 0); equal(user.writes.length, before);
-      await click('detailed'); equal(hud.detailed, false);
+      hud.detailed = false;
     });
     await test('activity and cast-level inline panels preserve return/cancel and pass native slot options', async () => {
-      await click('detailed');
+      hud.detailed = true;
       await click('use', '[data-item-id="full-spell"]'); equal(calls.length, 0);
       assert(find('choose-activity')); await click('choose-activity', '[data-value=cast]');
       assert(find('choose-cast', '[data-slot=spell3]')); await click('back-choice'); equal(calls.length, 0);
@@ -212,16 +212,10 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       await click('allocate-plus', '[data-value=one]'); await click('allocate-confirm');
       equal((await promise).map(t => t.id), ['one', 'one', 'one']); equal(calls.length, before);
     });
-    await test('party and integration dialogs are keyboard-dismissable and expose only permitted characters', async () => {
-      const originalUsers = game.users;
-      const secret = actor('secret-party', [], { isOwner: false, name: '不可见角色', testUserPermission: () => false });
-      game.users = [{ character: hero }, { character: hero }, { character: secret }];
-      try {
-        await click('party'); assert(hud.dialog.textContent.includes(hero.name)); assert(!hud.dialog.textContent.includes(secret.name));
-        hud.dialog.close(); await delay(0);
-        await click('integrations'); assert(hud.dialog.textContent.includes('3D 骰子')); assert(hud.dialog.textContent.includes('未启用'));
-        hud.dialog.dispatchEvent(new Event('cancel', { cancelable: true })); hud.dialog.close(); await delay(0);
-      } finally { game.users = originalUsers; }
+    await test('removed secondary operations have no menu, controls or dialog entry point', async () => {
+      for (const action of ['more','edit','disable','party','integrations','detailed']) assert(!hud.root.querySelector(`[data-action=${action}]`));
+      for (const name of ['openMore','openParty','openIntegrations']) equal(typeof hud[name], 'undefined');
+      assert(!hud.root.querySelector('footer')); assert(hud.root.querySelector('[data-action=edit-group]'));
     });
     await test('repeated arrow ordering follows the current unsaved draft and cancel discards every move', async () => {
       hero.items.set('third-weapon', item('third-weapon', 'weapon', {}, { name: '第三武器' }));

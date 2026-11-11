@@ -95,12 +95,11 @@ try {
     const measure = () => evaluate(`new Promise((resolve, reject) => requestAnimationFrame(() => {
       try { resolve((${measureHUD.toString()})()); } catch (error) { reject(error); }
     }))`);
-    const focusMenu = async action => {
-      if (!await evaluate('!!document.querySelector(".bg3-video-hud-more[open]")')) {
-        await evaluate('document.querySelector("#bg3-video-hud [data-action=more]").focus()');
+    const openEditor = async () => {
+      if (!await evaluate('!!document.querySelector(".bg3-video-hud-editor-dialog[open]")')) {
+        await evaluate('document.querySelector("#bg3-video-hud [data-action=edit-group][data-value=Weapons]").focus()');
         await press('Enter', 'Enter', 13);
       }
-      await evaluate(`document.querySelector('.bg3-video-hud-more [data-action="${action}"]').focus()`);
     };
     const setViewport = ({ width, height, deviceScaleFactor = 1 }) => send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor, mobile: false }, sessionId);
     const extras = [[390, 844], [650, 900], [1024, 576], [1024, 600], [1280, 600], [1366, 720], [1440, 900], [3440, 1440], [2560, 720]];
@@ -113,7 +112,7 @@ try {
         measurements.push({ ...viewport, viewportWidth: width, viewportHeight: height, ...layout });
         assert.ok(layout.left >= -1 && layout.right <= width + 1 && layout.top >= 0 && layout.bottom <= height, JSON.stringify(layout));
         assert.ok(layout.scrollWidth <= layout.clientWidth + 1, JSON.stringify(layout));
-        assert.ok(layout.controlsFit, 'Edit, Original HUD and rests must stay within the dock');
+        assert.ok(layout.controlsFit, 'Character card and rest controls must stay within the dock');
         assert.ok(layout.noFooter && layout.conditionsFit, 'No bottom bar; conditions remain inside portrait ring');
         assert.equal(layout.lists.length, 4);
         assert.ok(layout.lists.every(list => list.square), 'All item buttons must remain square at this viewport');
@@ -173,14 +172,13 @@ try {
       assert.equal(await evaluate('window.bg3LayoutTest.writes()'), writes);
       await evaluate('window.bg3LayoutTest.reset()');
     });
-    await test('200% 720P effective viewport retains keyboard ordering, focus and Original HUD access', async () => {
+    await test('200% 720P effective viewport retains group editing, focus and independent native return', async () => {
       await setViewport({ width: 640, height: 360, deviceScaleFactor: 2 });
       await evaluate('window.bg3LayoutTest.crowded()');
       try {
-        await focusMenu('edit');
-        await press('Enter', 'Enter', 13);
+        await openEditor();
         const before = await evaluate(`(() => {
-          const list = document.querySelector('#bg3-video-hud .bg3-video-hud-items');
+          const list = document.querySelector('.bg3-video-hud-editor-dialog [data-scroll-group=editor-items]');
           list.querySelector('[data-action=move][data-direction="1"]').focus();
           return [...list.children].map(item => item.dataset.itemId);
         })()`);
@@ -188,7 +186,7 @@ try {
         const after = await evaluate(`(() => {
           const button = document.activeElement, b = button.getBoundingClientRect();
           const region = button.closest('[data-scroll-group]'), hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
-          return { ids: [...document.querySelector('#bg3-video-hud .bg3-video-hud-items').children].map(item => item.dataset.itemId),
+          return { ids: [...document.querySelector('.bg3-video-hud-editor-dialog [data-scroll-group=editor-items]').children].map(item => item.dataset.itemId),
             item: button.dataset.itemId, hit: button.contains(hit),
             geometry: { button: b.toJSON(), region: region.getBoundingClientRect().toJSON(), scrollTop: region.scrollTop, hitTag: hit?.tagName, hitClass: hit?.className } };
         })()`);
@@ -196,8 +194,8 @@ try {
         assert.equal(after.item, before[0]);
         assert.equal(after.hit, true, JSON.stringify(after.geometry));
         assert.ok((await measure()).controlsFit);
-        await focusMenu('disable');
-        await press('Enter', 'Enter', 13);
+        await evaluate('document.querySelector(".bg3-video-hud-editor-dialog [data-action=cancel-edit]").click()');
+        await evaluate('window.bg3LayoutTest.toggle()');
         assert.ok(await evaluate('!document.getElementById("bg3-video-hud") && getComputedStyle(document.getElementById("bg3-hotbar")).display !== "none"'));
       } finally {
         await evaluate('window.bg3LayoutTest.reset()');
@@ -246,15 +244,16 @@ try {
       })()`);
       assert.equal(hit, true);
     });
-    await test('720P edit controls remain reachable without returning to a tall item list', async () => {
-      await focusMenu('edit'); await press('Enter', 'Enter', 13);
+    await test('720P group editing stays outside the fixed-height HUD', async () => {
+      await openEditor();
       assert.ok(await evaluate('document.getElementById("bg3-video-hud").getBoundingClientRect().height <= 228'));
-      const controlsFit = await evaluate(`[...document.querySelectorAll('#bg3-video-hud .bg3-video-hud-items')].every(list => {
+      const controlsFit = await evaluate(`[...document.querySelectorAll('.bg3-video-hud-editor-dialog [data-scroll-group=editor-items]')].every(list => {
         const controls = list.querySelector('.bg3-video-hud-edit-controls');
         const a = controls.getBoundingClientRect(), b = list.getBoundingClientRect();
         return a.left >= b.left && a.right <= b.right;
       })`);
       assert.equal(controlsFit, true);
+      await evaluate('document.querySelector(".bg3-video-hud-editor-dialog [data-action=cancel-edit]").click()');
       await evaluate('window.bg3LayoutTest.reset()');
       assert.ok(await evaluate('[...document.querySelectorAll("#bg3-video-hud .bg3-video-hud-items")].every(list => list.scrollTop === 0)'));
     });
@@ -267,20 +266,19 @@ try {
       })()`);
       assert.equal(tooltip.present, true); assert.equal(tooltip.unsafe, false);
     });
-    await test('real Enter key activates the focused Edit button', async () => {
-      await focusMenu('edit');
-      await press('Enter', 'Enter', 13);
-      assert.equal(await evaluate('document.querySelector("#bg3-video-hud").classList.contains("bg3-video-hud-editing")'), true);
+    await test('real Enter key opens the focused group gear editor', async () => {
+      await openEditor();
+      assert.equal(await evaluate('!!document.querySelector(".bg3-video-hud-editor-dialog[open]")'), true);
     });
     await test('real Enter reorders items and restores keyboard focus after rendering', async () => {
       const before = await evaluate(`(() => {
-        const items = [...document.querySelectorAll('#bg3-video-hud .bg3-video-hud-panel:first-child li')];
+        const items = [...document.querySelectorAll('.bg3-video-hud-editor-dialog li[data-item-id]')];
         items[0].querySelector('button[data-action=move][data-direction="1"]').focus();
         return items.map(item => item.dataset.itemId);
       })()`);
       await press('Enter', 'Enter', 13);
       const after = await evaluate(`({
-        items: [...document.querySelectorAll('#bg3-video-hud .bg3-video-hud-panel:first-child li')].map(item => item.dataset.itemId),
+        items: [...document.querySelectorAll('.bg3-video-hud-editor-dialog li[data-item-id]')].map(item => item.dataset.itemId),
         focused: { ...document.activeElement.dataset }
       })`);
       const expected = [...before];
@@ -290,15 +288,17 @@ try {
       assert.equal(after.focused.itemId, before[0]);
       assert.equal(after.focused.direction, '1');
     });
-    await test('real Tab reaches Original HUD with an accessible name', async () => {
-      await focusMenu('edit');
+    await test('real Tab reaches the group editor cancellation control', async () => {
+      await openEditor();
+      await evaluate('document.querySelector(".bg3-video-hud-editor-dialog [data-action=save-edit]").focus()');
       await press('Tab', 'Tab', 9);
       const focused = await evaluate('({ action: document.activeElement.dataset.action, label: document.activeElement.getAttribute("aria-label") })');
-      assert.equal(focused.action, 'disable');
-      assert.ok(focused.label?.length);
+      assert.equal(focused.action, 'cancel-edit'); assert.ok(focused.label?.length);
     });
-    await test('keyboard-only return restores the original HUD', async () => {
+    await test('keyboard cancellation closes editing and native toolbar API return stays independent of HUD menus', async () => {
       await press('Enter', 'Enter', 13);
+      assert.equal(await evaluate('!!document.querySelector(".bg3-video-hud-editor-dialog[open]")'), false);
+      await evaluate('window.bg3LayoutTest.toggle()');
       assert.equal(await evaluate('document.getElementById("bg3-video-hud") === null && getComputedStyle(document.getElementById("bg3-hotbar")).display !== "none"'), true);
     });
     for (const [width, height, deviceScaleFactor] of [[1280,720,1], [1366,768,1], [1920,1080,1],

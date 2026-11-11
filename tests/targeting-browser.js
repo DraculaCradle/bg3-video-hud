@@ -83,7 +83,7 @@ export async function targetingBrowserTests({ test, assert, equal, flush }) {
     await test('single target executes once after a map click, preserving pan/zoom/CSS offset and actor', async () => {
       use('attack'); await flush(); equal(calls.length, 0);
       assert(hud.root.querySelector('[data-action="cancel-target"]'));
-      hud.openMore(); assert(hud.dialog.querySelector('[data-action="edit"]').disabled); hud.dialog.close(); await flush();
+      assert(hud.root.querySelector('[data-action="edit-group"]').disabled);
       drag(100, 100, 100, 100); await flush();
       equal(calls.length, 1); equal(calls.at(-1).targets, ['one']); equal(hud.actor, caster);
       equal(f.nativePresses, 0); equal(f.nativeReleases, 0); equal(board.style.cursor, 'grab');

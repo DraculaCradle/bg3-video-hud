@@ -24,6 +24,10 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         assert(!hud.root.querySelector('footer')); assert(!hud.root.querySelector('[data-action=edit]'));
         let badges = [...hud.root.querySelectorAll('.bg3-video-hud-condition')];
         equal(badges.map(b => b.title), ['中毒', '专注']);
+        const centres = badges.map(b => { const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+        const wrapBox = hud.root.querySelector('.bg3-video-hud-portrait-wrap').getBoundingClientRect();
+        assert(centres.every(c => c.y < wrapBox.y + wrapBox.height / 2));
+        assert(Math.hypot(centres[0].x - centres[1].x, centres[0].y - centres[1].y) < wrapBox.width * .28);
         equal(badges.map(b => b.tabIndex), [0, 0]);
         const box = hud.root.querySelector('.bg3-video-hud-portrait-wrap').getBoundingClientRect();
         for (const badge of badges) {
@@ -38,7 +42,7 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(JSON.stringify(candidate), JSON.stringify(before)); equal(user.writes.length, writes);
       } finally { hud.setActor(hero, token); }
     });
-    await test('condition overflow opens a readable full list; More retains actions without a bottom strip', async () => {
+    await test('condition overflow opens a readable full list with no More button, menu or replacement action strip', async () => {
       const candidate = actor('many-conditions', [], { temporaryEffects: Array.from({ length: 18 }, (_, i) => ({ id: `c-${i}`, name: `状态${i}`, statuses: new Set([`c-${i}`]) })) });
       const writes = user.writes.length;
       try {
@@ -46,10 +50,8 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(hud.root.querySelectorAll('.bg3-video-hud-condition').length, 10);
         const overflow = hud.root.querySelector('[data-action=conditions]'); equal(overflow.textContent, '+9');
         overflow.click(); await flush(); equal(hud.dialog.querySelectorAll('.bg3-video-hud-condition-list li').length, 18);
-        hud.dialog.close(); await flush(); hud.root.querySelector('[data-action=more]').click(); await flush();
-        for (const action of ['edit', 'disable', 'party', 'integrations', 'detailed']) assert(hud.dialog.querySelector(`[data-action=${action}]`));
-        const detail = hud.dialog.querySelector('[data-action=detailed]'); detail.click(); await flush(); equal(hud.detailed, true);
-        hud.openMore(); equal(hud.dialog.querySelector('[data-action=detailed]').getAttribute('aria-pressed'), 'true');
+        assert(!hud.root.querySelector('[data-action=more]')); equal(typeof hud.openMore, 'undefined');
+        for (const action of ['edit', 'disable', 'party', 'integrations', 'detailed']) assert(!hud.root.querySelector(`[data-action=${action}]`));
         hud.dialog.close(); await flush(); equal(user.writes.length, writes); assert(!hud.root.querySelector('footer'));
       } finally { hud.detailed = false; hud.setActor(hero, token); }
     });

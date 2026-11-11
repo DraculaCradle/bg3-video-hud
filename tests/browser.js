@@ -68,8 +68,11 @@ globalThis.game = {
 };
 const root = () => document.getElementById(MODULE_ID);
 const originalVisible = () => getComputedStyle(document.getElementById('bg3-hotbar')).display !== 'none';
-const find = (action, itemId) => root()?.querySelector(`button[data-action="${action}"]${itemId ? `[data-item-id="${itemId}"]` : ''}`);
+const find = (action, itemId) => (document.querySelector('.bg3-video-hud-more[open]') ?? root())?.querySelector(`button[data-action="${action}"]${itemId ? `[data-item-id="${itemId}"]` : ''}`);
 async function click(action, itemId) {
+  if (!find(action, itemId) && ['edit', 'disable', 'party', 'integrations', 'detailed'].includes(action)) {
+    root().querySelector('[data-action=more]').click(); await flush();
+  }
   const button = find(action, itemId); assert(button, `Missing ${action} ${itemId ?? ''}`); button.click(); await flush();
   for (let i = 0; root()?.getAttribute('aria-busy') === 'true' && i < 100; i++) {
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -98,10 +101,28 @@ try {
     await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
     assert(root()); assert(!originalVisible());
     for (const label of ['武器', '物品', '特性', '法术', '生命 9/12', '护甲 15', '契约2环：1/1', '1环：0/2']) assert(root().textContent.includes(label), label);
-    for (const label of ['编辑', '原版界面', '附赠动作', '反应', '仅固定', '短休', '长休']) assert(root().textContent.includes(label), label);
+    for (const label of ['附赠动作', '反应', '仅固定', '短休', '长休']) assert(root().textContent.includes(label), label);
+    assert(!root().querySelector('footer')); assert(find('more'));
     equal(definitions.size, 0); equal(settings.get(`${MODULE_ID}.enabled`), false);
     equal([...root().querySelectorAll('[data-group]')].map(section => section.dataset.group), ['Weapons', 'Items', 'Features', 'Spells']);
     equal(root().querySelector('.bg3-video-hud-summary strong').textContent, hero.name);
+  });
+  await test('native effect and token hooks refresh portrait conditions without persistent writes', async () => {
+    const before = user.writes.length;
+    try {
+      hero.temporaryEffects = [{ id: 'bless', name: '祝福', statuses: new Set(['bless']) }];
+      hero.statuses = new Set(['bless']);
+      await Hooks.emit('createActiveEffect'); await flush();
+      equal(root().querySelectorAll('.bg3-video-hud-condition').length, 1);
+      equal(root().querySelector('.bg3-video-hud-condition').getAttribute('aria-label'), '祝福');
+      hero.temporaryEffects[0].name = '加速'; await Hooks.emit('updateActiveEffect'); await flush();
+      equal(root().querySelector('.bg3-video-hud-condition').title, '加速');
+      hero.temporaryEffects = []; hero.statuses.clear(); await Hooks.emit('deleteActiveEffect'); await flush();
+      equal(root().querySelectorAll('.bg3-video-hud-condition').length, 0);
+      canvas.tokens.controlled = [{ actor: hero, document: { overlayEffect: 'icons/svg/skull.svg' } }];
+      await Hooks.emit('updateToken'); await flush(); equal(root().querySelectorAll('.bg3-video-hud-condition').length, 1);
+      equal(user.writes.length, before);
+    } finally { delete hero.temporaryEffects; delete hero.statuses; await select(hero); }
   });
   await test('standalone HUD needs no BG3 shell; optional HUDs may be disabled or present without writes', async () => {
     const shell = document.getElementById('bg3-hotbar'); shell.remove();
@@ -160,7 +181,7 @@ try {
   });
   await test('official cancellation does not report fabricated success or change slots', async () => {
     await click('use', 'hex'); equal(hero.system.spells.spell1.value, 0);
-    equal(root().querySelector('[role="status"]').textContent, '');
+    equal(root().querySelector('[role="status"]')?.textContent ?? '', '');
   });
   await test('system exceptions surface to user and release busy state', async () => {
     const original = sword.use;
@@ -248,7 +269,8 @@ try {
   await test('missing actor stats and portrait are safe; actor switches reset edit/filters', async () => {
     await click('edit');
     await select(actor('empty')); assert(root().textContent.includes('生命 —/—')); assert(root().textContent.includes('护甲 —'));
-    equal(find('edit').textContent, '编辑');
+    await click('more'); equal(find('edit').textContent, '编辑');
+    document.querySelector('.bg3-video-hud-more[open]').close(); await flush();
     await select(hero);
   });
   await test('unsupported system fails open to original HUD', async () => {
@@ -301,6 +323,7 @@ try {
       spells: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`spell${i + 1}`, { value: 2, max: 3 }])),
       resources: { primary: { label: 'Very long resource name', value: 2, max: 4 } } }
   });
+  hero.temporaryEffects = crowded.temporaryEffects = Array.from({ length: 16 }, (_, i) => ({ id: `layout-effect-${i}`, name: `模拟状态${i}`, statuses: new Set([`layout-status-${i}`]) }));
   window.bg3LayoutTest = {
     crowded: () => select(crowded), reset: () => select(hero),
     refresh: () => Hooks.emit('updateActor', crowded), writes: () => user.writes.length,

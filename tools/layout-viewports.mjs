@@ -19,6 +19,14 @@ export function measureHUD() {
     font: parseFloat(css.fontSize), gap: parseFloat(css.rowGap), cell: cell.height, nominalCell,
     portrait: root.querySelector('.bg3-video-hud-portrait').getBoundingClientRect().height,
     dpr: window.devicePixelRatio,
+    noFooter: !root.querySelector('footer'),
+    conditionsFit: [...root.querySelectorAll('.bg3-video-hud-condition-ring > li')].every(slot => {
+      const box = slot.getBoundingClientRect(), wrap = slot.closest('.bg3-video-hud-portrait-wrap').getBoundingClientRect();
+      const badge = slot.firstElementChild;
+      return box.left >= wrap.left - 1 && box.right <= wrap.right + 1 && box.top >= wrap.top - 1 && box.bottom <= wrap.bottom + 1
+        && box.left >= rect.left - 1 && box.right <= rect.right + 1 && box.top >= rect.top - 1 && box.bottom <= rect.bottom + 1
+        && badge.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+    }),
     lists: [...root.querySelectorAll('.bg3-video-hud-items')].map(list => {
       const box = list.getBoundingClientRect(), first = list.querySelector('button')?.getBoundingClientRect();
       const style = getComputedStyle(list), columns = style.gridTemplateColumns.split(' ').map(parseFloat).filter(Number.isFinite);

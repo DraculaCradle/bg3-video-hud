@@ -44,8 +44,10 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
   const hud = new VideoHUD({ store, user, onDisable: () => hud.clear(), onError: text => errors.push(text) });
   const find = (action, extra = '') => hud.editorDialog?.querySelector(`[data-action="${action}"]${extra}`)
     ?? hud.choiceDialog?.querySelector(`[data-action="${action}"]${extra}`)
+    ?? (hud.dialog?.open ? hud.dialog.querySelector(`[data-action="${action}"]${extra}`) : null)
     ?? hud.root?.querySelector(`[data-action="${action}"]${extra}`);
   const click = async (action, extra = '') => {
+    if (!find(action, extra) && ['edit', 'disable', 'party', 'integrations', 'detailed'].includes(action)) { hud.openMore(); await flush(); }
     const control = find(action, extra); assert(control, `Missing ${action} ${extra}`); control.click(); await flush();
     for (let i = 0; hud.saving && i < 100; i++) await new Promise(r => setTimeout(r, 0));
   };
@@ -100,7 +102,7 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       const use = find('use', '[data-item-id="full-spell"]');
       // Move focus onto the item; refocusing an already focused node emits no
       // focusin event and is not a keyboard-entry interaction.
-      find('edit').focus(); use.focus();
+      find('more').focus(); use.focus();
       use.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       for (let i = 0; i < 50 && !document.querySelector('.bg3-video-hud-tooltip'); i++) await delay(20);
       const tooltip = document.querySelector('.bg3-video-hud-tooltip');
@@ -147,7 +149,7 @@ export async function completeFeatureBrowserTests({ test, assert, equal, flush }
       assert(hud.pendingUse); native.remove();
       await click('close-choice'); equal(await pending, null);
       const before = user.writes.length;
-      await click('detailed'); equal(find('detailed').getAttribute('aria-pressed'), 'true');
+      await click('detailed'); equal(hud.detailed, true);
       const detail = hud.chooseUse(hero, spell); equal(hud.pendingUse.phase, 'activity');
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); equal(await detail, null);
       const allocation = hud.allocate({ item: spell, selected: [{ id: 'target', name: 'Fixture target' }], count: 2, consumed: true });

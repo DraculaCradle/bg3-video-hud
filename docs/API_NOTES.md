@@ -96,3 +96,10 @@ v0.1.12 的按比例分摊余量会造成各栏末端不足一列的空条，本
 对照D&D5e 6.0.6 [BaseActorSheet._isItemVisible与_prepareSpellbook](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/applications/actor/api/base-actor-sheet.mjs)、[Item5e.isHidden](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/documents/item.mjs)及CastActivity缓存创建逻辑：系统隐藏集合、isHidden、失活来源不进入HUD；带flags.dnd5e.cachedFor的法术只有system.linkedActivity.displayInSpellbook===true时才显示。内部缓存仍留在原actor.items中，由系统管理。普通与编辑模式、编辑统计和批量操作均遵循这套规则；spellLevels及未使用法术位时的数量指示也一致。用户自行隐藏的可见法术仍可在编辑器找回。
 
 没有按名称、图标或compendiumSource去重，也没有删除/合并文档、修改次数或施法来源；明确显示的缓存和不同来源同名法术保留独立ID及原生使用流程。源码确认旧HUD缺少这些过滤，但尚无该用户NPC的只读诊断，不能宣称截图中每一对都已确证为某种缓存。
+
+
+## v0.1.15 状态环与操作条移除
+
+conditions.js只读取传入的当前Actor和Token，优先使用核心actor.temporaryEffects（含原生已适用的转移效果），缺失时才回退appliedEffects/effects并排除明确永久被动效果。过滤disabled/isSuppressed/suppressed，合并actor.statuses与CONFIG.statusEffects名称/图标，按状态ID而非同图标去重，保留不同的普通效果。兼容Token overlayEffect；不读取全局worldActor、不写文档或flags。无图标／坏图仍有名称和问号。10个固定环形位置，超过时9图标+N，可查看只读完整列表；没有点击切换状态的副作用。
+
+HUD没有footer DOM，去掉对应常驻布局行及高度，整体宽度算法不变。更多菜单用原生dialog提供旧操作，真实键盘Enter/Tab/Escape可达；目标取消/序列停止保留按需反馈。原有create/update/deleteActiveEffect和updateToken hooks刷新当前Actor；没有新增服务器轮询。状态列表为打开时快照，头像环按hooks持续刷新。

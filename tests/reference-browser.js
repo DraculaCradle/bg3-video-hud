@@ -11,6 +11,48 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
   const delay = () => new Promise(resolve => setTimeout(resolve, 0));
   hud.setActor(hero, token);
   try {
+    await test('portrait ring replaces footer, shows active temporary conditions with full names, and switches with the selected token', async () => {
+      const icon = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="7" fill="gold"/></svg>');
+      const candidate = actor('conditions', [], { temporaryEffects: [
+        { id: 'a', name: '中毒', img: icon, statuses: new Set(['poisoned']) },
+        { id: 'b', name: '专注', img: icon },
+        { id: 'off', name: '停用效果', img: icon, disabled: true }
+      ], statuses: new Set(['poisoned']) });
+      const before = structuredClone(candidate), writes = user.writes.length;
+      try {
+        hud.setActor(candidate, { id: 'first' });
+        assert(!hud.root.querySelector('footer')); assert(!hud.root.querySelector('[data-action=edit]'));
+        let badges = [...hud.root.querySelectorAll('.bg3-video-hud-condition')];
+        equal(badges.map(b => b.title), ['中毒', '专注']);
+        equal(badges.map(b => b.tabIndex), [0, 0]);
+        const box = hud.root.querySelector('.bg3-video-hud-portrait-wrap').getBoundingClientRect();
+        for (const badge of badges) {
+          const b = badge.getBoundingClientRect();
+          assert(b.width > 0 && b.left >= box.left - 1 && b.right <= box.right + 1 && b.top >= box.top - 1 && b.bottom <= box.bottom + 1);
+          equal(badge.getAttribute('aria-label'), badge.title);
+        }
+        badges[0].querySelector('img').dispatchEvent(new Event('error')); equal(badges[0].textContent, '?'); equal(badges[0].title, '中毒');
+        hud.setActor(candidate, { id: 'second', document: { overlayEffect: icon + '#second' } });
+        equal(hud.root.querySelectorAll('.bg3-video-hud-condition').length, 3);
+        hud.setActor(actor('empty-conditions', [])); equal(hud.root.querySelectorAll('.bg3-video-hud-condition').length, 0);
+        equal(JSON.stringify(candidate), JSON.stringify(before)); equal(user.writes.length, writes);
+      } finally { hud.setActor(hero, token); }
+    });
+    await test('condition overflow opens a readable full list; More retains actions without a bottom strip', async () => {
+      const candidate = actor('many-conditions', [], { temporaryEffects: Array.from({ length: 18 }, (_, i) => ({ id: `c-${i}`, name: `状态${i}`, statuses: new Set([`c-${i}`]) })) });
+      const writes = user.writes.length;
+      try {
+        hud.setActor(candidate);
+        equal(hud.root.querySelectorAll('.bg3-video-hud-condition').length, 10);
+        const overflow = hud.root.querySelector('[data-action=conditions]'); equal(overflow.textContent, '+9');
+        overflow.click(); await flush(); equal(hud.dialog.querySelectorAll('.bg3-video-hud-condition-list li').length, 18);
+        hud.dialog.close(); await flush(); hud.root.querySelector('[data-action=more]').click(); await flush();
+        for (const action of ['edit', 'disable', 'party', 'integrations', 'detailed']) assert(hud.dialog.querySelector(`[data-action=${action}]`));
+        const detail = hud.dialog.querySelector('[data-action=detailed]'); detail.click(); await flush(); equal(hud.detailed, true);
+        hud.openMore(); equal(hud.dialog.querySelector('[data-action=detailed]').getAttribute('aria-pressed'), 'true');
+        hud.dialog.close(); await flush(); equal(user.writes.length, writes); assert(!hud.root.querySelector('footer'));
+      } finally { hud.detailed = false; hud.setActor(hero, token); }
+    });
     await test('NPC spell grids, counts, levels and editors honor native hidden and cached spellbook visibility without deleting sources', async () => {
       const normal = Array.from({ length: 3 }, (_, i) => item(`real-${i}`, 'spell', { level: 3 }, { name: `模拟法术${i}` }));
       const shadows = normal.map((s, i) => item(`hidden-${i}`, 'spell', { level: 3 }, { name: s.name, isHidden: true }));

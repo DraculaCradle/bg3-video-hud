@@ -87,11 +87,21 @@ try {
   const interactions = async () => {
     const outcomes = [];
     const test = async (name, callback) => {
+      if (process.env.BG3_BROWSER_TRACE === 'true') console.log(`BG3 INTERACTION ${name}`);
       try { await callback(); outcomes.push({ name, passed: true }); }
       catch (error) { outcomes.push({ name, passed: false, error: error.message }); }
     };
     const measurements = [];
-    const measure = () => evaluate(`new Promise(resolve => requestAnimationFrame(() => resolve((${measureHUD.toString()})())))`);
+    const measure = () => evaluate(`new Promise((resolve, reject) => requestAnimationFrame(() => {
+      try { resolve((${measureHUD.toString()})()); } catch (error) { reject(error); }
+    }))`);
+    const focusMenu = async action => {
+      if (!await evaluate('!!document.querySelector(".bg3-video-hud-more[open]")')) {
+        await evaluate('document.querySelector("#bg3-video-hud [data-action=more]").focus()');
+        await press('Enter', 'Enter', 13);
+      }
+      await evaluate(`document.querySelector('.bg3-video-hud-more [data-action="${action}"]').focus()`);
+    };
     const setViewport = ({ width, height, deviceScaleFactor = 1 }) => send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor, mobile: false }, sessionId);
     const extras = [[390, 844], [650, 900], [1024, 576], [1024, 600], [1280, 600], [1366, 720], [1440, 900], [3440, 1440], [2560, 720]];
     const cases = [...extras.map(([width, height]) => ({ width, height, deviceScaleFactor: 1, label: `${width}x${height} viewport` })), ...ZOOM_CASES];
@@ -104,6 +114,7 @@ try {
         assert.ok(layout.left >= -1 && layout.right <= width + 1 && layout.top >= 0 && layout.bottom <= height, JSON.stringify(layout));
         assert.ok(layout.scrollWidth <= layout.clientWidth + 1, JSON.stringify(layout));
         assert.ok(layout.controlsFit, 'Edit, Original HUD and rests must stay within the dock');
+        assert.ok(layout.noFooter && layout.conditionsFit, 'No bottom bar; conditions remain inside portrait ring');
         assert.equal(layout.lists.length, 4);
         assert.ok(layout.lists.every(list => list.square), 'All item buttons must remain square at this viewport');
         assert.ok(layout.lists.every(list => Math.abs(list.tail) < 1), JSON.stringify(layout.lists));
@@ -166,7 +177,7 @@ try {
       await setViewport({ width: 640, height: 360, deviceScaleFactor: 2 });
       await evaluate('window.bg3LayoutTest.crowded()');
       try {
-        await evaluate('document.querySelector("#bg3-video-hud [data-action=edit]").focus()');
+        await focusMenu('edit');
         await press('Enter', 'Enter', 13);
         const before = await evaluate(`(() => {
           const list = document.querySelector('#bg3-video-hud .bg3-video-hud-items');
@@ -185,7 +196,7 @@ try {
         assert.equal(after.item, before[0]);
         assert.equal(after.hit, true, JSON.stringify(after.geometry));
         assert.ok((await measure()).controlsFit);
-        await evaluate('document.querySelector("#bg3-video-hud [data-action=disable]").focus()');
+        await focusMenu('disable');
         await press('Enter', 'Enter', 13);
         assert.ok(await evaluate('!document.getElementById("bg3-video-hud") && getComputedStyle(document.getElementById("bg3-hotbar")).display !== "none"'));
       } finally {
@@ -236,7 +247,7 @@ try {
       assert.equal(hit, true);
     });
     await test('720P edit controls remain reachable without returning to a tall item list', async () => {
-      await evaluate('document.querySelector("#bg3-video-hud [data-action=edit]").click()');
+      await focusMenu('edit'); await press('Enter', 'Enter', 13);
       assert.ok(await evaluate('document.getElementById("bg3-video-hud").getBoundingClientRect().height <= 228'));
       const controlsFit = await evaluate(`[...document.querySelectorAll('#bg3-video-hud .bg3-video-hud-items')].every(list => {
         const controls = list.querySelector('.bg3-video-hud-edit-controls');
@@ -257,9 +268,9 @@ try {
       assert.equal(tooltip.present, true); assert.equal(tooltip.unsafe, false);
     });
     await test('real Enter key activates the focused Edit button', async () => {
-      await evaluate('document.querySelector("#bg3-video-hud button[data-action=edit]").focus()');
+      await focusMenu('edit');
       await press('Enter', 'Enter', 13);
-      assert.equal(await evaluate('document.querySelector("#bg3-video-hud button[data-action=edit]").getAttribute("aria-pressed")'), 'true');
+      assert.equal(await evaluate('document.querySelector("#bg3-video-hud").classList.contains("bg3-video-hud-editing")'), true);
     });
     await test('real Enter reorders items and restores keyboard focus after rendering', async () => {
       const before = await evaluate(`(() => {
@@ -280,7 +291,7 @@ try {
       assert.equal(after.focused.direction, '1');
     });
     await test('real Tab reaches Original HUD with an accessible name', async () => {
-      await evaluate('document.querySelector("#bg3-video-hud button[data-action=edit]").focus()');
+      await focusMenu('edit');
       await press('Tab', 'Tab', 9);
       const focused = await evaluate('({ action: document.activeElement.dataset.action, label: document.activeElement.getAttribute("aria-label") })');
       assert.equal(focused.action, 'disable');

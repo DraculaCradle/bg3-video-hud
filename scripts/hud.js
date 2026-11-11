@@ -7,6 +7,7 @@ import { castingPools, castingSources, usableActivities, bundledActivity, native
   saveCastingSource, deleteCastingSource, RECOVERY, sequencePlan, requireActor } from './casting.js';
 import { TargetVisuals, partyRows, INTEGRATIONS } from './visuals.js';
 import { TurnLedger } from './turn-ledger.js';
+import { portraitConditions, conditionRing } from './conditions.js';
 
 // Display labels only: stable model groups, item IDs and stored layouts are unchanged.
 const groupLabels = { Weapons: '武器', Items: '物品', Features: '特性', Spells: '法术' };
@@ -179,7 +180,27 @@ export class VideoHUD {
       image.addEventListener('error', () => image.replaceWith(node('span', '?')), { once: true });
       portrait.append(image);
     } else portrait.append(node('span', '?'));
-    header.append(portrait);
+    const portraitWrap = node('div', undefined, 'bg3-video-hud-portrait-wrap');
+    portraitWrap.append(portrait);
+    const conditions = portraitConditions(actor, this.token);
+    const ring = node('ul', undefined, 'bg3-video-hud-condition-ring');
+    ring.setAttribute('aria-label', `当前 Token 状态，共 ${conditions.length} 项`);
+    for (const entry of conditionRing(conditions)) {
+      const slot = node('li'); slot.style.left = `${entry.x}%`; slot.style.top = `${entry.y}%`;
+      const badge = entry.count ? button(`+${entry.count}`, 'conditions', `查看全部状态：${entry.name}`)
+        : node('span', undefined, 'bg3-video-hud-condition');
+      badge.classList.add('bg3-video-hud-condition'); badge.dataset.conditionKey = entry.key;
+      badge.title = entry.name; badge.setAttribute('aria-label', entry.count ? `还有 ${entry.count} 项状态：${entry.name}` : entry.name);
+      if (!entry.count) {
+        badge.tabIndex = 0; badge.setAttribute('role', 'img');
+        if (entry.img) {
+          const img = node('img'); img.src = entry.img; img.alt = '';
+          img.addEventListener('error', () => img.replaceWith(node('b', '?')), { once: true }); badge.append(img);
+        } else badge.append(node('b', '?'));
+      }
+      slot.append(badge); ring.append(slot);
+    }
+    portraitWrap.append(ring); header.append(portraitWrap);
     const stats = actorStats(actor);
     const summary = node('div', undefined, 'bg3-video-hud-summary');
     const name = node('strong', actor.name ?? '角色');
@@ -208,12 +229,6 @@ export class VideoHUD {
       summary.append(line);
     }
     header.append(summary);
-    const controls = node('div', undefined, 'bg3-video-hud-controls');
-    const edit = button(this.edit ? '完成' : '编辑', 'edit', '编辑物品显示与排序');
-    edit.disabled = this.busy.size > 0 || this.saving === true;
-    edit.setAttribute('aria-pressed', String(this.edit));
-    controls.append(edit, button('原版界面', 'disable', '关闭本 HUD，返回 Foundry 或已启用的其他 HUD'));
-    header.append(controls);
     root.append(header);
     const ratios = prefs.columnSizing === 'manual' ? prefs.ratios : DEFAULT_RATIOS;
     root.dataset.columnSizing = prefs.columnSizing ?? 'auto';
@@ -275,7 +290,9 @@ export class VideoHUD {
     root.append(panels);
     this.installDividers(root, panels);
     const end = node('div', undefined, 'bg3-video-hud-end');
-    end.append(button('♙ 角色卡', 'sheet', '打开角色卡'));
+    const endTools = node('div', undefined, 'bg3-video-hud-end-tools');
+    const more = button('⋯', 'more', '更多操作'); more.setAttribute('aria-haspopup', 'dialog');
+    endTools.append(button('角色卡', 'sheet', '打开角色卡'), more); end.append(endTools);
     const combat = globalThis.game?.combat;
     const primary = button('', combat?.started ? 'end-turn' : 'rest', combat?.started ? '结束当前角色回合' : '短休（系统确认窗口）', { value: 'short' });
     primary.className = 'bg3-video-hud-turn';
@@ -284,25 +301,19 @@ export class VideoHUD {
     end.append(primary);
     const longRest = button('☾ 长休', 'rest', '长休（系统确认窗口）', { value: 'long' });
     longRest.disabled = this.busy.size > 0; end.append(longRest); root.append(end);
-    const footer = node('footer');
-    footer.append(button('队伍', 'party', '查看可访问的队伍角色'), button('联动', 'integrations', '动画、骰子与自动化状态'));
-    const detailed = button('详细', 'detailed', '显示活动、重复结算和原生使用选项');
-    detailed.setAttribute('aria-pressed', String(this.detailed));
-    detailed.disabled = this.busy.size > 0 || this.edit || this.saving === true;
-    footer.append(detailed);
-    if (this.targeting.picking) footer.append(button('取消选目标', 'cancel-target', '取消目标选择，不使用技能'));
+    const feedback = node('div', undefined, 'bg3-video-hud-feedback');
+    if (this.targeting.picking) feedback.append(button('取消选目标', 'cancel-target', '取消目标选择，不使用技能'));
     const stages = { attack: '攻击掷骰', damage: '伤害掷骰', done: '已完成', stopped: '已停止', error: '结算中断' };
     const progress = this.progress;
     if (progress && this.busy.size && !['done', 'stopped', 'error'].includes(progress.stage)) {
-      footer.append(button('停止后续', 'stop-sequence', '停止尚未执行的结算；当前原生窗口仍可自行取消'));
+      feedback.append(button('停止后续', 'stop-sequence', '停止尚未执行的结算；当前原生窗口仍可自行取消'));
     }
     const progressText = progress ? `${progress.item.name} · ${stages[progress.stage] ?? '结算'} ${Math.min(progress.index + 1, progress.total)}/${progress.total}` : '';
     const status = node('span', progressText || this.status, 'bg3-video-hud-status');
     status.title = this.status;
     status.setAttribute('role', 'status');
-    footer.append(status);
-    footer.prepend(controls);
-    root.append(footer);
+    feedback.append(status);
+    if (status.textContent || feedback.querySelector('button')) root.append(feedback);
     if (this.root?.isConnected) this.root.parentNode.replaceChild(root, this.root);
     else document.body.append(root);
     this.root = root;
@@ -925,6 +936,49 @@ export class VideoHUD {
     });
   }
 
+  openMore() {
+    this.dialog?.close();
+    const dialog = modal('更多操作', () => {
+      if (this.dialog === dialog) this.dialog = null;
+      queueMicrotask(() => {
+        if (!this.dialog?.open && !this.choiceDialog?.open && !this.editorDialog?.open
+          && (document.activeElement === document.body || dialog.contains(document.activeElement)))
+          this.root?.querySelector('[data-action=more]')?.focus({ preventScroll: true });
+      });
+    }, { restoreFocus: false });
+    this.dialog = dialog; dialog.classList.add('bg3-video-hud-more');
+    const controls = node('div', undefined, 'bg3-video-hud-controls');
+    for (const [action, label, title] of [
+      ['edit', this.edit ? '完成编辑' : '编辑', '编辑物品显示与排序'],
+      ['disable', '原版界面', '关闭本 HUD，返回 Foundry 或已启用的其他 HUD'],
+      ['party', '队伍', '查看可访问的队伍角色'],
+      ['integrations', '联动', '动画、骰子与自动化状态'],
+      ['detailed', '详细', '显示活动、重复结算和原生使用选项']
+    ]) {
+      const control = button(label, action, title);
+      if (action === 'edit') { control.disabled = this.busy.size > 0 || this.saving === true; control.setAttribute('aria-pressed', String(this.edit)); }
+      if (action === 'detailed') {
+        control.disabled = this.busy.size > 0 || this.edit || this.saving === true;
+        control.setAttribute('aria-pressed', String(this.detailed));
+      }
+      control.onclick = event => { dialog.close(); this.run(() => this.click(control, event)); };
+      controls.append(control);
+    }
+    dialog.append(controls); controls.querySelector('button:not(:disabled)')?.focus();
+  }
+
+  openConditions() {
+    this.dialog?.close(); const dialog = modal('当前 Token 状态', () => { if (this.dialog === dialog) this.dialog = null; });
+    this.dialog = dialog;
+    const list = node('ul', undefined, 'bg3-video-hud-condition-list');
+    for (const entry of portraitConditions(this.actor, this.token)) {
+      const row = node('li');
+      if (entry.img) { const img = node('img'); img.src = entry.img; img.alt = ''; row.append(img); }
+      row.append(node('span', entry.name)); list.append(row);
+    }
+    if (!list.children.length) dialog.append(node('p', '当前 Token 没有状态。')); else dialog.append(list);
+  }
+
   openIntegrations() {
     this.dialog?.close(); const dialog = modal('骰子与动画联动', () => { if (this.dialog === dialog) this.dialog = null; }); this.dialog = dialog;
     for (const [id, label] of INTEGRATIONS) dialog.append(node('p', `${label}：${globalThis.game?.modules?.get(id)?.active ? '已启用' : '未启用'}`));
@@ -1016,6 +1070,8 @@ export class VideoHUD {
     switch (action) {
       case 'disable': return this.onDisable();
       case 'cancel-target': this.targeting.cancel(); this.status = '已取消目标选择。'; this.render(); return;
+      case 'more': this.openMore(); return;
+      case 'conditions': this.openConditions(); return;
       case 'sheet': return actor.sheet?.render({ force: true });
       case 'edit': return this.edit ? this.commitEdit() : this.beginEdit();
       case 'detailed': if (!this.busy.size && !this.edit && !this.saving) {

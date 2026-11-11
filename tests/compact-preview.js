@@ -13,6 +13,7 @@ const all = [
   ...spells.map((name, i) => item(`spell-${i}`, 'spell', { level: i < 2 ? 0 : 1, activities: [{ activation: { type: 'action' } }] }, { name, img: icon(['✺', '✹', '✚', '✧'][i % 4], '#6b5296') }))
 ];
 const hero = actor('preview', all, { name: '林间游侠 · Rowan', img: icon('R', '#6c8659'),
+  temporaryEffects: ['专注', '祝福', '加速', '中毒', '倒地', '隐形'].map((name, i) => ({ id: `preview-condition-${i}`, name, img: icon(['✦', '✚', '➶', '◆', '↓', '◈'][i], ['#67559b', '#a18439', '#467e95', '#4e8049', '#8b6348', '#567c9c'][i]) })),
   system: { attributes: { hp: { value: 12, max: 12 }, ac: { value: 14 } }, spells: { spell1: { value: 2, max: 3, level: 1 }, spell2: { value: 1, max: 2, level: 2 } } } });
 for (const entry of hero.items.values()) {
   entry.actor = hero; entry.uuid = `${hero.uuid}.Item.${entry.id}`;

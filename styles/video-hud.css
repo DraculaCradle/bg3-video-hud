@@ -374,7 +374,7 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
   .bg3-video-hud-panel-heading input:focus { position: absolute; inset: 0 0 3px; width: 100%; max-width: 100%; z-index: 4; color: #f3eee2; background: #14212b; padding: 0 3px; }
 }
 
-/* No persistent bottom bar. Existing secondary actions live in More. */
+/* No persistent bottom bar or secondary operations menu. */
 .bg3-video-hud {
   height: clamp(108px, calc(193 * var(--video-unit)), calc(35dvh - var(--video-row) - 7 * var(--video-unit)));
   grid-template-rows: var(--video-rail) minmax(0, 1fr);
@@ -406,10 +406,6 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
 }
 .bg3-video-hud-condition img { width: 100%; height: 100%; object-fit: contain; border: 0; border-radius: 50%; }
 .bg3-video-hud-condition:focus-visible { outline: 2px solid #92d7f7; outline-offset: 1px; }
-.bg3-video-hud-end-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px; width: 100%; }
-.bg3-video-hud-end-tools button { min-width: 0; padding: 2px; }
-.bg3-video-hud-end-tools [data-action=more] { min-width: 20px; font-size: var(--video-label); }
-.bg3-video-hud-more .bg3-video-hud-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .bg3-video-hud-condition-list { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
 .bg3-video-hud-condition-list li { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .bg3-video-hud-condition-list img { width: 28px; height: 28px; object-fit: contain; border: 0; }
@@ -427,5 +423,4 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
   .bg3-video-hud-editing { grid-template-rows: 62px 28px 22px minmax(0, 1fr); grid-template-areas: 'identity identity end' 'filters filters filters' 'help help help' 'panels panels panels'; }
   .bg3-video-hud-header { display: flex; align-items: center; }
   .bg3-video-hud-portrait-wrap { width: 58px; height: 58px; align-self: center; }
-  .bg3-video-hud-end-tools [data-action=more] { display: block; }
 }

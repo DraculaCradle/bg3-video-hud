@@ -98,8 +98,15 @@ v0.1.12 的按比例分摊余量会造成各栏末端不足一列的空条，本
 没有按名称、图标或compendiumSource去重，也没有删除/合并文档、修改次数或施法来源；明确显示的缓存和不同来源同名法术保留独立ID及原生使用流程。源码确认旧HUD缺少这些过滤，但尚无该用户NPC的只读诊断，不能宣称截图中每一对都已确证为某种缓存。
 
 
-## v0.1.15 状态环与操作条移除
+## v0.1.15 状态环与操作条移除（历史；更多菜单由v0.1.16移除）
 
 conditions.js只读取传入的当前Actor和Token，优先使用核心actor.temporaryEffects（含原生已适用的转移效果），缺失时才回退appliedEffects/effects并排除明确永久被动效果。过滤disabled/isSuppressed/suppressed，合并actor.statuses与CONFIG.statusEffects名称/图标，按状态ID而非同图标去重，保留不同的普通效果。兼容Token overlayEffect；不读取全局worldActor、不写文档或flags。无图标／坏图仍有名称和问号。10个固定环形位置，超过时9图标+N，可查看只读完整列表；没有点击切换状态的副作用。
 
 HUD没有footer DOM，去掉对应常驻布局行及高度，整体宽度算法不变。更多菜单用原生dialog提供旧操作，真实键盘Enter/Tab/Escape可达；目标取消/序列停止保留按需反馈。原有create/update/deleteActiveEffect和updateToken hooks刷新当前Actor；没有新增服务器轮询。状态列表为打开时快照，头像环按hooks持续刷新。
+
+
+## v0.1.16 顶部固定相邻槽位，无更多菜单
+
+conditionRing按固定10位的36度间隔，从头顶开始依次填充0、+1、-1、+2、-2等邻接槽位，而不是用当前状态数作整圈等分分母。因此1～5项始终优先上半圈，新增不移动已占槽位；原10位溢出只读列表保持。
+
+移除openMore、按钮、路由及菜单样式，以及旧队伍／联动弹窗和次要操作路由；没有隐藏或替代菜单。分类原有齿轮编辑保持，模块原有Token工具栏/API/快捷键临时返回不变。测试改为真实分类编辑、独立原生返回，不为迁就旧测试保留已删除按钮。没有修改用户布局或状态数据。

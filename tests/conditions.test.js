@@ -47,3 +47,14 @@ test('ring overflow retains all names in a reachable badge and circular slots ne
   }
   assert.deepEqual(conditionRing([]), []);
 });
+
+test('small sets occupy neighboring top slots; existing conditions never jump to opposite sides when another is added', () => {
+  const entries = Array.from({ length: 5 }, (_, i) => ({ key: String(i), name: `状态${i}` }));
+  const full = conditionRing(entries);
+  for (let n = 1; n <= 5; n++) {
+    const ring = conditionRing(entries.slice(0, n));
+    assert.ok(ring.every(p => p.y < 50), 'The first five conditions belong above the portrait centre');
+    assert.deepEqual(ring, full.slice(0, n));
+    if (n > 1) assert.ok(Math.hypot(ring[0].x - ring[1].x, ring[0].y - ring[1].y) < 28, 'Two conditions must be adjacent, not opposite');
+  }
+});

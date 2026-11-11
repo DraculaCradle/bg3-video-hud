@@ -16,6 +16,7 @@ files += [root / 'docs' / 'images' / 'compact-720p.png', root / 'docs' / 'images
 files += sorted((root / 'docs' / 'images').glob('responsive-*.jpg'))
 files += sorted((root / 'docs' / 'images').glob('complete-*.jpg'))
 files += sorted((root / 'docs' / 'images').glob('choice-*.jpg'))
+files += [root / 'docs' / 'images' / name for name in ['adjacent-statuses-720p.jpg', 'condition-overflow-720p.jpg']]
 output = root / 'dist'
 output.mkdir(exist_ok=True)
 archive = output / 'bg3-video-hud.zip'

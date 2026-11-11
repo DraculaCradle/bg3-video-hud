@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.15：移除底部操作条，头像环形显示 Token 状态。** 状态名称可悬停／键盘查看，过多时用 +N 展开只读列表；停用或抑制效果不显示。编辑／原版界面／队伍／联动／详细收进右侧“更多”菜单，选目标取消和结算反馈按需浮现。保留固定总宽、方形网格和原生法术可见性。自动部署和自动实机测试继续关闭。
+> **v0.1.16：顶部相邻状态，无更多菜单。** 状态图标从头像头顶固定槽位向左右相邻位置展开，前5项优先在上半圈，不再按数量均摊整圈；更多按钮和操作弹窗完全移除，不另设替代菜单。保留分组齿轮、状态只读与固定总宽。自动部署和自动实机测试继续关闭。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Not yet verified in a running Foundry VTT v14 / D&D5e 6.0.6 world. Manifest compatibility declares the intended target, not a completed in-game certification.
 
@@ -38,10 +38,10 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 1. Use the existing Foundry v14 instance with D&D5e **6.0.6**. Current source needs no other HUD module; no upstream code is bundled. Do not change other worlds or enable/disable optional modules automatically.
 2. Run `npm run package` from this checkout (Node >=22.8 and Python 3 required). Extract `dist/bg3-video-hud.zip` into `<Foundry User Data>/Data/modules/bg3-video-hud/`, with `module.json` directly inside that directory. Alternatively copy `module.json`, `scripts/`, and `styles/` into that directory.
 3. 在需要使用的世界中，通过“管理模组”启用 **BG3 视频界面** 并重新载入。所有客户端自动起效，无需额外设置开关。 If package discovery or manifest changes need a reload/restart, the administrator schedules a maintenance window; this project never controls the service automatically.
-4. GM 和 Player 均自动启用。**更多 → 原版界面** 可在当前页面临时返回；Token 工具栏的 **临时切换原版／BG3 界面** 可恢复，刷新页面自动恢复。也可为此临时操作设置快捷键。
+4. GM 和 Player 均自动启用。Token 工具栏的 **临时切换原版／BG3 界面** 可在当前页面临时返回或恢复，刷新页面自动恢复。也可为此临时操作设置快捷键。
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.15. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.16. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 
@@ -55,7 +55,7 @@ For Linux server installation or upgrades, use the [deployment guide](docs/DEPLO
 - **动作 / 附赠动作 / 反应** filter activities and show locally observed native uses in the current combat turn position. They are not authoritative remaining-action limits and never enforce combat rules.
 - Search each category; hover or focus an item for a safe rich description. **编辑** opens the full draft; category gears open a separate scrollable editor dialog: show/hide, pin, drag/arrow order, bulk select/clear/reset, then Save or Cancel. Short/long rests still call official dialogs.
 - Settings are stored on the current **User**, under `flags.bg3-video-hud.layouts`, keyed by full actor UUID. Players can configure their own layout without permission to modify another user's document. Synthetic token actors have separate identities. Same-client edits are serialized; simultaneous sessions for the same user use last-write-wins semantics.
-- **更多 → 原版界面** 在当前页面会话临时隐藏本 HUD（刷新自动恢复），恢复 Foundry 原生快捷栏及可选 BG3 HUD 原有的显示状态。仅在本 HUD 已挂载时临时隐藏它们的 DOM 外壳；不修改快捷栏内容、BG3 设置、用户 flags 或源码，也不会主动启用其他模组。
+- Token 工具栏的 **临时切换原版／BG3 界面** 在当前页面会话临时隐藏本 HUD（刷新自动恢复），恢复 Foundry 原生快捷栏及可选 BG3 HUD 原有的显示状态。仅在本 HUD 已挂载时临时隐藏它们的 DOM 外壳；不修改快捷栏内容、BG3 设置、用户 flags 或源码，也不会主动启用其他模组。
 - Optional macro: `await game.modules.get("bg3-video-hud").api.toggle()`.
 
 新增来源管理、目标预览、可选重复分配、队伍概览与骰子／动画联动状态的中文操作与边界，见[视频功能补齐](docs/COMPLETE_HUD.md)及[视频对照](docs/VIDEO_COMPARISON.md)。这些代码已纳入 v0.1.2 发布；发布不会自动安装到线上。

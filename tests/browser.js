@@ -68,16 +68,21 @@ globalThis.game = {
 };
 const root = () => document.getElementById(MODULE_ID);
 const originalVisible = () => getComputedStyle(document.getElementById('bg3-hotbar')).display !== 'none';
-const find = (action, itemId) => (document.querySelector('.bg3-video-hud-more[open]') ?? root())?.querySelector(`button[data-action="${action}"]${itemId ? `[data-item-id="${itemId}"]` : ''}`);
+const editPanel = () => document.querySelector('.bg3-video-hud-editor-dialog[open]');
+const find = (action, itemId) => editPanel()?.querySelector(`button[data-action="${action}"]${itemId ? `[data-item-id="${itemId}"]` : ''}`)
+  ?? root()?.querySelector(`button[data-action="${action}"]${itemId ? `[data-item-id="${itemId}"]` : ''}`);
 async function click(action, itemId) {
-  if (!find(action, itemId) && ['edit', 'disable', 'party', 'integrations', 'detailed'].includes(action)) {
-    root().querySelector('[data-action=more]').click(); await flush();
-  }
-  const button = find(action, itemId); assert(button, `Missing ${action} ${itemId ?? ''}`); button.click(); await flush();
+  const button = action === 'edit' ? editPanel()?.querySelector('[data-action=save-edit]')
+    ?? root()?.querySelector('[data-action=edit-group][data-value=Weapons]') : find(action, itemId);
+  assert(button, `Missing ${action} ${itemId ?? ''}`); button.click(); await flush();
   for (let i = 0; root()?.getAttribute('aria-busy') === 'true' && i < 100; i++) {
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   assert(root()?.getAttribute('aria-busy') !== 'true', 'Layout saving did not settle');
+}
+async function returnNative() {
+  const controls = { tokens: { tools: {} } }; await Hooks.emit('getSceneControlButtons', controls);
+  await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
 }
 async function enable() { const api = game.modules.get(MODULE_ID).api; if (!api.status().enabled) await api.toggle(); api.refresh(); await flush(); }
 async function pause() { if (game.modules.get(MODULE_ID).api.status().enabled) await game.modules.get(MODULE_ID).api.toggle(); await flush(); }
@@ -102,7 +107,7 @@ try {
     assert(root()); assert(!originalVisible());
     for (const label of ['武器', '物品', '特性', '法术', '生命 9/12', '护甲 15', '契约2环：1/1', '1环：0/2']) assert(root().textContent.includes(label), label);
     for (const label of ['附赠动作', '反应', '仅固定', '短休', '长休']) assert(root().textContent.includes(label), label);
-    assert(!root().querySelector('footer')); assert(find('more'));
+    assert(!root().querySelector('footer')); assert(!find('more'));
     equal(definitions.size, 0); equal(settings.get(`${MODULE_ID}.enabled`), false);
     equal([...root().querySelectorAll('[data-group]')].map(section => section.dataset.group), ['Weapons', 'Items', 'Features', 'Spells']);
     equal(root().querySelector('.bg3-video-hud-summary strong').textContent, hero.name);
@@ -130,13 +135,13 @@ try {
     const before = JSON.stringify(user.flags);
     try {
       await Hooks.emit('updateUser', user); assert(root()); assert(getComputedStyle(native).display === 'none');
-      await click('disable'); assert(!root()); assert(getComputedStyle(native).display !== 'none');
+      await returnNative(); assert(!root()); assert(getComputedStyle(native).display !== 'none');
       for (const id of ['bg3-hud-core', 'bg3-hud-dnd5e']) game.modules.set(id, { active: false });
       await game.modules.get(MODULE_ID).api.toggle(); await flush(); assert(root());
       document.body.append(shell);
       for (const id of ['bg3-hud-core', 'bg3-hud-dnd5e']) game.modules.get(id).active = true;
       await Hooks.emit('updateUser', user); assert(root()); assert(!originalVisible());
-      await click('disable'); assert(originalVisible());
+      await returnNative(); assert(originalVisible());
       for (const id of ['bg3-hud-core', 'bg3-hud-dnd5e']) assert(game.modules.get(id).active);
       await game.modules.get(MODULE_ID).api.toggle(); await flush(); assert(root());
       equal(JSON.stringify(user.flags), before);
@@ -215,14 +220,14 @@ try {
     assert(!find('use', 'sword').closest('li').classList.contains('bg3-video-hud-item-hidden'));
   });
   await test('keyboard-accessible ordering moves up and down within group', async () => {
-    root().querySelector('[data-action="move"][data-item-id="sword"][data-direction="-1"]').click(); await flush();
+    editPanel().querySelector('[data-action="move"][data-item-id="sword"][data-direction="-1"]').click(); await flush();
     const order = () => [...root().querySelectorAll('.bg3-video-hud-panel:first-child li')].map(n => n.dataset.itemId);
     equal(order().slice(0, 2), ['sword', 'bow']);
-    root().querySelector('[data-action="move"][data-item-id="sword"][data-direction="1"]').click(); await flush();
+    editPanel().querySelector('[data-action="move"][data-item-id="sword"][data-direction="1"]').click(); await flush();
     equal(order().slice(0, 2), ['bow', 'sword']);
   });
   await test('drag reorders only actor-owned items in same group', async () => {
-    const target = root().querySelector('li[data-item-id="bow"]');
+    const target = editPanel().querySelector('li[data-item-id="bow"]');
     const transfer = new DataTransfer();
     transfer.setData('application/x-bg3-video-hud', JSON.stringify({ actor: hero.uuid, itemId: 'sword' }));
     target.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer })); await flush();
@@ -231,13 +236,15 @@ try {
     for (const payload of ['invalid JSON', JSON.stringify({ actor: 'Actor.enemy', itemId: 'sword' }),
       JSON.stringify({ actor: hero.uuid, itemId: 'hex' }), JSON.stringify({ actor: hero.uuid, itemId: 'foreign' })]) {
       transfer.setData('application/x-bg3-video-hud', payload);
-      root().querySelector('li[data-item-id="bow"]').dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer }));
+      editPanel().querySelector('li[data-item-id="bow"]').dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer }));
       await flush();
     }
     equal(user.writes.length, writes);
   });
   await test('pin and level filters compose, including cantrips', async () => {
-    await click('pin', 'light'); await click('pinned-only'); await click('edit');
+    await click('edit');
+    root().querySelector('[data-action=edit-group][data-value=Spells]').click(); await flush();
+    await click('pin', 'light'); await click('edit'); await click('pinned-only');
     assert(find('use', 'light')); assert(!find('use', 'hex'));
     root().querySelector('[data-action="filter-level"][data-value="1"]').click(); await flush();
     assert(!find('use', 'light')); assert(!find('use', 'hex'));
@@ -269,8 +276,7 @@ try {
   await test('missing actor stats and portrait are safe; actor switches reset edit/filters', async () => {
     await click('edit');
     await select(actor('empty')); assert(root().textContent.includes('生命 —/—')); assert(root().textContent.includes('护甲 —'));
-    await click('more'); equal(find('edit').textContent, '编辑');
-    document.querySelector('.bg3-video-hud-more[open]').close(); await flush();
+    assert(!editPanel()); assert(!find('more'));
     await select(hero);
   });
   await test('unsupported system fails open to original HUD', async () => {
@@ -293,20 +299,20 @@ try {
     user.getFlag = getFlag; await Hooks.emit('updateUser', user);
     assert(root()); assert(!find('use', 'sword').disabled);
   });
-  await test('disable restores upstream display and never overwrites original preferences', async () => {
-    await click('disable'); assert(!root()); assert(originalVisible());
+  await test('native toolbar return restores upstream display without overwriting preferences', async () => {
+    await returnNative(); assert(!root()); assert(originalVisible());
     equal(user.flags['bg3-hud-core'], { layout: ['untouched'] });
     equal(user.flags['bg3-hud-dnd5e'], { order: ['original'] });
     assert(user.writes.every(w => w.scope === MODULE_ID));
     equal([...settings.keys()], [`${MODULE_ID}.enabled`]);
   });
-  await test('scene tool reads session state after other controls temporarily return to native', async () => {
+  await test('scene tool reads current session state after native return', async () => {
     const controls = { tokens: { tools: {} } };
     await Hooks.emit('getSceneControlButtons', controls);
     const tool = controls.tokens.tools.bg3VideoHUD;
     equal(tool.button, true);
     await tool.onChange(); await flush(); assert(root());
-    await click('disable'); assert(!root());
+    await returnNative(); assert(!root());
     await tool.onChange(); await flush(); assert(root());
     await tool.onChange(); await flush(); assert(!root()); assert(originalVisible());
   });
@@ -327,7 +333,7 @@ try {
   window.bg3LayoutTest = {
     crowded: () => select(crowded), reset: () => select(hero),
     refresh: () => Hooks.emit('updateActor', crowded), writes: () => user.writes.length,
-    notifications: () => notifications.slice(-5), enable
+    notifications: () => notifications.slice(-5), enable, toggle: () => game.modules.get(MODULE_ID).api.toggle()
   };
   let targetingFixture;
   let choiceFixture;
@@ -381,7 +387,7 @@ try {
   });
   await test('temporary native return survives refresh and token changes; tool resumes without flag writes', async () => {
     const flags = JSON.stringify(user.flags);
-    await click('disable'); assert(!root()); assert(originalVisible());
+    await returnNative(); assert(!root()); assert(originalVisible());
     await Hooks.emit('updateUser', user); await Hooks.emit('controlToken'); assert(!root());
     const controls = { tokens: { tools: {} } };
     await Hooks.emit('getSceneControlButtons', controls);

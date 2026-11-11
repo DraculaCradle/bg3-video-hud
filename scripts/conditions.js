@@ -41,7 +41,10 @@ export function conditionRing(entries, slots = 10) {
   const visible = entries.slice(0, overflow ? slots - 1 : slots);
   if (overflow) visible.push({ key: 'overflow', name: entries.slice(slots - 1).map(e => e.name).join('、'), count: entries.length - slots + 1 });
   return visible.map((entry, i) => {
-    const angle = -Math.PI / 2 + i * Math.PI * 2 / visible.length;
+    // Fixed adjacent slots fill from twelve o'clock, alternating right/left.
+    // Adding a second condition never pushes it to the bottom of the portrait.
+    const offset = i ? Math.ceil(i / 2) * (i % 2 ? 1 : -1) : 0;
+    const angle = -Math.PI / 2 + offset * Math.PI * 2 / slots;
     return { ...entry, x: 50 + Math.cos(angle) * 42, y: 50 + Math.sin(angle) * 42 };
   });
 }

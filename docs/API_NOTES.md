@@ -119,3 +119,8 @@ conditionRing使用 `offset = i - (visible.length - 1) / 2`，仍按10位的36�
 对照D&D5e 6.0.6 [SingleLevelSpellcasting.prepareSlots](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/data/spellcasting/spellcasting-model.mjs)：现有slotPools继续读取原生准备后的value/max/level，不更改消费规则。HUD将pact池分离到spell-controls中的独立只读面板；普通summary/pips排除pact，spellLevels仅以已知可见法术和普通池计算上界，不因pact.level产生额外普通环阶。原生更新hooks与Token切换复用原渲染，无新增服务器请求或资源写入。不存在／0/0隐藏，0/x保留，未知显示?。
 
 autoColumnWidths增加可验证的minimumColumns选项；契约面板存在时法术栏起点至少两列，其他>=3项至少两列的规则不变。不改变真实能力数量、固定总预算及统一方格填满算法。独立面板缩放有界，筛选自身可滚动；不恢复底栏或任何次要操作菜单。
+
+
+## v0.1.18 契约位方格
+
+契约面板复用普通环阶的bg3-video-hud-level-pips及available样式：相同尺寸、边框及填充，空格表示消耗。只替换可视数字；原生当前/总数与环级保留于title和aria-label，焦点仍可达。未知当前数用虚线格，未知总数显示?，不伪造可用资源；最多12格与普通位一致，独立面板内允许换行。没有修改slotPools、原生消费、更新hooks或权限。

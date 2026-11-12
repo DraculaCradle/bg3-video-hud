@@ -27,7 +27,12 @@ export function measureHUD() {
     conditionsCentered: !badges.length || Math.abs(badges.reduce((sum, b) => sum + b.x + b.width / 2, 0) / badges.length - portrait.x - portrait.width / 2) < 1,
     pactFits: !pact || (pactBox.width > 0 && pactBox.height > 0 && pactBox.left >= rail.right - 1 && pactBox.right <= rect.right + 1
       && pactBox.top >= rect.top - 1 && pactBox.bottom <= rect.bottom + 1
-      && pact.contains(document.elementFromPoint(pactBox.x + pactBox.width / 2, pactBox.y + pactBox.height / 2))),
+      && pact.contains(document.elementFromPoint(pactBox.x + pactBox.width / 2, pactBox.y + pactBox.height / 2))
+      && [...pact.querySelectorAll('i')].every(pip => {
+        const b = pip.getBoundingClientRect();
+        return b.width >= 4 && b.height >= 6 && b.left >= pactBox.left && b.right <= pactBox.right
+          && b.top >= pactBox.top && b.bottom <= pactBox.bottom;
+      })),
     conditionsFit: [...root.querySelectorAll('.bg3-video-hud-condition-ring > li')].every(slot => {
       const box = slot.getBoundingClientRect(), wrap = slot.closest('.bg3-video-hud-portrait-wrap').getBoundingClientRect();
       const badge = slot.firstElementChild;

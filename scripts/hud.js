@@ -393,7 +393,16 @@ export class VideoHUD {
       indicator.setAttribute('role', 'group');
       indicator.setAttribute('aria-label', `${pact.label}法术位：当前 ${pact.value ?? '?'}，总数 ${pact.max ?? '?'}`);
       indicator.title = `${pact.label}法术位：${pact.value ?? '?'}/${pact.max ?? '?'}（只读，使用与恢复由系统处理）`;
-      indicator.append(node('span', '契约'), node('strong', `${pact.value ?? '?'}/${pact.max ?? '?'}`));
+      const indicators = node('span', undefined, 'bg3-video-hud-level-pips');
+      indicators.setAttribute('aria-hidden', 'true');
+      if (pact.max === null) indicators.textContent = '?';
+      else for (let i = 0; i < Math.min(12, pact.max); i++) {
+        const pip = node('i');
+        pip.classList.toggle('available', pact.value !== null && i < pact.value);
+        pip.classList.toggle('unknown', pact.value === null);
+        indicators.append(pip);
+      }
+      indicator.append(node('span', '契约'), indicators);
       wrapper.append(indicator);
     }
     return wrapper;

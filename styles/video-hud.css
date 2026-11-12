@@ -438,5 +438,7 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
   background: linear-gradient(#3d2c4ffa, #181626fa); color: #e3c5ff;
   font-size: var(--video-small); line-height: 1.1; white-space: nowrap;
 }
-.bg3-video-hud-pact-slots strong { font: 600 var(--video-small)/1.1 system-ui, sans-serif; }
+.bg3-video-hud-pact-slots .bg3-video-hud-level-pips { max-width: 100%; flex-wrap: wrap; }
+.bg3-video-hud-pact-slots .bg3-video-hud-level-pips i { flex: 0 0 auto; }
+.bg3-video-hud-pact-slots .bg3-video-hud-level-pips i.unknown { border-style: dashed; }
 .bg3-video-hud-pact-slots:focus-visible { outline: 2px solid #92d7f7; outline-offset: -2px; }

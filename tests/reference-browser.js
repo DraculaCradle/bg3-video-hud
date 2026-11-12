@@ -49,7 +49,7 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(JSON.stringify(candidate), JSON.stringify(before)); equal(user.writes.length, writes);
       } finally { hud.setActor(hero, token); }
     });
-    await test('independent pact indicator shows current/total beside filters, stays separate from regular slots, and changes actor without writes', async () => {
+    await test('independent pact squares match normal slot styling, track available counts and native updates without writes', async () => {
       const candidate = actor('pact-indicator', [item('known', 'spell', { level: 1 })], { system: { spells: {
         spell1: { value: 1, max: 3 }, pact: { value: 2, max: 2, level: 5 }
       } } });
@@ -57,18 +57,30 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
       try {
         hud.setActor(candidate); const width = hud.root.getBoundingClientRect().width;
         let pact = hud.root.querySelector('.bg3-video-hud-pact-slots');
-        equal(pact.textContent, '契约2/2'); assert(pact.title.includes('契约5环'));
+        equal(pact.textContent, '契约'); assert(pact.title.includes('契约5环法术位：2/2'));
+        equal(pact.querySelectorAll('i').length, 2); equal(pact.querySelectorAll('i.available').length, 2);
+        const ordinaryPip = hud.root.querySelector('[data-value="1"] .bg3-video-hud-level-pips i');
+        const pactPip = pact.querySelector('i');
+        for (const property of ['width', 'height', 'borderTopColor', 'backgroundColor']) {
+          equal(getComputedStyle(pactPip)[property], getComputedStyle(ordinaryPip)[property]);
+        }
         const rail = hud.root.querySelector('.bg3-video-hud-spells');
         assert(!rail.contains(pact)); assert(pact.getBoundingClientRect().left >= rail.getBoundingClientRect().right);
         assert(!rail.textContent.includes('契约')); assert(rail.textContent.includes('1环：1/3'));
         assert(!hud.root.querySelector('[data-action=filter-level][data-value="5"]'));
         candidate.system.spells.pact.value = 0; hud.render();
-        pact = hud.root.querySelector('.bg3-video-hud-pact-slots'); equal(pact.textContent, '契约0/2');
+        pact = hud.root.querySelector('.bg3-video-hud-pact-slots'); equal(pact.textContent, '契约'); equal(pact.querySelectorAll('i').length, 2); equal(pact.querySelectorAll('i.available').length, 0); assert(pact.title.includes('0/2'));
         pact.focus(); pact.click(); equal(candidate.system.spells.pact.value, 0); assert(document.activeElement === pact);
-        candidate.system.spells.pact.value = undefined; hud.render(); equal(hud.root.querySelector('.bg3-video-hud-pact-slots').textContent, '契约?/2');
+        candidate.system.spells.pact.value = 1; hud.render();
+        equal(hud.root.querySelectorAll('.bg3-video-hud-pact-slots i.available').length, 1);
+        candidate.system.spells.pact.value = undefined; hud.render();
+        equal(hud.root.querySelectorAll('.bg3-video-hud-pact-slots i.unknown').length, 2);
+        assert(hud.root.querySelector('.bg3-video-hud-pact-slots').title.includes('?/2'));
+        candidate.system.spells.pact = { value: 1, level: 5 }; hud.render();
+        equal(hud.root.querySelector('.bg3-video-hud-pact-slots').textContent, '契约?');
         candidate.system.spells.pact = { value: 0, max: 0, level: 0 }; hud.render(); assert(!hud.root.querySelector('.bg3-video-hud-pact-slots'));
         hud.setActor(actor('other-pact', [], { system: { spells: { pact: { value: 1, max: 3, level: 2 } } } }));
-        equal(hud.root.querySelector('.bg3-video-hud-pact-slots').textContent, '契约1/3');
+        equal(hud.root.querySelectorAll('.bg3-video-hud-pact-slots i').length, 3); equal(hud.root.querySelectorAll('.bg3-video-hud-pact-slots i.available').length, 1);
         hud.setActor(actor('no-pact', [])); assert(!hud.root.querySelector('.bg3-video-hud-pact-slots'));
         assert(Math.abs(hud.root.getBoundingClientRect().width - width) < .6); equal(user.writes.length, writes);
         hud.setActor(actor('pact-small-spell-group', [item('one-spell', 'spell', { level: 1 }),

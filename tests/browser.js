@@ -106,7 +106,7 @@ try {
     await controls.tokens.tools.bg3VideoHUD.onChange(); await flush();
     assert(root()); assert(!originalVisible());
     for (const label of ['武器', '物品', '特性', '法术', '生命 9/12', '护甲 15', '1环：0/2']) assert(root().textContent.includes(label), label);
-    equal(root().querySelector('.bg3-video-hud-pact-slots').textContent, '契约1/1');
+    equal(root().querySelectorAll('.bg3-video-hud-pact-slots i.available').length, 1);
     assert(root().querySelector('.bg3-video-hud-pact-slots').title.includes('契约2环'));
     for (const label of ['附赠动作', '反应', '仅固定', '短休', '长休']) assert(root().textContent.includes(label), label);
     assert(!root().querySelector('footer')); assert(!find('more'));
@@ -136,10 +136,10 @@ try {
     try {
       root().querySelector('.bg3-video-hud-pact-slots').focus();
       hero.system.spells.pact.value = 0; await Hooks.emit('updateActor', hero); await flush();
-      equal(root().querySelector('.bg3-video-hud-pact-slots').textContent, '契约0/1');
+      equal(root().querySelectorAll('.bg3-video-hud-pact-slots i').length, 1); equal(root().querySelectorAll('.bg3-video-hud-pact-slots i.available').length, 0);
       equal(document.activeElement.dataset.scrollGroup, 'pact-slots');
       await select(actor('no-pact-resource', [])); assert(!root().querySelector('.bg3-video-hud-pact-slots'));
-      await select(hero); equal(root().querySelector('.bg3-video-hud-pact-slots').textContent, '契约0/1');
+      await select(hero); equal(root().querySelectorAll('.bg3-video-hud-pact-slots i').length, 1); equal(root().querySelectorAll('.bg3-video-hud-pact-slots i.available').length, 0);
       equal(user.writes.length, before);
     } finally { hero.system.spells.pact = original; await select(hero); }
   });

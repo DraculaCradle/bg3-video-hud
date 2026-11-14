@@ -1,4 +1,4 @@
-import { MODULE_ID, GROUPS, DEFAULT_RATIOS, actorStats, groupFor, itemsFor, normalizeLayout, reorder, slotPools,
+import { MODULE_ID, GROUPS, DEFAULT_RATIOS, actorStats, editableGroupFor as groupFor, itemDisplayed, toggleVisibility, itemsFor, normalizeLayout, reorder, slotPools,
   spellLevels, spellLevel, toggleId, usesLabel, values, resizeColumns, autoColumnWidths } from './model.js';
 import { restActor, endTurn, canEndTurn } from './actions.js';
 import { TargetWorkflow } from './targeting.js';
@@ -273,9 +273,9 @@ export class VideoHUD {
       const title = node('h3', groupLabels[group]); title.title = groupLabels[group]; heading.append(title);
       const search = node('input'); search.type = 'search'; search.placeholder = '搜索…';
       search.dataset.queryGroup = group; search.value = this.queries[group] ?? '';
-      search.setAttribute('aria-label', `搜索${groupLabels[group]}`); heading.append(search);
+      search.setAttribute('aria-label', `搜索${groupLabels[group]}`);
       const gear = button('⚙', 'edit-group', `编辑${groupLabels[group]}栏位`, { value: group });
-      gear.disabled = this.busy.size > 0; heading.append(gear); section.append(heading);
+      gear.disabled = this.busy.size > 0; heading.append(gear, search); section.append(heading);
       const groupItems = items.filter(i => groupFor(i) === group
         && String(i.name ?? '').toLocaleLowerCase().includes((this.queries[group] ?? '').trim().toLocaleLowerCase()));
       const list = node('ul', undefined, 'bg3-video-hud-items');
@@ -348,8 +348,8 @@ export class VideoHUD {
     const pools = slotPools(this.actor);
     const regularPools = pools.filter(pool => pool.key !== 'pact');
     const pact = pools.find(pool => pool.key === 'pact');
-    const spells = itemsFor(this.actor, {}, { edit: true }).filter(i => i.type === 'spell');
-    for (const level of ['all', ...spellLevels(this.actor)]) {
+    const spells = itemsFor(this.actor, { ...prefs, pinnedOnly: false }).filter(i => i.type === 'spell');
+    for (const level of ['all', ...spellLevels(this.actor, prefs)]) {
       const text = level === 'all' ? '全部' : level === 0 ? '戏法' : ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][level];
       const control = button('', 'filter-level', `法术环阶：${level === 'all' ? '全部' : `${level}环`}`, { value: String(level) });
       control.append(node('span', text));
@@ -601,7 +601,7 @@ export class VideoHUD {
       && i.name.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase()))) {
       list.append(this.itemRow(item, prefs));
     }
-    body.append(query, this.editToolbar(prefs), list);
+    body.append(query, node('p', '“显示”只改变此界面，不会准备法术或修改角色；“恢复自动”恢复默认筛选。'), this.editToolbar(prefs), list);
     if (previous) previous.replaceWith(body); else dialog.append(body);
     list.scrollTop = scroll;
     const focus = [...body.querySelectorAll('input, button')].find(el => JSON.stringify(el.dataset) === key);
@@ -625,8 +625,8 @@ export class VideoHUD {
     const bar = node('div', undefined, 'bg3-video-hud-help');
     bar.dataset.scrollGroup = 'edit-toolbar'; bar.setAttribute('aria-label', '快捷栏编辑工具');
     const items = itemsFor(this.actor, {}, { edit: true }).filter(i => !this.editGroup || groupFor(i) === this.editGroup);
-    bar.append(node('span', `编辑${this.editGroup ? groupLabels[this.editGroup] : '全部'}：已显示 ${items.filter(i => !prefs.hidden.includes(i.id)).length}/${items.length}`));
-    for (const [value, label] of [['all', '全选'], ['none', '清空'], ['reset', '恢复自动全部']]) {
+    bar.append(node('span', `编辑${this.editGroup ? groupLabels[this.editGroup] : '全部'}：已显示 ${items.filter(i => itemDisplayed(i, prefs, this.actor)).length}/${items.length}`));
+    for (const [value, label] of [['all', '全选'], ['none', '清空'], ['reset', '恢复自动']]) {
       const control = button(label, 'bulk-edit', value === 'reset' ? '恢复此分类的自动显示和排序' : `${label}当前分类搜索结果`, { value });
       control.disabled = this.saving; bar.append(control);
     }
@@ -645,6 +645,7 @@ export class VideoHUD {
     const ids = new Set(selected.map(i => i.id));
     return this.save(p => ({ ...p,
       hidden: value === 'none' ? [...new Set([...p.hidden, ...ids])] : p.hidden.filter(id => !ids.has(id)),
+      shown: value === 'all' ? [...new Set([...(p.shown ?? []), ...ids])] : (p.shown ?? []).filter(id => !ids.has(id)),
       ...(value === 'reset' ? { order: p.order.filter(id => !ids.has(id)),
         pinned: p.pinned.filter(id => !ids.has(id)), pinnedOnly: this.editGroup && this.editGroup !== 'Spells' ? p.pinnedOnly : false } : {})
     }));
@@ -971,7 +972,7 @@ export class VideoHUD {
     const row = node('li', undefined, 'bg3-video-hud-item');
     row.dataset.itemId = item.id;
     row.draggable = this.edit && editing;
-    if (prefs.hidden.includes(item.id)) row.classList.add('bg3-video-hud-item-hidden');
+    if (!itemDisplayed(item, prefs, this.actor)) row.classList.add('bg3-video-hud-item-hidden');
     const detail = [item.name ?? '未命名物品', item.type === 'spell' ? `${spellLevel(item)}环法术` : (itemLabels[item.type] ?? '物品'),
       usesLabel(item)].filter(Boolean).join(' · ');
     const use = button('', 'use', detail, { itemId: item.id });
@@ -999,7 +1000,7 @@ export class VideoHUD {
     row.append(use);
     if (this.edit && editing && (!this.editGroup || groupFor(item) === this.editGroup)) {
       const buttons = node('div', undefined, 'bg3-video-hud-edit-controls');
-      const hidden = prefs.hidden.includes(item.id);
+      const hidden = !itemDisplayed(item, prefs, this.actor);
       const visibility = button(hidden ? '显示' : '隐藏', 'visibility', `${hidden ? '显示' : '隐藏'} ${item.name}`, { itemId: item.id });
       visibility.setAttribute('aria-pressed', String(!hidden));
       buttons.append(visibility);
@@ -1073,7 +1074,10 @@ export class VideoHUD {
       case 'filter-action': this.action = value; this.render(); break;
       case 'filter-level': this.level = value === 'all' ? 'all' : Number(value); this.render(); break;
       case 'pinned-only': return this.save(p => ({ ...p, pinnedOnly: !p.pinnedOnly }));
-      case 'visibility': if (this.edit) return this.save(p => ({ ...p, hidden: toggleId(p.hidden, itemId) })); break;
+      case 'visibility': if (this.edit) {
+        const item = itemsFor(actor, this.draft, { edit: true }).find(i => i.id === itemId);
+        if (item) return this.save(p => toggleVisibility(p, item, actor));
+      } break;
       case 'pin': if (this.edit) return this.save(p => ({ ...p, pinned: toggleId(p.pinned, itemId) })); break;
       case 'move': {
         if (!this.edit) return;

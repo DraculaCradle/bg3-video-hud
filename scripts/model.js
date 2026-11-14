@@ -26,6 +26,7 @@ const idList = value => [...new Set(Array.isArray(value) ? value.filter(v => typ
 export function normalizeLayout(data = {}) {
   return {
     version: 1, order: idList(data?.order), hidden: idList(data?.hidden),
+    ...(data?.shown !== undefined ? { shown: idList(data.shown) } : {}),
     pinned: idList(data?.pinned), pinnedOnly: data?.pinnedOnly === true,
     ...(data?.columnSizing === 'manual' && (validRatios(data?.ratios) || validRatios(data?.ratios, 3)) ? { columnSizing: 'manual' } : {}),
     ...(validRatios(data?.ratios) ? { ratios: [...data.ratios] }
@@ -110,16 +111,69 @@ export function nativeItemVisible(item, actor = item?.actor) {
     || item.system?.linkedActivity?.displayInSpellbook === true;
 }
 
-export function groupFor(item) {
+// All supported document types can be opted into the HUD, but native hidden
+// documents and internal spell caches never become usable through preferences.
+export function editableGroupFor(item) {
   if (!nativeItemVisible(item)) return null;
   if (item?.type === 'spell') return 'Spells';
+  if (item?.type === 'weapon') return 'Weapons';
+  if (item?.type === 'feat') return 'Features';
+  return ['equipment', 'consumable', 'tool', 'loot', 'container'].includes(item?.type) ? 'Items' : null;
+}
+
+export function groupFor(item) {
+  const group = editableGroupFor(item);
   const subtype = item?.system?.type?.value ?? item?.system?.consumableType;
   if (subtype === 'ammo') return null;
-  if (item?.type === 'weapon') return 'Weapons';
-  if (item?.type === 'feat') return hasActiveUse(item) ? 'Features' : null;
-  if (['equipment', 'consumable', 'tool', 'loot', 'container'].includes(item?.type)
-    && hasActiveUse(item)) return 'Items';
-  return null;
+  if (group === 'Items' || group === 'Features') return hasActiveUse(item) ? group : null;
+  return group;
+}
+
+// Resolve this spell's own source, never infer all spells from any one class.
+function spellClass(item, actor) {
+  const system = item.system ?? {};
+  const identifier = system.classIdentifier;
+  if (identifier && actor?.spellcastingClasses?.[identifier]) return actor.spellcastingClasses[identifier];
+  const source = actor?.identifiedItems?.get?.(system.sourceItem)?.first?.();
+  if (source?.type === 'class' || source?.type === 'subclass') return source;
+  const [type, key] = String(system.sourceItem ?? '').split(':');
+  return values(actor?.items).find(i => (identifier && i.type === 'class' && (i.identifier ?? i.system?.identifier) === identifier)
+    || (['class', 'subclass'].includes(type) && i.type === type && (i.identifier ?? i.system?.identifier) === key));
+}
+
+export function spellPreparedForHUD(item, actor = item?.actor) {
+  if (item?.type !== 'spell' || spellLevel(item) === 0) return true;
+  const system = item.system ?? {};
+  if (system.linkedActivity?.item || item.flags?.dnd5e?.cachedFor) return true;
+  const source = spellClass(item, actor);
+  // NPC spellbooks need no player-class preparation assumptions.
+  if (actor?.type === 'npc' && !source) return true;
+  const casting = source?.spellcasting ?? source?.system?.spellcasting;
+  const config = globalThis.CONFIG?.DND5E;
+  const method = system.method || casting?.type || config?.spellProgression?.[casting?.progression]?.type;
+  const prepares = typeof system.canPrepare === 'boolean' ? system.canPrepare
+    : config?.spellcasting?.[method]?.prepares ?? (['spell', 'pact'].includes(method) ? true : undefined);
+  if (prepares === true) {
+    // Native v6 states: 0 unprepared, 1 prepared, 2 always prepared.
+    return system.prepared !== 0 && system.prepared !== false;
+  }
+  // Old documents may not have passed through the v6 migration in fixtures.
+  return system.preparation?.mode !== 'prepared' || system.preparation.prepared !== false;
+}
+
+export function itemDisplayed(item, layout, actor = item?.actor) {
+  if (!nativeItemVisible(item, actor) || !editableGroupFor(item)) return false;
+  const prefs = normalizeLayout(layout);
+  return !prefs.hidden.includes(item.id) && (prefs.shown?.includes(item.id)
+    || Boolean(groupFor(item) && spellPreparedForHUD(item, actor)));
+}
+
+export function toggleVisibility(layout, item, actor) {
+  const prefs = normalizeLayout(layout), visible = itemDisplayed(item, prefs, actor);
+  return normalizeLayout({ ...prefs,
+    hidden: visible ? [...new Set([...prefs.hidden, item.id])] : prefs.hidden.filter(id => id !== item.id),
+    shown: visible ? (prefs.shown ?? []).filter(id => id !== item.id) : [...new Set([...(prefs.shown ?? []), item.id])]
+  });
 }
 
 export function activationTypes(item) {
@@ -137,9 +191,9 @@ export function itemsFor(actor, layout, { edit = false, level = 'all', action = 
   const prefs = normalizeLayout(layout);
   const order = new Map(prefs.order.map((id, index) => [id, index]));
   return values(actor?.items).filter(item => {
-    if (!item.id || !nativeItemVisible(item, actor) || !groupFor(item)) return false;
-    if (edit) return true; // Hidden combat items remain discoverable; character records stay excluded.
-    if (prefs.hidden.includes(item.id)) return false;
+    if (!item.id || !nativeItemVisible(item, actor) || !editableGroupFor(item)) return false;
+    if (edit) return true; // Include default-hidden entries for an explicit per-user override.
+    if (!itemDisplayed(item, prefs, actor)) return false;
     if (action !== 'all' && !activationTypes(item).includes(action)) return false;
     if (item.type === 'spell') {
       if (prefs.pinnedOnly && !prefs.pinned.includes(item.id)) return false;
@@ -186,8 +240,8 @@ export function slotPools(actor) {
   return pools;
 }
 
-export function spellLevels(actor) {
-  const max = Math.max(0, ...values(actor?.items).filter(i => i.type === 'spell' && nativeItemVisible(i, actor)).map(spellLevel),
+export function spellLevels(actor, layout = {}) {
+  const max = Math.max(0, ...itemsFor(actor, { ...layout, pinnedOnly: false }).filter(i => i.type === 'spell').map(spellLevel),
     ...slotPools(actor).filter(p => p.key !== 'pact').map(p => p.level ?? 0));
   return Array.from({ length: Math.min(9, max) + 1 }, (_, i) => i);
 }

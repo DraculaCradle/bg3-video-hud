@@ -133,7 +133,7 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         equal(JSON.stringify([...candidate.items]), before); equal(user.writes.length, writes);
       } finally { hud.setActor(hero, token); }
     });
-    await test('character records and passive items are absent from all four HUD groups and editors; bulk counts and draft edits include only combat items', async () => {
+    await test('character records stay excluded; editors list default-hidden items and bulk operations support explicit overrides', async () => {
       const records = ['class', 'subclass', 'background', 'race', 'species', 'facility'].map(type => item(`record-${type}`, type));
       const combat = [item('blade', 'weapon'), item('potion', 'consumable', { activation: { type: 'action' } }), item('racial-action', 'feat'),
         item('background-active', 'feat'), item('spell', 'spell')];
@@ -152,13 +152,54 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         hud.editorDialog.querySelector('[data-action=cancel-edit]').click(); await flush();
         hud.beginEdit('Items');
         assert(hud.editorDialog.querySelector('[data-item-id=potion]'));
-        for (const entry of passive) assert(!hud.editorDialog.querySelector(`[data-item-id="${entry.id}"]`));
-        hud.bulkEdit('none'); await flush(); equal(hud.draft.hidden, ['potion']);
+        for (const entry of passive.filter(i => i.type !== 'feat')) assert(hud.editorDialog.querySelector(`[data-item-id="${entry.id}"]`));
+        hud.bulkEdit('none'); await flush(); equal(hud.draft.hidden.length, 6);
         hud.editorDialog.querySelector('[data-action=cancel-edit]').click(); await flush();
-        hud.beginEdit(); assert(hud.root.textContent.includes('已显示 5/5'));
-        hud.bulkEdit('none'); await flush(); equal(hud.draft.hidden.length, 5);
+        hud.beginEdit(); assert(hud.root.textContent.includes('已显示 5/11'));
+        hud.bulkEdit('none'); await flush(); equal(hud.draft.hidden.length, 11);
         for (const record of records) assert(!hud.draft.hidden.includes(record.id));
         equal(JSON.stringify([...candidate.items.values()]), before); equal(user.writes.length, writes);
+      } finally { hud.setActor(hero, token); }
+    });
+    await test('editor explicitly shows passive Sneak Attack and unprepared spells, saves only user layout, and reset restores defaults', async () => {
+      const sneak = item('sneak', 'feat', { activation: { type: '' } }, { name: '偷袭' });
+      const spell = item('unready', 'spell', { method: 'spell', level: 4, prepared: 0 });
+      const candidate = actor('manual-overrides', [sneak, spell]);
+      const before = JSON.stringify([...candidate.items.values()]), start = user.writes.length;
+      const click = async selector => { hud.editorDialog.querySelector(selector).click(); await flush(); };
+      try {
+        hud.setActor(candidate); const width = hud.root.getBoundingClientRect().width;
+        assert(!hud.root.querySelector('[data-item-id=sneak]'));
+        hud.beginEdit('Features');
+        equal(hud.editorDialog.querySelector('[data-item-id=sneak] [data-action=visibility]').getAttribute('aria-pressed'), 'false');
+        await click('[data-item-id=sneak] [data-action=visibility]');
+        assert(hud.draft.shown.includes('sneak')); equal(user.writes.length, start);
+        await click('[data-action=cancel-edit]'); assert(!store.read(candidate).shown);
+        hud.beginEdit('Features'); await click('[data-item-id=sneak] [data-action=visibility]'); await click('[data-action=save-edit]');
+        assert(hud.root.querySelector('[data-group=Features] [data-item-id=sneak]'));
+        hud.beginEdit('Spells'); await click('[data-item-id=unready] [data-action=visibility]'); await click('[data-action=save-edit]');
+        assert(hud.root.querySelector('[data-group=Spells] [data-item-id=unready]'));
+        hud.beginEdit('Features'); await click('[data-action=bulk-edit][data-value=reset]'); await click('[data-action=save-edit]');
+        assert(!hud.root.querySelector('[data-item-id=sneak]')); assert(hud.root.querySelector('[data-item-id=unready]'));
+        hud.beginEdit('Spells'); await click('[data-action=bulk-edit][data-value=reset]'); await click('[data-action=save-edit]');
+        assert(!hud.root.querySelector('[data-item-id=unready]'));
+        assert(Math.abs(hud.root.getBoundingClientRect().width - width) < .6);
+        equal(JSON.stringify([...candidate.items.values()]), before);
+      } finally { hud.setActor(hero, token); }
+    });
+    await test('multiclass spell visibility follows each native preparation source and updates without changing layout flags', async () => {
+      const ready = item('ready', 'spell', { method: 'spell', level: 1, prepared: 1, classIdentifier: 'wizard' });
+      const unready = item('unready', 'spell', { method: 'spell', level: 4, prepared: 0, classIdentifier: 'wizard' });
+      const innate = item('innate', 'spell', { method: 'innate', level: 2, prepared: 0, classIdentifier: 'other' });
+      const candidate = actor('prep-browser', [ready, unready, innate]); const writes = user.writes.length;
+      try {
+        hud.setActor(candidate);
+        assert(hud.root.querySelector('[data-item-id=ready]')); assert(hud.root.querySelector('[data-item-id=innate]'));
+        assert(!hud.root.querySelector('[data-item-id=unready]'));
+        unready.system.prepared = 1; hud.render(); assert(hud.root.querySelector('[data-item-id=unready]'));
+        ready.system.prepared = 0; hud.render(); assert(!hud.root.querySelector('[data-item-id=ready]'));
+        hud.setActor(hero, token); hud.setActor(candidate); assert(!hud.root.querySelector('[data-item-id=ready]'));
+        assert(hud.root.querySelector('[data-item-id=innate]')); equal(user.writes.length, writes);
       } finally { hud.setActor(hero, token); }
     });
     await test('transparent icons hide background initials while preserving bottom names; failures restore fallback and accessible names', async () => {

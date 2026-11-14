@@ -2,16 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { actor, item } from './fixtures.js';
 import { activationTypes, actorStats, canUseActor, groupFor, itemsFor, normalizeLayout,
-  reorder, selectActor, slotPools, spellLevels, toggleId, usesLabel, autoColumnWidths } from '../scripts/model.js';
+  reorder, selectActor, slotPools, spellLevels, toggleId, usesLabel, autoColumnWidths, editableGroupFor, itemDisplayed, toggleVisibility, spellPreparedForHUD } from '../scripts/model.js';
 
-test('four combat groups separate weapons and active items; passive inventory never enters editing', () => {
+test('four combat groups default to active entries while passive inventory is discoverable in editing', () => {
   const items = [item('blade', 'weapon'), item('armor', 'equipment'), item('bag', 'container'),
     item('potion', 'consumable', { activities: [{ type: 'heal', activation: { type: 'action' } }] }),
     item('feat'), item('light', 'spell')];
   const hero = actor('a', items);
   assert.deepEqual(items.map(groupFor), ['Weapons', null, null, 'Items', 'Features', 'Spells']);
-  for (const edit of [false, true]) assert.deepEqual(new Set(itemsFor(hero, {}, { edit }).map(i => i.id)),
-    new Set(['blade', 'potion', 'feat', 'light']));
+  assert.deepEqual(new Set(itemsFor(hero, {}).map(i => i.id)), new Set(['blade', 'potion', 'feat', 'light']));
+  assert.deepEqual(new Set(itemsFor(hero, {}, { edit: true }).map(i => i.id)), new Set(items.map(i => i.id)));
   assert.equal(itemsFor(actor('a', [item(null)]), {}).length, 0);
 });
 
@@ -241,4 +241,60 @@ test('limited uses read modern spent and legacy value without consumption', () =
   assert.equal(feature.system.uses.spent, 1);
   assert.equal(usesLabel(item('x', 'feat', { uses: { value: 0, max: 2 } })), '0/2 次');
   assert.equal(usesLabel(item('x')), '');
+});
+
+
+test('explicit shown preferences expose default-passive entries without exposing records, native hidden documents or caches', () => {
+  const entries = [item('sneak', 'feat', { activation: { type: '' } }), item('armor', 'equipment'),
+    item('unprepared', 'spell', { level: 3, method: 'spell', prepared: 0 }), item('class', 'class'),
+    item('internal', 'spell', {}, { flags: { dnd5e: { cachedFor: 'Item.x.Activity.y' } } }),
+    item('native-hidden', 'feat', {}, { isHidden: true })];
+  const hero = actor('overrides', entries), before = JSON.stringify(entries);
+  assert.equal(itemsFor(hero, {}).length, 0);
+  assert.deepEqual(itemsFor(hero, {}, { edit: true }).map(i => i.id).sort(), ['armor', 'sneak', 'unprepared']);
+  const prefs = { shown: entries.map(i => i.id) };
+  assert.deepEqual(itemsFor(hero, prefs).map(i => i.id).sort(), ['armor', 'sneak', 'unprepared']);
+  assert.equal(editableGroupFor(entries[0]), 'Features'); assert.equal(editableGroupFor(entries[1]), 'Items');
+  assert.equal(itemDisplayed(entries[0], { ...prefs, hidden: ['sneak'] }, hero), false);
+  const shown = toggleVisibility({}, entries[0], hero);
+  assert.equal(itemDisplayed(entries[0], shown, hero), true);
+  const hidden = toggleVisibility(shown, entries[0], hero);
+  assert.equal(itemDisplayed(entries[0], hidden, hero), false); assert.deepEqual(hidden.shown, []); // Retain an explicit empty array so native flag merging clears overrides.
+  assert.deepEqual(normalizeLayout({ shown: ['a', 'a', 1, ''] }).shown, ['a']);
+  assert.equal(JSON.stringify(entries), before);
+});
+
+test('preparation follows each spell method and source class, preserving cantrips, always, innate and independent known casting', () => {
+  const old = globalThis.CONFIG;
+  globalThis.CONFIG = { DND5E: { spellcasting: { spell: { prepares: true }, known: { prepares: false }, pact: { prepares: true }, innate: { prepares: false } } } };
+  try {
+    const wizard = item('c1', 'class', { identifier: 'wizard', spellcasting: { type: 'spell' } });
+    const known = item('c2', 'class', { identifier: 'known', spellcasting: { type: 'known' } });
+    const spell = (id, system) => item(id, 'spell', { level: 1, prepared: 0, ...system });
+    const entries = [spell('wizard-off', { sourceItem: 'class:wizard' }), spell('wizard-on', { sourceItem: 'class:wizard', prepared: 1 }),
+      spell('known', { classIdentifier: 'known' }), spell('always', { method: 'spell', prepared: 2 }),
+      spell('cantrip', { method: 'spell', level: 0 }), spell('innate', { method: 'innate', sourceItem: 'class:wizard' }),
+      spell('pact-off', { method: 'pact' }), spell('pact-on', { method: 'pact', prepared: 1 }),
+      spell('native-false', { method: 'spell', canPrepare: false }), spell('unknown', { method: 'spell', prepared: undefined })];
+    const hero = actor('multiclass', [wizard, known, ...entries], { spellcastingClasses: { wizard, known } });
+    const before = JSON.stringify([...hero.items.values()]);
+    assert.deepEqual(itemsFor(hero, {}).map(i => i.id).sort(), ['always', 'cantrip', 'innate', 'known', 'native-false', 'pact-on', 'unknown', 'wizard-on']);
+    assert.equal(itemsFor(hero, {}, { edit: true }).length, entries.length);
+    assert.equal(itemsFor(hero, { shown: ['wizard-off'] }).some(i => i.id === 'wizard-off'), true);
+    assert.equal(spellPreparedForHUD(spell('npc', { method: 'spell' }), { type: 'npc' }), true);
+    assert.equal(JSON.stringify([...hero.items.values()]), before);
+  } finally { globalThis.CONFIG = old; }
+});
+
+test('legacy preparation and per-item native prepared states refresh visibility without changing spell source or resources', () => {
+  const legacy = item('legacy', 'spell', { level: 2, preparation: { mode: 'prepared', prepared: false } });
+  const always = item('always', 'spell', { level: 2, preparation: { mode: 'always', prepared: false } });
+  const hero = actor('prepare', [legacy, always]);
+  assert.deepEqual(itemsFor(hero, {}).map(i => i.id), ['always']);
+  legacy.system.preparation.prepared = true;
+  assert.deepEqual(itemsFor(hero, {}).map(i => i.id), ['always', 'legacy']);
+  legacy.system = { level: 9, method: 'spell', prepared: 0 };
+  assert.deepEqual(spellLevels(hero), [0, 1, 2]);
+  legacy.system.prepared = 1;
+  assert.equal(spellLevels(hero).at(-1), 9);
 });

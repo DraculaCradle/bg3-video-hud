@@ -52,3 +52,14 @@ test('a rejected flag write is reported and does not poison later saves', async 
   await store.update(hero, p => ({ ...p, hidden: ['b'] }));
   assert.deepEqual(store.read(hero).hidden, ['b']);
 });
+
+
+test('explicit display overrides persist per user and synthetic actor without changing other layouts', async () => {
+  const user = userWithFlags(), store = new LayoutStore(user), hero = actor('shown'), other = actor('other');
+  await store.update(other, p => ({ ...p, hidden: ['other'] }));
+  await store.update(hero, p => ({ ...p, shown: ['sneak'], hidden: ['blocked'] }));
+  assert.deepEqual(new LayoutStore(user).read(hero).shown, ['sneak']);
+  assert.equal(store.read({ uuid: 'Scene.x.Token.y.Actor.shown' }).shown, undefined);
+  assert.equal(new LayoutStore(userWithFlags()).read(hero).shown, undefined);
+  assert.deepEqual(store.read(other).hidden, ['other']);
+});

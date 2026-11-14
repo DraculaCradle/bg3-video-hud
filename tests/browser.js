@@ -143,6 +143,18 @@ try {
       equal(user.writes.length, before);
     } finally { hero.system.spells.pact = original; await select(hero); }
   });
+  await test('native item preparation updates refresh only the current actor spell list and preserve user layout flags', async () => {
+    const prepared = item('prepared-live-hook', 'spell', { level: 1, method: 'spell', prepared: 1 });
+    const innate = item('innate-live-hook', 'spell', { level: 2, method: 'innate', prepared: 0 });
+    const candidate = actor('prepared-live-hook', [prepared, innate]); const before = user.writes.length;
+    try {
+      await select(candidate); assert(root().querySelector('[data-item-id=prepared-live-hook]'));
+      prepared.system.prepared = 0; await Hooks.emit('updateItem', prepared); await flush();
+      assert(!root().querySelector('[data-item-id=prepared-live-hook]')); assert(root().querySelector('[data-item-id=innate-live-hook]'));
+      prepared.system.prepared = 2; await Hooks.emit('updateItem', prepared); await flush();
+      assert(root().querySelector('[data-item-id=prepared-live-hook]')); equal(user.writes.length, before);
+    } finally { await select(hero); }
+  });
   await test('standalone HUD needs no BG3 shell; optional HUDs may be disabled or present without writes', async () => {
     const shell = document.getElementById('bg3-hotbar'); shell.remove();
     const native = document.createElement('div'); native.id = 'hotbar'; native.textContent = 'Native interface fixture'; document.body.append(native);

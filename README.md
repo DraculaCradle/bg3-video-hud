@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.18：契约位使用普通法术位同款方格。** 契约位保持法术筛选右侧独立显示，亮格可用、空格已消耗；Tab聚焦或悬停可读完整当前数／总数。固定总宽、状态整组居中、只读资源与权限守卫保持。自动部署和自动实机测试继续关闭。
+> **v0.1.19：相邻编辑与搜索、手动显示覆盖、原生准备法术筛选。** 齿轮紧挨搜索框，窄屏搜索聚焦也不遮住齿轮；默认隐藏的被动特性、物品或未准备法术可在分类编辑器中显式显示。自动模式逐法术读取自身准备机制和职业来源，保留戏法／始终准备／天赋施法。手动显示只改变当前用户的HUD布局，不会准备法术或改变角色数据。自动部署与自动实机测试继续关闭。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Not yet verified in a running Foundry VTT v14 / D&D5e 6.0.6 world. Manifest compatibility declares the intended target, not a completed in-game certification.
 
@@ -41,7 +41,7 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 4. GM 和 Player 均自动启用。Token 工具栏的 **临时切换原版／BG3 界面** 可在当前页面临时返回或恢复，刷新页面自动恢复。也可为此临时操作设置快捷键。
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.18. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.19. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 

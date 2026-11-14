@@ -65,7 +65,7 @@ PIXI/Foundry 的画布事件可能先在 document 捕获阶段处理；在 `#boa
 
 用户已确认先前 Player 不显示是客户端开关未开启。此结论来自用户人工检查，不代表其他规则流程的自动实机验收通过。
 
-## v0.1.9 主动项目与四栏
+## v0.1.9 主动项目与四栏（默认规则；编辑可见性由v0.1.19扩展）
 
 分组为 Weapons / Items / Features / Spells。groupFor 对物品／特性要求主动活动；支持原生 action、bonus、reaction 系列、none（无动作消耗）、special、较长施用时间、传奇等类型，attack/cast 活动也属于主动。现代活动存在时不使用旧 activation 字段兜底；不以名称、剩余次数或是否装备猜测。没有活动时可识别旧 activation 数据。空激活／被动记录、原生隐藏活动、CPR hiddenActivities 和 automationOnly 均不能令条目变为可见；弹药始终排除。法术列表保持原规则。
 
@@ -124,3 +124,14 @@ autoColumnWidths增加可验证的minimumColumns选项；契约面板存在时�
 ## v0.1.18 契约位方格
 
 契约面板复用普通环阶的bg3-video-hud-level-pips及available样式：相同尺寸、边框及填充，空格表示消耗。只替换可视数字；原生当前/总数与环级保留于title和aria-label，焦点仍可达。未知当前数用虚线格，未知总数显示?，不伪造可用资源；最多12格与普通位一致，独立面板内允许换行。没有修改slotPools、原生消费、更新hooks或权限。
+
+
+## v0.1.19 显式显示与逐法术准备
+
+editableGroupFor只决定可编辑的受支持类型，groupFor仍描述默认主动分组。itemsFor(edit:true)能列出默认被动的物品／特性和未准备法术；原生hiddenItems/isHidden/失活来源、内部cachedFor及角色资料仍先行排除。布局新增可选shown ID数组，hidden优先于shown，shown优先于默认主动／准备筛选；显式空数组保留，以便原生flags合并时清除旧覆盖。仅当前用户/完整Actor UUID的布局叶持久化，无角色文档或准备状态迁移。分类全选／清空／恢复自动及单项按钮共用实际显示判定；自动计数、主栏、编辑计数、法术数量及环阶上界一致，普通资源池仍独立保留。
+
+准备数据核对D&D5e6.0.6 [SpellData](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/data/item/spell.mjs)、[原生法术页](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/applications/actor/api/base-actor-sheet.mjs)和[SpellcastingField](https://github.com/foundryvtt/dnd5e/blob/release-6.0.6/module/data/item/fields/spellcasting-field.mjs)。优先每项system.canPrepare/自身method；方法缺失时解析原生classIdentifier、identifiedItems/sourceItem及此职业（含原生子职业覆盖）的spellcasting配置，不扫描职业名称或用任一职业决定全角色。原生prepared=0/1/2分别未准备/已准备/始终准备；cantrip和已确认可见的物品来源缓存不额外要求准备，无职业NPC保持，缺失状态保持未知可见；旧preparation.mode/prepared仅作为未迁移夹具兼容。D&D5e6.0.6普通spell和pact机制均声明prepares；不同来源自身状态独立，不推断2014/2024职业名称的准备规则。
+
+updateItem/updateActor等既有hooks刷新，不新增请求或轮询。手动显示未准备条目仅改变HUD呈现，实际使用仍委托原生流程。显示被动条目也不制造其原本没有的活动或改写消费／权限。
+
+齿轮改为正常流并与搜索相邻，移除中央绝对定位；窄容器聚焦搜索时隐藏标题、重分配标题空间，齿轮始终保留。所有有效视口检查普通及聚焦后的实际距离和命中区域。

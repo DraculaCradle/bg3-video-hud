@@ -113,6 +113,16 @@ try {
         assert.ok(layout.left >= -1 && layout.right <= width + 1 && layout.top >= 0 && layout.bottom <= height, JSON.stringify(layout));
         assert.ok(layout.scrollWidth <= layout.clientWidth + 1, JSON.stringify(layout));
         assert.ok(layout.controlsFit, 'Character card and rest controls must stay within the dock');
+        assert.ok(layout.headingControlsAdjacent, 'Edit gear and search stay adjacent with the actual fixed CSS gap');
+        assert.ok(await evaluate(`(() => {
+          for (const input of document.querySelectorAll('#bg3-video-hud .bg3-video-hud-panel-heading input')) {
+            input.focus();
+            const gear = input.parentElement.querySelector('button'), a = gear.getBoundingClientRect(), b = input.getBoundingClientRect();
+            const gap = parseFloat(getComputedStyle(input.parentElement).columnGap);
+            if (Math.abs(b.left - a.right - gap) >= 1 || document.elementFromPoint(a.x + a.width / 2, a.y + a.height / 2) !== gear) return false;
+          }
+          document.activeElement.blur(); return true;
+        })()`), 'Focused narrow search never covers the adjacent gear');
         assert.ok(layout.noFooter && layout.conditionsFit, 'No bottom bar; conditions remain inside portrait ring');
         assert.ok(layout.conditionsCentered && layout.pactFits, 'The condition group stays centred and pact counts stay visible beside the level rail');
         assert.equal(layout.lists.length, 4);

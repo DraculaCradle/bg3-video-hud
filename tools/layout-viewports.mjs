@@ -24,6 +24,12 @@ export function measureHUD() {
     portrait: root.querySelector('.bg3-video-hud-portrait').getBoundingClientRect().height,
     dpr: window.devicePixelRatio,
     noFooter: !root.querySelector('footer'),
+    headingControlsAdjacent: [...root.querySelectorAll('.bg3-video-hud-panel-heading')].every(heading => {
+      const gear = heading.querySelector('button').getBoundingClientRect(), search = heading.querySelector('input').getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(heading).columnGap);
+      return gear.width > 0 && search.width > 0 && Math.abs(search.left - gear.right - gap) < 1
+        && Math.abs(search.top - gear.top) < 1;
+    }),
     conditionsCentered: !badges.length || Math.abs(badges.reduce((sum, b) => sum + b.x + b.width / 2, 0) / badges.length - portrait.x - portrait.width / 2) < 1,
     pactFits: !pact || (pactBox.width > 0 && pactBox.height > 0 && pactBox.left >= rail.right - 1 && pactBox.right <= rect.right + 1
       && pactBox.top >= rect.top - 1 && pactBox.bottom <= rect.bottom + 1

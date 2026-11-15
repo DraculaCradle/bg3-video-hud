@@ -190,7 +190,7 @@ export function spellLevel(item) {
 export function itemsFor(actor, layout, { edit = false, level = 'all', action = 'all' } = {}) {
   const prefs = normalizeLayout(layout);
   const order = new Map(prefs.order.map((id, index) => [id, index]));
-  return values(actor?.items).filter(item => {
+  const sorted = values(actor?.items).filter(item => {
     if (!item.id || !nativeItemVisible(item, actor) || !editableGroupFor(item)) return false;
     if (edit) return true; // Include default-hidden entries for an explicit per-user override.
     if (!itemDisplayed(item, prefs, actor)) return false;
@@ -205,6 +205,11 @@ export function itemsFor(actor, layout, { edit = false, level = 'all', action = 
     return (Number.isNaN(rank) ? 0 : rank) || (a.sort ?? 0) - (b.sort ?? 0)
       || String(a.name ?? '').localeCompare(String(b.name ?? '')) || a.id.localeCompare(b.id);
   });
+  // Stable level grouping preserves the user's order within a level. Replace
+  // spell positions only, so mixed-type layouts keep all other items in place.
+  const spells = sorted.filter(item => item.type === 'spell').sort((a, b) => spellLevel(a) - spellLevel(b));
+  let nextSpell = 0;
+  return sorted.map(item => item.type === 'spell' ? spells[nextSpell++] : item);
 }
 
 export function reorder(order, sourceId, targetId) {

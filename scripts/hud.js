@@ -15,6 +15,11 @@ const itemLabels = { weapon: '武器', equipment: '装备', consumable: '消耗�
   loot: '杂物', tool: '工具', feat: '特性', background: '背景', class: '职业',
   subclass: '子职业', race: '种族', species: '种族', facility: '设施' };
 
+function sameSortGroup(a, b) {
+  const group = groupFor(a);
+  return group && group === groupFor(b) && (a.type !== 'spell' || spellLevel(a) === spellLevel(b));
+}
+
 export class VideoHUD {
   constructor({ store, user, onDisable, onError }) {
     Object.assign(this, { store, user, onDisable, onError });
@@ -601,10 +606,15 @@ export class VideoHUD {
       && i.name.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase()))) {
       list.append(this.itemRow(item, prefs));
     }
-    body.append(query, node('p', '“显示”只改变此界面，不会准备法术或修改角色；“恢复自动”恢复默认筛选。'), this.editToolbar(prefs), list);
+    body.append(query, node('p', '“显示”只改变此界面，不会准备法术或修改角色；“恢复自动”恢复默认筛选。'
+      + (this.editGroup === 'Spells' ? ' 法术按环阶升序，同环内可排序。' : '')), this.editToolbar(prefs), list);
     if (previous) previous.replaceWith(body); else dialog.append(body);
     list.scrollTop = scroll;
-    const focus = [...body.querySelectorAll('input, button')].find(el => JSON.stringify(el.dataset) === key);
+    const requestedFocus = [...body.querySelectorAll('input, button')].find(el => JSON.stringify(el.dataset) === key);
+    const focus = requestedFocus?.disabled
+      ? (requestedFocus.closest('li[data-item-id]')?.querySelector('[data-action=move]:not(:disabled)')
+        ?? requestedFocus.closest('li[data-item-id]')?.querySelector('[data-action=visibility]'))
+      : requestedFocus;
     if (focus) { focus.focus({ preventScroll: true }); if (selection !== null) { try { focus.setSelectionRange(selection, selection); } catch {} } }
     else if (!previous) query.focus();
   }
@@ -1009,8 +1019,14 @@ export class VideoHUD {
         pin.setAttribute('aria-pressed', String(prefs.pinned.includes(item.id)));
         buttons.append(pin);
       }
-      buttons.append(button('↑', 'move', `上移 ${item.name}`, { itemId: item.id, direction: '-1' }),
-        button('↓', 'move', `下移 ${item.name}`, { itemId: item.id, direction: '1' }));
+      const up = button('↑', 'move', `上移 ${item.name}`, { itemId: item.id, direction: '-1' });
+      const down = button('↓', 'move', `下移 ${item.name}`, { itemId: item.id, direction: '1' });
+      if (item.type === 'spell') {
+        const peers = itemsFor(this.actor, prefs, { edit: true }).filter(i => sameSortGroup(i, item));
+        const index = peers.findIndex(i => i.id === item.id);
+        up.disabled = index <= 0; down.disabled = index >= peers.length - 1;
+      }
+      buttons.append(up, down);
       row.append(buttons);
     }
     return row;
@@ -1084,7 +1100,7 @@ export class VideoHUD {
         const all = itemsFor(actor, this.draft ?? this.store.read(actor), { edit: true });
         const item = all.find(i => i.id === itemId);
         if (!item) return;
-        const siblings = all.filter(i => groupFor(i) === groupFor(item));
+        const siblings = all.filter(i => sameSortGroup(i, item));
         const index = siblings.findIndex(i => i.id === itemId);
         const target = siblings[index + Number(direction)];
         if (!target) return;
@@ -1126,7 +1142,7 @@ export class VideoHUD {
     const actor = this.actor;
     const all = values(actor.items);
     const sourceItem = all.find(i => i.id === data.itemId), targetItem = all.find(i => i.id === target);
-    if (!sourceItem || !targetItem || groupFor(sourceItem) !== groupFor(targetItem)) return;
+    if (!sourceItem || !targetItem || !sameSortGroup(sourceItem, targetItem)) return;
     return this.save(p => ({ ...normalizeLayout(p),
       order: reorder(itemsFor(actor, p, { edit: true }).map(i => i.id), data.itemId, target) }));
   }

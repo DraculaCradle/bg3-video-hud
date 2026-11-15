@@ -202,6 +202,28 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
         assert(hud.root.querySelector('[data-item-id=innate]')); equal(user.writes.length, writes);
       } finally { hud.setActor(hero, token); }
     });
+    await test('spell grid and editor ascend by level, preserve same-level editing and reject cross-level drags without writes', async () => {
+      const entries = [item('high', 'spell', { level: 6 }), item('second', 'spell', { level: 1 }),
+        item('first', 'spell', { level: 1 }), item('zero', 'spell', { level: 0 })];
+      const candidate = actor('spell-order', entries), before = JSON.stringify(entries), writes = user.writes.length;
+      const ids = root => [...root.querySelectorAll('li[data-item-id]')].map(row => row.dataset.itemId);
+      try {
+        hud.setActor(candidate); equal(ids(hud.root), ['zero', 'first', 'second', 'high']);
+        hud.beginEdit('Spells'); equal(ids(hud.editorDialog), ['zero', 'first', 'second', 'high']);
+        assert(hud.editorDialog.querySelector('[data-item-id=zero] [data-action=move][data-direction="1"]').disabled);
+        const move = hud.editorDialog.querySelector('[data-item-id=first] [data-action=move][data-direction="1"]');
+        move.focus(); move.click(); await flush();
+        equal(document.activeElement.dataset.itemId, 'first'); equal(document.activeElement.dataset.direction, '-1'); assert(!document.activeElement.disabled);
+        equal(ids(hud.editorDialog), ['zero', 'second', 'first', 'high']);
+        const draft = JSON.stringify(hud.draft);
+        await hud.drop({ preventDefault() {}, target: hud.editorDialog.querySelector('[data-item-id=zero]'),
+          dataTransfer: { getData: () => JSON.stringify({actor:candidate.uuid,itemId:'high'}) } });
+        equal(JSON.stringify(hud.draft), draft); equal(user.writes.length, writes);
+        hud.editorDialog.querySelector('[data-action=save-edit]').click(); await flush();
+        equal(ids(hud.root), ['zero', 'second', 'first', 'high']);
+        equal(JSON.stringify(entries), before);
+      } finally { hud.setActor(hero, token); }
+    });
     await test('transparent icons hide background initials while preserving bottom names; failures restore fallback and accessible names', async () => {
       const entry = gear[0], writes = user.writes.length;
       entry.img = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><path d="M0 0L80 40" stroke="red"/></svg>');

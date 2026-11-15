@@ -298,3 +298,20 @@ test('legacy preparation and per-item native prepared states refresh visibility 
   legacy.system.prepared = 1;
   assert.equal(spellLevels(hero).at(-1), 9);
 });
+
+
+test('spells always ascend from cantrips to level nine, with stable custom order within each level and other item positions unchanged', () => {
+  const entries = [item('nine', 'spell', { level: 9 }), item('blade', 'weapon'), item('one-a', 'spell', { level: 1 }),
+    item('feature'), item('zero', 'spell', { level: 0 }), item('one-b', 'spell', { level: 1 }), item('three', 'spell', { level: 3 })];
+  const hero = actor('sorted', entries), prefs = { order: entries.map(i => i.id).reverse(), pinned: ['nine', 'zero', 'one-a'] };
+  const before = JSON.stringify({ entries, prefs });
+  for (const edit of [false, true]) {
+    const sorted = itemsFor(hero, prefs, { edit });
+    assert.deepEqual(sorted.filter(i => i.type === 'spell').map(i => i.id), ['zero', 'one-b', 'one-a', 'three', 'nine']);
+    assert.equal(sorted[3].id, 'feature'); assert.equal(sorted[5].id, 'blade');
+  }
+  assert.deepEqual(itemsFor(hero, { ...prefs, pinnedOnly: true }).filter(i => i.type === 'spell').map(i => i.id), ['zero', 'one-a', 'nine']);
+  assert.deepEqual(itemsFor(hero, prefs, { level: 1 }).filter(i => i.type === 'spell').map(i => i.id), ['one-b', 'one-a']);
+  assert.deepEqual(itemsFor(hero, { ...prefs, hidden: ['zero'] }).filter(i => i.type === 'spell').map(i => i.id), ['one-b', 'one-a', 'three', 'nine']);
+  assert.equal(JSON.stringify({ entries, prefs }), before);
+});

@@ -9,8 +9,8 @@ export function usableActivities(item) {
 }
 
 export function castingSources(actor, spell) {
-  return values(actor?.items).flatMap(item => values(item.system?.activities)
-    .filter(a => a.type === 'cast' && a.spell?.uuid === spell.uuid && a.canUse !== false)
+  return values(actor?.items).flatMap(item => manualActivities(item)
+    .filter(a => a.type === 'cast' && a.spell?.uuid === spell.uuid)
     .map(activity => {
       const uses = item.system?.uses ?? {};
       const max = Number(uses.max) || 0;

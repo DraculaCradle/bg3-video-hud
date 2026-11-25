@@ -1,4 +1,5 @@
 import { MODULE_ID, selectActor, values } from './model.js';
+import { supportsHUD, MIN_FOUNDRY, MIN_DND5E, TARGET_DND5E } from './compatibility.js';
 import { LayoutStore } from './persistence.js';
 import { VideoHUD } from './hud.js';
 import { reactionResources } from './reactions.js';
@@ -14,8 +15,7 @@ let selectionWarning = null;
 let renderFailed = false;
 
 function compatible() {
-  return game.system?.id === 'dnd5e' && String(game.version).split('.')[0] === '14'
-    && game.system.version === '6.0.6';
+  return supportsHUD(game.version, game.system?.id, game.system?.version);
 }
 
 // Explicitly safe for support: no actor/user names, IDs, flags or credentials.
@@ -41,7 +41,7 @@ function refresh() {
       hud.clear();
       if (!compatibilityWarning) {
         compatibilityWarning = true;
-        ui.notifications.warn('请使用 Foundry VTT V14 和 D&D5e 6.0.6。无需安装其他 HUD 模组。');
+        ui.notifications.warn(`请使用 Foundry VTT V14（${MIN_FOUNDRY} 起）和 D&D5e ${MIN_DND5E} 至 ${TARGET_DND5E} 正式版。`);
       }
       return;
     }

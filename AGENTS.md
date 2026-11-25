@@ -6,7 +6,7 @@ This repository contains an independent Foundry VTT module, *not* the original u
 
 ## Constraints
 
-- Target Foundry 14 Stable / D&D5e 6.0.6.
+- Target Foundry 14.370 Stable / D&D5e 6.1.1. Keep supported Foundry V14 builds from 14.367 and stable D&D5e 6.0.6–6.1.1 compatible.
 - Run independently of other HUD modules. `bg3-hud-core` and `bg3-hud-dnd5e` are optional coexistence integrations; do not require, enable, disable or import them. Inspect public APIs before adding optional integrations.
 - Do not mutate or fork upstream module files in place; prefer a distinct module id `bg3-video-hud` and isolated CSS namespace.
 - Preserve player data and avoid irreversible flag migrations.

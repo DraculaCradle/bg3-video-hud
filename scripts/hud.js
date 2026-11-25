@@ -1,4 +1,4 @@
-import { MODULE_ID, GROUPS, DEFAULT_RATIOS, actorStats, editableGroupFor as groupFor, itemDisplayed, toggleVisibility, itemsFor, normalizeLayout, reorder, slotPools,
+import { MODULE_ID, GROUPS, DEFAULT_RATIOS, actorStats, editableGroupFor as groupFor, itemDisplayed, magicUseBlocked, toggleVisibility, itemsFor, normalizeLayout, reorder, slotPools,
   spellLevels, spellLevel, toggleId, usesLabel, values, resizeColumns, autoColumnWidths } from './model.js';
 import { restActor, endTurn, canEndTurn } from './actions.js';
 import { TargetWorkflow } from './targeting.js';
@@ -1006,7 +1006,9 @@ export class VideoHUD {
     if (usesLabel(item)) {
       use.append(node('small', usesLabel(item).replace(/ 次$/, ''), 'bg3-video-hud-uses'));
     }
-    use.disabled = this.edit || this.busy.size > 0 || item.flags?.[MODULE_ID]?.castingSource?.enabled === false;
+    const blocked = magicUseBlocked(item);
+    if (blocked) use.title += ' · 当前无法使用魔法';
+    use.disabled = this.edit || this.busy.size > 0 || blocked || item.flags?.[MODULE_ID]?.castingSource?.enabled === false;
     row.append(use);
     if (this.edit && editing && (!this.editGroup || groupFor(item) === this.editGroup)) {
       const buttons = node('div', undefined, 'bg3-video-hud-edit-controls');

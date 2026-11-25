@@ -4,7 +4,7 @@ Status: release **configuration** and local deployment tests are prepared. No re
 
 ## Release assets and stable URLs
 
-The tag workflow validates JavaScript, unit tests, Chromium fixtures, deployment tests and the package. A stable tag must exactly match `v<module.json version>`, currently `v0.1.0`. It uploads all four assets to a draft release before publishing it as latest. Ordinary branch pushes and PRs only validate and upload a CI artifact. The target Foundry and D&D5e versions remain 14 / 6.0.6; in-game certification is still pending.
+The tag workflow validates JavaScript, unit tests, Chromium fixtures, deployment tests and the package. A stable tag must exactly match `v<module.json version>`, currently `v0.1.21`. It uploads all four assets to a draft release before publishing it as latest. Ordinary branch pushes and PRs only validate and upload a CI artifact. The target versions are Foundry 14.370 and D&D5e 6.1.1. Live acceptance is pending.
 
 After review/merge and when ready to publish, a maintainer can tag the intended commit:
 
@@ -28,7 +28,7 @@ These are configured URLs, not currently verified live download endpoints. The m
 
 - Linux, Python **3.9+**, a local trusted ZIP and `deploy_linux.py` (from `dist/` after `npm run package`, or the same versioned release). No pip/npm packages are required **on the server**.
 - Identify the actual Foundry **user data root** from your server configuration or process `--dataPath` argument. `--data-dir` must point to the directory **containing** `Data/`, not the application install directory and not `Data/modules/`. No absolute installation path or service name is assumed.
-- Existing `Data/modules` and D&D5e **6.0.6** at `Data/systems/dnd5e`. Current source installs independently of BG3 HUD; published v0.1.2 still declares those dependencies. The script retains system/version checks and never installs, modifies or enables optional HUDs.
+- Existing `Data/modules` and D&D5e **6.0.6**, **6.1.0** or **6.1.1** at `Data/systems/dnd5e`. Current source installs independently of BG3 HUD; published v0.1.2 still declares those dependencies. The installer checks the system version against the incoming or restored package.
 - Back up the test world and stop Foundry using your actual systemd unit, container manager or process supervisor. The script does not guess a service name, stop/restart processes, or claim to detect all running servers. `--server-stopped` is the administrator's explicit declaration.
 - Run as the Foundry service user where possible. Existing module uid/gid are preserved by default. A first installation as root requires `--owner USER[:GROUP]`; output files use 0644, directories 0755. Unprivileged users cannot silently change ownership to another user or an unrelated group. Parent-directory permissions and sufficient staging space are checked. ACLs, capabilities and SELinux labels are not automatically recreated; apply your server's normal labeling policy before restart if relevant.
 

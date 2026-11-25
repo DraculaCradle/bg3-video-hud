@@ -58,7 +58,7 @@ user.character = hero;
 globalThis.canvas = { ready: true, tokens: { controlled: [{ actor: hero }] } };
 globalThis.game = {
   world: { id: 'modstest', title: 'ModsTest' },
-  user, version: '14.0', system: { id: 'dnd5e', version: '6.0.6' },
+  user, version: '14.370', system: { id: 'dnd5e', version: '6.1.1' },
   modules: new Map([[MODULE_ID, {}]]),
   settings: {
     register() { throw new Error('HUD must not register an activation setting'); },
@@ -305,10 +305,24 @@ try {
     assert(!editPanel()); assert(!find('more'));
     await select(hero);
   });
+  await test('D&D5e 6.1.1 antimagic blocks the HUD activity and native updates restore it', async () => {
+    const cast = { id: 'cast', type: 'utility', canUse: false, isHidden: true, visibility: { requireMagic: true } };
+    const spell = item('antimagic-spell', 'spell', { level: 1, activities: [cast], magicAvailable: false });
+    const candidate = actor('antimagic-mage', [spell]);
+    try {
+      await select(candidate);
+      const control = () => root().querySelector('button[data-action=use][data-item-id=antimagic-spell]');
+      assert(control()?.disabled);
+      spell.system.magicAvailable = true;
+      cast.canUse = true; cast.isHidden = false;
+      await Hooks.emit('updateActiveEffect'); await flush();
+      assert(control() && !control().disabled);
+    } finally { await select(hero); }
+  });
   await test('unsupported system fails open to original HUD', async () => {
     game.system.version = '7.0.0'; await Hooks.emit('updateActor', hero);
     assert(!root()); assert(originalVisible());
-    game.system.version = '6.0.6'; await enable(); assert(root());
+    game.system.version = '6.1.1'; await enable(); assert(root());
   });
   await test('a render failure restores original HUD and reports the failure', async () => {
     const getFlag = user.getFlag;
@@ -434,7 +448,9 @@ try {
   });
   await test('automatic activation preserves Foundry and system version guards', async () => {
     const version = game.version, system = { ...game.system };
-    for (const unsupported of [{ version: '13.0', system },
+    for (const unsupported of [{ version: '13.0', system }, { version: '14.366', system },
+      { version, system: { ...system, version: '6.1.2' } },
+      { version, system: { ...system, version: '6.1.1-rc1' } },
       { version, system: { ...system, version: '6.0.5' } },
       { version, system: { ...system, id: 'other' } }]) {
       Object.assign(game, unsupported);

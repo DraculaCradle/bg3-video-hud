@@ -1,6 +1,6 @@
 # 现有 Foundry V14 实例：ModsTest 自动更新指南
 
-**当前由用户人工验收，自动实机测试已停止，自动部署保持关闭。** 以下配置保留供维护，不构成重新启用授权。v0.1.3 无需安装 BG3 HUD 模组，仍校验 Foundry V14、D&D5e 6.0.6、ModsTest、版本和会话。旧版 v0.1.2 仍有 BG3 依赖；取消依赖改变 module.json，既有自动热更新继续报告需要维护窗口，不能绕过清单守卫。已知旧清单的备份与待恢复事务仍能校验和恢复，不自动更改任何模组启用状态。
+**当前由用户人工验收，自动实机测试已停止，自动部署保持关闭。** 以下配置保留供维护，不构成重新启用授权。v0.1.21 校验 Foundry V14（14.367 起）、D&D5e 6.0.6／6.1.0／6.1.1、ModsTest 和会话。旧版 v0.1.2 仍有 BG3 依赖；取消依赖改变 module.json，既有自动热更新继续报告需要维护窗口，不能绕过清单守卫。已知旧清单的备份与待恢复事务仍能校验和恢复，不自动更改任何模组启用状态。
 
 仅使用现有 `https://redmagic.club/`、Foundry Node.js 进程、端口、dataPath 和反向代理。只部署到现有 `Data/modules/bg3-video-hud` 普通目录；不会创建第二个 Foundry 实例，不调用任何 Foundry 服务停启命令，不切换世界，不修改其他模组或其他世界。
 
@@ -108,7 +108,7 @@ sudo chmod 0644 /etc/bg3-modstest.json
 ## 自动检查、更新与恢复行为
 
 1. 登录前检查现有 `/join` 页的 ModsTest 标题；不是则 `skipped`，不提交测试账号密码。
-2. 登录现有 Gamemaster，核对准确世界 ID、账号身份、Foundry 14、D&D5e 6.0.6、两个 BG3 依赖及本模组启用状态。发现 Gamemaster/Player1 之外的活动账号，立即 `blocked`，不启动文件 helper。
+2. 登录现有 Gamemaster，核对准确世界 ID、账号身份、Foundry V14（14.367 起）、D&D5e 6.0.6／6.1.0／6.1.1 及本模组启用状态。发现 Gamemaster/Player1 之外的活动账号，立即 `blocked`，不启动文件 helper。
 3. 保持一个 GM socket 会话用于持续守卫。正式用户加入、世界导航或连接断开会锁存不安全状态；每次准备、交换、提交、回滚和恢复前还会重新检查。
 4. 文件 helper 持有事务锁，验证 ZIP、清单/版本、完整本地 JS import 图、目录边界、链接、磁盘空间和同文件系统。旧版 ZIP 校验通过后，将新版本完整写入私有 staging，fsync 日志，用 Linux `renameat2(RENAME_EXCHANGE)` 一次交换 **现有普通模组目录**和候选目录。其他模块、世界数据库、service 和配置文件均不操作。
 5. 校验服务器实际返回的 JS/CSS SHA-256。测试客户端绕过自身与反代旧缓存，不修改反代配置，也不重载世界。使用现有 GM 会话认证创建测试页面，Player1 独立登录，避免重复执行 GM 登录。
@@ -165,7 +165,7 @@ V14 登录使用 `#join-game-form` 内大小写敏感的 `userId` 字段和提�
 
 Playwright 固定为 1.65.0；Foundry V14 发布的客户端要求 Chromium 至少 146，预检先检查实际浏览器版本，再通过 WebGL2 canvas 创建，失败时在任何登录或部署之前停止。脱敏报告中的 `guardReason` 保留主失败原因，`cleanupReason` 单独记录退出失败阶段（`native-navigation`、`join-form` 或 `account-availability`）；退出异常不会覆盖更早的版本/世界/认证错误。若退出未确认，先检查已有 GM 页面，不反复提交登录或重启服务。
 
-版本守卫失败还会报告 Foundry／D&D5e 及两个依赖的数字版本、依赖启用布尔值。只记录固定模组 ID 和经过校验的版本，不输出其他设置或世界文档；校验仍然要求 Foundry 14、D&D5e 6.0.6 和已启用的兼容依赖。
+版本守卫失败还会报告 Foundry／D&D5e 的数字版本和本模组的启用状态。只记录固定模组 ID 和经过校验的版本，不输出其他设置或世界文档；校验仍然要求 Foundry V14（14.367 起）、受支持的 D&D5e 版本和已启用的本模组。
 
 若所有人工页面已关闭但 GM 仍显示在线，可在只测试工作流勾选 `diagnostics_only`。这只清点受限 runner 账号名下的 Chromium 进程，输出 PID、父 PID、运行时长及是否具有 Playwright 浏览器标记；不启动浏览器、不请求 Foundry、不使用测试密码、不终止任何进程，也不要求角色或 token 配置。原始命令参数不输出。结果保存在 `runner-browser-inventory.json`，它属于进程诊断，不是 HUD 实机验收通过证明。普通测试也会在启动浏览器前记录同样清单。
 

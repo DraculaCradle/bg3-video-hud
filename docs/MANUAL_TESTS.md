@@ -1,4 +1,4 @@
-# Foundry v14 / D&D5e 6.0.6 acceptance
+# Foundry VTT 14.370 / D&D5e 6.1.1 acceptance
 
 Status: **Full live acceptance remains incomplete.** The existing ModsTest instance has the module installed; automated live document reads are currently blocked by missing Socket acknowledgements. See [the current live report](MODSTEST_LIVE_REPORT.md). The current Chinese UI, cast/source manager and coordinated attacks are verified with local Chromium fixtures, not yet installed or certified in Foundry; see [the 720P report](COMPACT_HUD.md). Earlier proxy failures in [the historical test report](TEST_REPORT.md) are not the current diagnosis.
 
@@ -173,3 +173,9 @@ Release sign-off requires all applicable required checkboxes above, with recorde
 - 查看混合戏法和多个环阶的角色：主栏从0环至9环升序，同环内保持原有手动顺序。搜索、固定和环阶筛选后顺序仍正确；不修改原生角色卡顺序。
 - 进入法术齿轮编辑：同环可用上下箭头／拖动调整，保存并重新载入后保留；跨环不能破坏升序。同环末端箭头禁用，移动到边界后的键盘焦点仍在该条目的可用排序箭头。
 - 切换角色、准备状态及显隐设置后继续升序。武器／物品／特性不因本次改变排序，HUD总宽、施法和消费规则保持。
+
+## v0.1.21 兼容验收
+
+- 在目标版本的测试世界选择有所有者权限的 Token，检查 HUD 启用及临时切回原版界面。
+- 用已准备、已消耗契约位和有物品来源的法术检查显示、选择目标及原生消耗。用 14.370 的网格空间范围形状确认范围内目标交给原生结算。
+- 让测试角色进入和离开原生反魔法区域，检查受限法术和来源的可用状态随系统刷新。角色的普通物品和活动仍由系统判断是否可用。

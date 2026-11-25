@@ -224,6 +224,22 @@ class DeploymentTests(unittest.TestCase):
             deploy.deploy(self.args())
         self.assertFalse(self.target.exists())
 
+    def test_new_system_package_and_legacy_rollback_keep_version_checks(self):
+        system = self.data / 'Data/systems/dnd5e/system.json'
+        system.write_text(json.dumps({'id': 'dnd5e', 'version': '6.1.1'}))
+        deploy.deploy(self.args(dry_run=True))
+        legacy = copy.deepcopy(self.manifest)
+        legacy['compatibility'] = {'minimum': '14', 'verified': '14', 'maximum': '14'}
+        legacy['relationships']['systems'][0]['compatibility'] = {
+            'minimum': '6.0.6', 'verified': '6.0.6', 'maximum': '6.0.6'
+        }
+        deploy.validate_payload({**self.files, 'module.json': json.dumps(legacy).encode()}, legacy=True)
+        with self.assertRaisesRegex(ValueError, 'D&D5e'):
+            deploy.check_system(self.data, legacy)
+        system.write_text(json.dumps({'id': 'dnd5e', 'version': '6.1.2'}))
+        with self.assertRaisesRegex(ValueError, 'D&D5e'):
+            deploy.deploy(self.args(dry_run=True))
+
     def test_legacy_bg3_backup_can_be_verified_and_restored_after_standalone_upgrade(self):
         previous = self.seed_old()
         manifest = json.loads(previous['module.json'])

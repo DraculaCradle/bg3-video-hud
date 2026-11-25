@@ -60,3 +60,21 @@ test('rest delegates to official methods and preserves dialogs/cancellation', as
   await assert.rejects(restActor(hero, 'fake', {}), /不支持/);
   await assert.rejects(restActor(actor(), 'short', {}), /不支持休息/);
 });
+
+test('D&D5e 6.1 antimagic blocks a magical activity without consuming an action or resource', async () => {
+  let calls = 0;
+  const cast = { id: 'cast', visibility: { requireMagic: true }, canUse: false, isHidden: true, use: () => { calls++; } };
+  const spell = item('spell', 'spell', { activities: [cast], magicAvailable: false, uses: { spent: 0, max: 1 } },
+    { use: () => { calls++; } });
+  const hero = actor('mage', [spell]);
+  await assert.rejects(useOwnedItem(hero, 'spell', {}), /当前无法使用/);
+  await assert.rejects(useOwnedItem(hero, 'spell', {}, {}, 'cast'), /当前无法使用/);
+  assert.equal(calls, 0);
+  assert.equal(spell.system.uses.spent, 0);
+
+  spell.system.magicAvailable = true;
+  cast.canUse = true;
+  cast.isHidden = false;
+  await useOwnedItem(hero, 'spell', {}, {}, 'cast');
+  assert.equal(calls, 1);
+});

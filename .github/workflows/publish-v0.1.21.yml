@@ -1,0 +1,52 @@
+name: Publish v0.1.21 from reviewed commit
+on:
+  push:
+    branches: ['release/v0.1.21']
+permissions:
+  contents: read
+concurrency:
+  group: release-refs/tags/v0.1.21
+  cancel-in-progress: false
+env:
+  RELEASE_TAG: v0.1.21
+  RELEASE_COMMIT: 6fb5aa04399111171441e44a799df32d7bfcbe61
+jobs:
+  release:
+    if: github.repository == 'DraculaCradle/bg3-video-hud' && github.ref == 'refs/heads/release/v0.1.21'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6fb5aa04399111171441e44a799df32d7bfcbe61
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify exact source and release version
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          node -e 'if ("v" + require("./module.json").version !== process.env.RELEASE_TAG) process.exit(1)'
+      - run: npm ci
+      - run: npm run check && npm test
+      - run: npm run test:deploy
+      - run: npm run test:modstest-deploy
+      - name: Chromium fixture integration
+        run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
+      - run: npm run package
+      - name: Verify asset checksums
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+      - name: Upload all assets to a draft and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release tag already exists. Refusing to change it." >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" dist/bg3-video-hud.zip dist/module.json dist/deploy_linux.py dist/SHA256SUMS \
+            --target "$RELEASE_COMMIT" --title "BG3 Video HUD $RELEASE_TAG" \
+            --notes-file "docs/releases/$RELEASE_TAG.md" --draft
+          gh release edit "$RELEASE_TAG" --draft=false --latest

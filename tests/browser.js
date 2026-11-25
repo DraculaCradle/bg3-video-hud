@@ -373,6 +373,7 @@ try {
   crowded.system.spells.pact = { level: 5, value: 1, max: 2 };
   window.bg3LayoutTest = {
     crowded: () => select(crowded), reset: () => select(hero),
+    acOnly: () => select(actor('ac-only', [], { system: { attributes: { ac: { value: 10 } } } })),
     refresh: () => Hooks.emit('updateActor', crowded), writes: () => user.writes.length,
     notifications: () => notifications.slice(-5), enable, toggle: () => game.modules.get(MODULE_ID).api.toggle()
   };

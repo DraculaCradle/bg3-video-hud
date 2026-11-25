@@ -173,7 +173,7 @@ test('a logout failure preserves the original world/version guard failure for di
   }
   const replies = [{ world: 'modstest', title: 'ModsTest' }, undefined,
     { world: 'modstest', title: 'ModsTest', name: 'Gamemaster', gm: true }, undefined,
-    { ...state, generation: '13' }, true];
+    { ...state, generation: '13', version: '13.351' }, true];
   let closed = false;
   const page = { goto: async () => ({ status: () => 200 }), title: async () => 'ModsTest',
     locator: () => ({ waitFor: async () => {}, evaluateAll: async () => [{ value: 'gm', disabled: false }],
@@ -184,7 +184,7 @@ test('a logout failure preserves the original world/version guard failure for di
     browser: () => anonymousReleaseProbe(),
     pages: () => [page], close: async () => { closed = true; } };
   await assert.rejects(openGuard({ newContext: async () => context }, { url: 'https://example.invalid/', world: 'modstest' }),
-    error => error.reason.startsWith('foundry-or-dependency-version-mismatch:foundry=13;')
+    error => error.reason.startsWith('foundry-or-dependency-version-mismatch:foundry=13.351;')
       && error.cleanupReason === 'test-session-release-unconfirmed:native-navigation');
   assert.equal(closed, true);
 });

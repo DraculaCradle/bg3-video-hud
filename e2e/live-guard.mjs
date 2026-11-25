@@ -1,3 +1,4 @@
+import { supportsHUD } from '../scripts/compatibility.js';
 import { createHash } from 'node:crypto';
 import { verifiedLoopbackResponse, browserAssetProof } from './client-route.mjs';
 import { closeAnonymousJoin } from './anonymous-join.mjs';
@@ -30,7 +31,7 @@ export function validateState(state, world) {
   if (!state.gm || state.gmName !== 'Gamemaster' || !state.testAccountsValid) throw new GuardError('blocked', 'test-account-identity-invalid');
   if (state.foreignActive) throw new GuardError('blocked', 'non-test-account-active');
   if (state.unsafe) throw new GuardError('blocked', 'world-or-session-guard-latched');
-  if (state.generation !== '14' || state.system !== 'dnd5e' || state.systemVersion !== '6.0.6') {
+  if (!supportsHUD(state.version, state.system, state.systemVersion)) {
     const version = value => /^\d+(?:\.\d+){0,3}(?:[-+][0-9A-Za-z.-]+)?$/.test(String(value)) ? String(value) : 'unknown';
     const details = [`foundry=${version(state.version ?? state.generation)}`,
       `system=${state.system === 'dnd5e' ? 'dnd5e' : 'unsupported'}@${version(state.systemVersion)}`];

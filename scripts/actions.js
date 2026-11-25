@@ -1,4 +1,4 @@
-import { canUseActor, values } from './model.js';
+import { canUseActor, magicUseBlocked, values } from './model.js';
 
 function requireOwner(actor, user) {
   if (!canUseActor(actor, user)) throw new Error('请先选择你拥有权限的角色，再使用此控件。');
@@ -13,15 +13,18 @@ export function resolveOwnedItem(actor, itemId, user) {
 
 export async function useOwnedItem(actor, itemId, user, event, activityId = null, usage = {}) {
   const item = resolveOwnedItem(actor, itemId, user);
+  if (item.canUse === false || item.isHidden === true || magicUseBlocked(item)) {
+    throw new Error('此物品当前无法使用，请查看角色卡中的状态。');
+  }
   // Resolve from the current actor every time; never accept arbitrary dropped UUIDs.
   if (activityId) {
     const activity = item.system?.activities?.get?.(activityId)
       ?? values(item.system?.activities).find(a => a.id === activityId);
-    if (typeof activity?.use !== 'function') throw new Error('系统无法使用此活动。');
+    if (typeof activity?.use !== 'function' || activity.canUse === false || activity.isHidden === true) throw new Error('系统无法使用此活动。');
     return activity.use({ ...usage, event });
   }
   if (typeof item.use !== 'function') throw new Error('此物品没有可用的系统使用流程，请从角色卡操作。');
-  // D&D5e 6.0.6 Item5e.use selects activities, opens dialogs, consumes resources,
+  // D&D5e Item5e.use selects activities, opens dialogs, consumes resources,
   // handles concentration/templates and creates chat cards. Do not duplicate it.
   return item.use({ ...usage, event });
 }

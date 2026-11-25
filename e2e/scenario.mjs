@@ -1,3 +1,4 @@
+import { supportsHUD } from '../scripts/compatibility.js';
 import { expect } from '@playwright/test';
 import { login, freshModuleRequests, closeOwnContext } from './live-guard.mjs';
 import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -37,16 +38,14 @@ export function settings() {
 async function guard(page, config) {
   const actual = await page.evaluate(() => ({
     world: game.world.id, title: game.world.title,
-    generation: String(game.version).split('.')[0], system: game.system.id, version: game.system.version,
+    foundryVersion: game.version, system: game.system.id, version: game.system.version,
     modules: ['bg3-video-hud'].map(id => ({
       id, active: game.modules.get(id)?.active === true, version: game.modules.get(id)?.version
     }))
   }));
   expect(actual.world).toBe(config.world);
   expect(actual.title).toBe('ModsTest');
-  expect(actual.generation).toBe('14');
-  expect(actual.system).toBe('dnd5e');
-  expect(actual.version).toBe('6.0.6');
+  expect(supportsHUD(actual.foundryVersion, actual.system, actual.version)).toBe(true);
   expect(actual.modules.every(m => m.active)).toBe(true);
   return actual;
 }

@@ -2,9 +2,9 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.20：法术按低环到高环排列。** 主栏和编辑器固定按戏法、1～9环升序，同环保留已有顺序并支持手动调整。准备筛选、显式显示和原生消费守卫保持；自动部署与自动实机测试继续关闭。
+> **v0.1.21 刷新兼容目标至 Foundry VTT 14.370 和 D&D5e 6.1.1。** HUD 读取系统提供的活动可用状态，在反魔法效果限制活动时停用对应的使用按钮。
 
-> **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Not yet verified in a running Foundry VTT v14 / D&D5e 6.0.6 world. Manifest compatibility declares the intended target, not a completed in-game certification.
+> **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Live acceptance for Foundry VTT 14.370 and D&D5e 6.1.1 is pending. Manifest compatibility declares the intended target, not a completed in-game certification.
 
 ## Goals
 
@@ -19,7 +19,8 @@
 ## Target versions
 
 - Foundry VTT v14 Stable
-- D&D5e 6.0.6
+- Foundry V14 from 14.367, with 14.370 as the update target
+- D&D5e 6.0.6, 6.1.0 and 6.1.1
 - No required HUD modules. BG3 Inspired HUD is optional; existing settings and data are preserved.
 
 ## Upstream references
@@ -35,13 +36,13 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 
 ## Install in a backed-up test world
 
-1. Use the existing Foundry v14 instance with D&D5e **6.0.6**. Current source needs no other HUD module; no upstream code is bundled. Do not change other worlds or enable/disable optional modules automatically.
+1. Use the existing Foundry v14 instance with D&D5e **6.0.6**, **6.1.0** or **6.1.1**. Current source needs no other HUD module; no upstream code is bundled. Do not change other worlds or enable/disable optional modules automatically.
 2. Run `npm run package` from this checkout (Node >=22.8 and Python 3 required). Extract `dist/bg3-video-hud.zip` into `<Foundry User Data>/Data/modules/bg3-video-hud/`, with `module.json` directly inside that directory. Alternatively copy `module.json`, `scripts/`, and `styles/` into that directory.
 3. 在需要使用的世界中，通过“管理模组”启用 **BG3 视频界面** 并重新载入。所有客户端自动起效，无需额外设置开关。 If package discovery or manifest changes need a reload/restart, the administrator schedules a maintenance window; this project never controls the service automatically.
 4. GM 和 Player 均自动启用。Token 工具栏的 **临时切换原版／BG3 界面** 可在当前页面临时返回或恢复，刷新页面自动恢复。也可为此临时操作设置快捷键。
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.20. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.21. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 

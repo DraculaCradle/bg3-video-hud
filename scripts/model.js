@@ -91,6 +91,14 @@ export function manualActivities(item) {
     && a.midiProperties?.automationOnly !== true && !hidden.has(a.id));
 }
 
+// D&D5e 6.1 prepares magic availability and hidden/canUse on each activity.
+export function magicUseBlocked(item) {
+  if (item?.system?.magicAvailable !== false) return false;
+  const activities = values(item.system.activities);
+  return activities.some(activity => activity?.visibility?.requireMagic === true)
+    && manualActivities(item).length === 0;
+}
+
 export function hasActiveUse(item) {
   if (item?.canUse === false || item?.isHidden === true) return false;
   const activeType = type => ['none', 'special', 'action', 'bonus', 'minute', 'hour', 'day',

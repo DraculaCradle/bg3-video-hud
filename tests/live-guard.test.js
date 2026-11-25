@@ -4,8 +4,8 @@ import { GuardError, validateState, validateModuleVersion, login, freshModuleReq
 import { closeAnonymousJoin } from '../e2e/anonymous-join.mjs';
 
 const state = { connected: true, ready: true, world: 'modstest', title: 'ModsTest', gm: true,
-  gmName: 'Gamemaster', testAccountsValid: true, foreignActive: false, generation: '14',
-  system: 'dnd5e', systemVersion: '6.0.6', moduleActive: true };
+  gmName: 'Gamemaster', testAccountsValid: true, foreignActive: false, generation: '14', version: '14.370',
+  system: 'dnd5e', systemVersion: '6.1.1', moduleActive: true };
 
 test('release acceptance rejects older installed versions and sanitizes non-version metadata', () => {
   validateModuleVersion({ moduleVersion: '0.1.2' }, '0.1.2');
@@ -36,7 +36,7 @@ test('a non-test active user, disconnect or mismatched identity blocks deploymen
   }
 });
 test('missing discovery, wrong versions and disabled modules require a maintenance window', () => {
-  for (const changed of [{ generation: '13' }, { systemVersion: '6.0.5' }, { moduleActive: false }]) {
+  for (const changed of [{ generation: '13', version: '13.351' }, { version: '14.366' }, { systemVersion: '6.0.5' }, { systemVersion: '6.1.2' }, { moduleActive: false }]) {
     assert.throws(() => validateState({ ...state, ...changed }, 'modstest'), error => error.status === 'maintenance-required');
   }
 });

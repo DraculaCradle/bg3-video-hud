@@ -75,7 +75,7 @@ export class TargetWorkflow {
       if (!choice) return;
       const freshItem = resolveOwnedItem(actor, itemId, this.user);
       if (freshItem !== item) throw new Error('物品已更改，请重新选择。');
-      activity = values(freshItem.system?.activities).find(a => a.id === choice.activityId && a.canUse === true);
+      activity = usableActivities(freshItem).find(a => a.id === choice.activityId);
       if (!activity) throw new Error('请选择当前物品的可用活动。');
     } else if (activities.length > 1 && !event?.shiftKey) {
       const choice = this.getSystem()?.applications?.activity?.ActivityChoiceDialog;
@@ -88,8 +88,8 @@ export class TargetWorkflow {
     if (!active()) return;
     const fresh = () => {
       const owned = resolveOwnedItem(actor, itemId, this.user);
-      const found = values(owned.system?.activities).find(a => a.id === activity.id);
-      if (found !== activity || activity.canUse !== true) throw new Error('活动已更改或不可用，请重新选择技能。');
+      const found = usableActivities(owned).find(a => a.id === activity.id);
+      if (found !== activity) throw new Error('活动已更改或不可用，请重新选择技能。');
     };
     fresh();
     const usage = nativeCastingOptions(actor, item, activity, choice);

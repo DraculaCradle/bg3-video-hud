@@ -41,7 +41,8 @@ def validate_payload(files, *, legacy=False):
     version = manifest.get('version', '')
     if not isinstance(version, str) or not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', version):
         raise ValueError('Invalid module version')
-    if manifest.get('compatibility', {}).get('minimum') != '14':
+    core_minimum = manifest.get('compatibility', {}).get('minimum')
+    if core_minimum not in ('14', '14.367'):
         raise ValueError('Expected Foundry v14 compatibility')
     requires = manifest.get('relationships', {}).get('requires', [])
     legacy_bg3 = (isinstance(requires, list) and len(requires) == 2
@@ -49,9 +50,7 @@ def validate_payload(files, *, legacy=False):
                   and sorted(r.get('id', '') for r in requires) == ['bg3-hud-core', 'bg3-hud-dnd5e'])
     if requires != [] and not (legacy and legacy_bg3):
         raise ValueError('Standalone HUD must not declare required modules')
-    systems = manifest.get('relationships', {}).get('systems', [])
-    if not any(s.get('id') == 'dnd5e' and s.get('compatibility', {}).get('verified') == '6.0.6' for s in systems):
-        raise ValueError('Expected D&D5e 6.0.6 target')
+    supported_systems(manifest)
     if not manifest.get('esmodules') or not manifest.get('styles'):
         raise ValueError('The manifest must declare scripts and styles')
     queue = list(manifest['esmodules'])
@@ -138,12 +137,27 @@ def check_access(path, mode, purpose):
         raise PermissionError(f'{purpose}: insufficient permissions on {path}')
 
 
-def check_system(data):
+def supported_systems(manifest):
+    dependencies = manifest.get('relationships', {}).get('systems', [])
+    for dependency in dependencies:
+        if dependency.get('id') != 'dnd5e':
+            continue
+        limits = dependency.get('compatibility', {})
+        versions = (limits.get('minimum'), limits.get('verified'), limits.get('maximum'))
+        if versions == ('6.0.6', '6.1.1', '6.1.1'):
+            return ('6.0.6', '6.1.0', '6.1.1')
+        if versions == ('6.0.6', '6.0.6', '6.0.6'):
+            return ('6.0.6',)
+    raise ValueError('Expected a supported D&D5e compatibility declaration')
+
+
+def check_system(data, manifest):
     # Module requirements are forbidden by validate_payload. The required
     # D&D5e system/version remains checked, independent of optional HUD modules.
     system = read_json(data / 'Data' / 'systems' / 'dnd5e' / 'system.json')
-    if system.get('id') != 'dnd5e' or system.get('version') != '6.0.6':
-        raise ValueError('Install D&D5e 6.0.6 before deploying this module')
+    versions = supported_systems(manifest)
+    if system.get('id') != 'dnd5e' or system.get('version') not in versions:
+        raise ValueError(f'Install a supported D&D5e version before deploying: {", ".join(versions)}')
 
 
 def ownership(owner, target):
@@ -211,7 +225,7 @@ def deploy(args):
             raise ValueError('Linked backup payload is unsupported')
         files = tree_payload(backup / 'module')
     manifest = validate_payload(files, legacy=bool(args.rollback))
-    check_system(data)
+    check_system(data, manifest)
     uid, gid = ownership(args.owner, target)
     backup_root = Path(args.backup_dir).expanduser().resolve() if args.backup_dir else data / f'.{MODULE_ID}-backups'
     if backup_root == target or target in backup_root.parents:

@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.21 刷新兼容目标至 Foundry VTT 14.370 和 D&D5e 6.1.1。** HUD 读取系统提供的活动可用状态，在反魔法效果限制活动时停用对应的使用按钮。
+> **v0.1.22 让单独显示的 AC 在状态栏内居中。** 适用于没有有效生命值栏的角色。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Live acceptance for Foundry VTT 14.370 and D&D5e 6.1.1 is pending. Manifest compatibility declares the intended target, not a completed in-game certification.
 
@@ -42,7 +42,7 @@ Read [AGENTS.md](./AGENTS.md) and [the MVP development brief](./docs/CODEX_TASK.
 4. GM 和 Player 均自动启用。Token 工具栏的 **临时切换原版／BG3 界面** 可在当前页面临时返回或恢复，刷新页面自动恢复。也可为此临时操作设置快捷键。
 5. Select an owned token; with no controlled token, the assigned owned character is used. Selecting only unowned tokens hides this HUD. During canvas teardown the original HUD is restored.
 
-Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.21. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
+Use the stable [module.json installation/update address](https://github.com/DraculaCradle/bg3-video-hud/releases/latest/download/module.json) for v0.1.22. It includes the reference-layout revision and weapon targeting fix, standalone operation and scrollable choice dialogs. Tagged releases provide ZIP, manifest, installer and checksums; publishing does not update the running server. Full live HUD acceptance remains incomplete; automatic live testing is stopped at the user's request.
 
 For Linux server installation or upgrades, use the [deployment guide](docs/DEPLOYMENT.md) and `tools/deploy_linux.py`. It accepts the real user data directory, checks permissions/dependencies, verifies a backup before replacement, and rolls back caught failures. Release assets also include the standalone script and SHA-256 checksums. No server path is assumed, and server deployment / ModsTest validation have not yet been performed.
 

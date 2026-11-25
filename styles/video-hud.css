@@ -353,6 +353,7 @@ body.bg3-video-hud-active #bg3-hotbar { display: none !important; }
 .bg3-video-hud-stats-text { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .bg3-video-hud-vitals { display: flex; align-items: center; gap: 4px; background: #0d1723ed; border: 1px solid #927647; border-radius: 16px; padding: 3px; }
 .bg3-video-hud-vitals > span { flex: 0 0 auto; font: 600 var(--video-small)/1 Georgia, serif; color: #e1c189; }
+.bg3-video-hud-vitals > span:only-child { margin-inline: auto; }
 .bg3-video-hud-vitals .bg3-video-hud-health { flex: 1; min-width: 0; }
 .bg3-video-hud-spells { justify-self: center; max-width: 100%; }
 .bg3-video-hud-spells > small { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }

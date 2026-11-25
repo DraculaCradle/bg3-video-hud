@@ -143,6 +143,31 @@ try {
         if (height <= 720 && width > 650) assert.ok(layout.height <= 228, '720P dock stays compact');
       });
     }
+    await test('AC-only vitals centre the label in both wide and compact HUD layouts', async () => {
+      try {
+        for (const [width, height] of [[1920, 1080], [640, 360]]) {
+          await setViewport({ width, height });
+          await evaluate('window.bg3LayoutTest.acOnly()');
+          const centered = await evaluate(`(() => {
+            const vitals = document.querySelector('#bg3-video-hud .bg3-video-hud-vitals');
+            const label = vitals.querySelector(':scope > span');
+            const row = vitals.getBoundingClientRect(), ac = label.getBoundingClientRect();
+            return vitals.children.length === 1 && label.textContent === 'AC 10' && row.width > ac.width
+              && Math.abs(ac.left + ac.width / 2 - row.left - row.width / 2) < 1;
+          })()`);
+          assert.ok(centered, `AC must be centered at ${width} × ${height} CSS pixels`);
+          await evaluate('window.bg3LayoutTest.reset()');
+          const healthLayout = await evaluate(`(() => {
+            const vitals = document.querySelector('#bg3-video-hud .bg3-video-hud-vitals');
+            const ac = vitals.querySelector(':scope > span').getBoundingClientRect();
+            const hp = vitals.querySelector('.bg3-video-hud-health').getBoundingClientRect();
+            return hp.width > 0 && hp.height > 0 && ac.width > 0
+              && (getComputedStyle(vitals).flexDirection === 'row' ? ac.right <= hp.left : ac.bottom <= hp.top);
+          })()`);
+          assert.ok(healthLayout, 'AC and HP remain visible in their usual layout');
+        }
+      } finally { await evaluate('window.bg3LayoutTest.reset()'); }
+    });
     await test('native 720P to 4K sizes grow smoothly and stop growing beyond the cap', async () => {
       const native = SCREEN_SIZES.map(([w, h]) => measurements.find(m => m.screenWidth === w && m.screenHeight === h && m.zoom === 1));
       for (let i = 1; i < native.length; i++) {

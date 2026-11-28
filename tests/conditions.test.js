@@ -12,6 +12,7 @@ test('portrait combines active native temporary effects and conditions once, exc
     { id: 'buff', name: '祝福', img: 'bless.svg' },
     { id: 'no-icon', name: '无图标状态' },
     { id: 'off', name: '停用', img: 'off.svg', disabled: true },
+    { id: 'inactive', name: '未生效', img: 'off.svg', active: false },
     { id: 'suppressed', name: '抑制', img: 'off.svg', isSuppressed: true }
   ], statuses: new Set(['poisoned', 'prone']) };
   const before = structuredClone(actor);
@@ -27,11 +28,12 @@ test('native temporary collection is authoritative; fallback excludes passive ef
   assert.deepEqual(portraitConditions(actor).map(e => e.name), ['效果A', '效果B']);
 });
 
-test('token overlay belongs to the current token, with registry and unknown-status name fallbacks', () => {
-  const actor = { statuses: new Set(['unknown']) };
+test('shows registered statuses and the current token overlay while ignoring two unresolved status IDs', () => {
+  const actor = { statuses: new Set(['poisoned', 'unknown-a', 'unknown-b']) };
   const a = portraitConditions(actor, { document: { overlayEffect: 'prone.svg' } }, registry, localize);
   const b = portraitConditions(actor, { document: { overlayEffect: 'other.svg' } }, registry, localize);
-  assert.deepEqual(a.map(e => e.name), ['unknown', '倒地']);
+  assert.deepEqual(a.map(e => e.name), ['中毒', '倒地']);
+  assert.deepEqual(b.map(e => e.name), ['中毒', 'Token 叠加状态']);
   assert.equal(b[1].img, 'other.svg');
   assert.deepEqual(portraitConditions(null), []);
 });

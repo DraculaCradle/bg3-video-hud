@@ -198,10 +198,9 @@ export class VideoHUD {
       badge.title = entry.name; badge.setAttribute('aria-label', entry.count ? `还有 ${entry.count} 项状态：${entry.name}` : entry.name);
       if (!entry.count) {
         badge.tabIndex = 0; badge.setAttribute('role', 'img');
-        if (entry.img) {
-          const img = node('img'); img.src = entry.img; img.alt = '';
-          img.addEventListener('error', () => img.replaceWith(node('b', '?')), { once: true }); badge.append(img);
-        } else badge.append(node('b', '?'));
+        const img = node('img'); img.src = entry.img || 'icons/svg/aura.svg'; img.alt = '';
+        img.addEventListener('error', () => img.replaceWith(node('b', '◇')), { once: true });
+        badge.append(img);
       }
       slot.append(badge); ring.append(slot);
     }

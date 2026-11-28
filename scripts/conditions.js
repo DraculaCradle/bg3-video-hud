@@ -10,7 +10,7 @@ export function portraitConditions(actor, token, registry = globalThis.CONFIG?.s
   const add = entry => { result.push(entry); if (entry.img) images.add(entry.img); };
   const effects = actor.temporaryEffects ?? actor.appliedEffects ?? actor.effects;
   for (const effect of values(effects)) {
-    if (!effect || effect.disabled || effect.isSuppressed || effect.suppressed) continue;
+    if (!effect || effect.active === false || effect.disabled || effect.isSuppressed || effect.suppressed) continue;
     const statuses = [...(effect.statuses ?? [])].filter(id => typeof id === 'string');
     if (statuses.length && statuses.every(id => seen.has(id))) continue;
     // Fallback collections can contain permanent passive enchantments.
@@ -25,6 +25,7 @@ export function portraitConditions(actor, token, registry = globalThis.CONFIG?.s
   for (const id of actor.statuses ?? []) {
     if (seen.has(id)) continue;
     const definition = definitions.get(id);
+    if (!definition) continue;
     add({ key: `status.${id}`, name: label(definition?.name || definition?.label, id), img: definition?.img || definition?.icon || '' });
     seen.add(id);
   }

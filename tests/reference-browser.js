@@ -37,7 +37,7 @@ export async function referenceBrowserTests({ test, assert, equal, flush }) {
           assert(b.width > 0 && b.left >= box.left - 1 && b.right <= box.right + 1 && b.top >= box.top - 1 && b.bottom <= box.bottom + 1);
           equal(badge.getAttribute('aria-label'), badge.title);
         }
-        badges[0].querySelector('img').dispatchEvent(new Event('error')); equal(badges[0].textContent, '?'); equal(badges[0].title, '中毒');
+        badges[0].querySelector('img').dispatchEvent(new Event('error')); equal(badges[0].textContent, '✦'); equal(badges[0].title, '中毒');
         hud.setActor(candidate, { id: 'second', document: { overlayEffect: icon + '#second' } });
         equal(hud.root.querySelectorAll('.bg3-video-hud-condition').length, 3);
         const middle = hud.root.querySelectorAll('.bg3-video-hud-condition')[1];

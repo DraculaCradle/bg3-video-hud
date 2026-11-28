@@ -198,9 +198,12 @@ export class VideoHUD {
       badge.title = entry.name; badge.setAttribute('aria-label', entry.count ? `还有 ${entry.count} 项状态：${entry.name}` : entry.name);
       if (!entry.count) {
         badge.tabIndex = 0; badge.setAttribute('role', 'img');
-        const img = node('img'); img.src = entry.img || 'icons/svg/aura.svg'; img.alt = '';
-        img.addEventListener('error', () => img.replaceWith(node('b', '◇')), { once: true });
-        badge.append(img);
+        const fallback = node('span', '✦');
+        fallback.setAttribute('aria-hidden', 'true');
+        if (entry.img) {
+          const img = node('img'); img.src = entry.img; img.alt = '';
+          img.addEventListener('error', () => img.replaceWith(fallback), { once: true }); badge.append(img);
+        } else badge.append(fallback);
       }
       slot.append(badge); ring.append(slot);
     }
@@ -799,6 +802,7 @@ export class VideoHUD {
     navigation.append(button('取消', 'close-choice')); row.append(navigation);
     row.append(node('strong', pending.item.name ?? '使用物品'));
     const cards = node('div', undefined, 'bg3-video-hud-option-cards');
+    let actions;
     if (pending.phase === 'activity') {
       const bundle = bundledActivity(pending.item);
       for (const activity of usableActivities(pending.item)) {
@@ -810,6 +814,7 @@ export class VideoHUD {
     } else {
       const activity = usableActivities(pending.item).find(a => a.id === pending.activityId);
       const pools = castingPools(this.actor, pending.item, activity);
+      cards.classList.add('bg3-video-hud-cast-options');
       for (const pool of pools) {
         const control = button(`${pool.label} · ${pool.value}/${pool.max}`, 'choose-cast', `用${pool.label}进入原生施放流程`, { slot: pool.key });
         this.decorateCastCard(control, pending.item, pool.level, pool.label, pool.value, pool.max);
@@ -821,9 +826,10 @@ export class VideoHUD {
         this.decorateCastCard(control, pending.item, source.level, source.item.name, source.remaining, source.max);
         control.disabled = !source.enabled || (source.max && !source.remaining); cards.append(control);
       }
-      if (!pools.length) cards.append(button('使用并结算', 'choose-cast', '选择目标后使用本次原生活动'));
-      cards.append(button('原生使用／其他方式', 'choose-cast', '使用原生自动化，不启动本界面的重复结算', { nativeOnly: 'true' }));
-      if (pending.item.type === 'spell') cards.append(button('管理免费来源', 'source-manager'));
+      actions = node('div', undefined, 'bg3-video-hud-cast-actions');
+      if (!pools.length) actions.append(button('使用并结算', 'choose-cast', '选择目标后使用本次原生活动'));
+      actions.append(button('原生使用／其他方式', 'choose-cast', '使用原生自动化，不启动本界面的重复结算', { nativeOnly: 'true' }));
+      if (pending.item.type === 'spell') actions.append(button('管理免费来源', 'source-manager'));
       if (['attack', 'damage'].includes(activity?.type) || bundledActivity(pending.item)) {
         const settings = node('div', undefined, 'bg3-video-hud-sequence-options');
         const countLabel = node('label', '结算次数（空白为自动）：');
@@ -836,11 +842,14 @@ export class VideoHUD {
         settings.append(countLabel, modeLabel); row.append(settings);
       }
     }
-    row.append(cards); return row;
+    if (cards.children.length) row.append(cards);
+    if (actions) row.append(actions);
+    return row;
   }
 
   decorateCastCard(control, item, level, label, remaining, maximum) {
     control.replaceChildren();
+    control.classList.add('bg3-video-hud-cast-card');
     const emblem = node('span', undefined, 'bg3-video-hud-cast-emblem');
     if (item.img) { const image = node('img'); image.src = item.img; image.alt = ''; emblem.append(image); }
     emblem.append(node('b', ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][level] ?? '—'));
@@ -848,7 +857,8 @@ export class VideoHUD {
     for (let i = 0; i < Math.min(12, maximum || 0); i++) {
       const pip = node('i'); pip.classList.toggle('available', i < remaining); pips.append(pip);
     }
-    control.append(emblem, node('span', label), node('small', maximum ? `剩余 ${remaining}/${maximum}` : '不限次数'), pips);
+    control.append(emblem, node('span', label), node('small', maximum ? `剩余 ${remaining}/${maximum}` : '不限次数'));
+    if (pips.children.length) control.append(pips);
   }
 
   allocate({ item, selected, count, consumed }) {
@@ -953,7 +963,7 @@ export class VideoHUD {
       const dialog = modal('护盾术反应 · 选择施法资源', () => finish(null));
       this.reactionDialog = dialog;
       dialog.append(node('p', '已进入原生反应流程。选择本次资源，取消将停止本次施放。'));
-      const cards = node('div', undefined, 'bg3-video-hud-option-cards');
+      const cards = node('div', undefined, 'bg3-video-hud-option-cards bg3-video-hud-cast-options');
       for (const source of sources) {
         const control = button('', 'reaction-source', source.item.name, { sourceId: source.item.id });
         this.decorateCastCard(control, item, source.level, source.item.name, source.remaining, source.max);

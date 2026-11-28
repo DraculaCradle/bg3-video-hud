@@ -38,6 +38,21 @@ test('shows registered statuses and the current token overlay while ignoring two
   assert.deepEqual(portraitConditions(null), []);
 });
 
+test('passive and unidentifiable effects do not create portrait badges', () => {
+  const passive = { id: 'passive', name: '被动防御', isTemporary: false, statuses: new Set(['defense-internal']) };
+  const blank = { id: 'blank', isTemporary: true, statuses: new Set(['initiative-internal']) };
+  const statuses = new Set(['defense-internal', 'initiative-internal', 'placeholder']);
+  const definitions = { ...Object.fromEntries(registry.map(({ id, ...status }) => [id, status])), placeholder: {} };
+  assert.deepEqual(portraitConditions({ temporaryEffects: [blank], appliedEffects: [passive, blank], statuses }, null, definitions), []);
+  assert.deepEqual(portraitConditions({ appliedEffects: [passive, blank], statuses }, null, definitions), []);
+
+  const custom = { id: 'custom', name: '自定义祝福', isTemporary: true, statuses: new Set(['custom-internal']) };
+  const actor = { temporaryEffects: [blank, custom], statuses: new Set([...statuses, 'poisoned']) };
+  assert.deepEqual(portraitConditions(actor, null, definitions, localize).map(({ name, img }) => [name, img]), [
+    ['自定义祝福', ''], ['中毒', 'poison.svg']
+  ]);
+});
+
 test('ring overflow retains all names in a reachable badge and circular slots never overlap or leave the portrait bounds', () => {
   const entries = Array.from({ length: 18 }, (_, i) => ({ key: String(i), name: `状态${i}` }));
   const ring = conditionRing(entries);

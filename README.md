@@ -2,7 +2,7 @@
 
 独立实现的 Foundry VTT V14／D&D5e 玩家操作界面，参考用户提供的视频与半成品交互。无需安装 BG3 HUD Core 或 BG3 HUD D&D5e；已安装时保留共存与返回能力。
 
-> **v0.1.23 修复法术位选择弹窗。** 卡片会按内容撑开，原生施放和免费来源管理按钮单独放在卡片下方。缺图状态用通用符号显示，完整名称可悬停查看。
+> **v0.1.24 修复头像上的多余状态徽标。** 内部状态 ID 不再单独生成徽标。已注册状态、可识别的临时效果和 Token 叠加状态仍可显示。
 
 > **Status:** functional MVP with automated model/action/persistence and Chromium DOM tests. Live acceptance for Foundry VTT 14.370 and D&D5e 6.1.1 is pending. Manifest compatibility declares the intended target, not a completed in-game certification.
 

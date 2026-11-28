@@ -117,14 +117,19 @@ try {
   await test('native effect and token hooks refresh portrait conditions without persistent writes', async () => {
     const before = user.writes.length;
     try {
+      const internal = ['defense-internal', 'initiative-internal'];
+      hero.temporaryEffects = [];
+      hero.statuses = new Set(internal);
+      await Hooks.emit('updateActor', hero); await flush();
+      equal(root().querySelectorAll('.bg3-video-hud-condition').length, 0);
       hero.temporaryEffects = [{ id: 'bless', name: '祝福', statuses: new Set(['bless']) }];
-      hero.statuses = new Set(['bless']);
+      hero.statuses.add('bless');
       await Hooks.emit('createActiveEffect'); await flush();
       equal(root().querySelectorAll('.bg3-video-hud-condition').length, 1);
       equal(root().querySelector('.bg3-video-hud-condition').getAttribute('aria-label'), '祝福');
       hero.temporaryEffects[0].name = '加速'; await Hooks.emit('updateActiveEffect'); await flush();
       equal(root().querySelector('.bg3-video-hud-condition').title, '加速');
-      hero.temporaryEffects = []; hero.statuses.clear(); await Hooks.emit('deleteActiveEffect'); await flush();
+      hero.temporaryEffects = []; hero.statuses.delete('bless'); await Hooks.emit('deleteActiveEffect'); await flush();
       equal(root().querySelectorAll('.bg3-video-hud-condition').length, 0);
       canvas.tokens.controlled = [{ actor: hero, document: { overlayEffect: 'icons/svg/skull.svg' } }];
       await Hooks.emit('updateToken'); await flush(); equal(root().querySelectorAll('.bg3-video-hud-condition').length, 1);

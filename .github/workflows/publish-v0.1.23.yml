@@ -1,0 +1,79 @@
+name: Publish and verify v0.1.23
+on:
+  push:
+    branches: ['release/v0.1.23']
+permissions:
+  contents: read
+concurrency:
+  group: release-refs/tags/v0.1.23
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'DraculaCradle/bg3-video-hud' && github.ref == 'refs/heads/release/v0.1.23'
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: v0.1.23
+      RELEASE_COMMIT: 0c7b18aa4f392fc9e31c5b9fdb1b2e4456a4a0f0
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0c7b18aa4f392fc9e31c5b9fdb1b2e4456a4a0f0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run check && npm test
+      - run: npm run test:deploy
+      - run: npm run test:modstest-deploy
+      - name: Chromium fixture integration
+        run: CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)" npm run test:browser
+      - name: Check version and package
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          node -e 'if ("v" + require("./module.json").version !== process.env.RELEASE_TAG) process.exit(1)'
+          npm run package
+          (cd dist && sha256sum --check SHA256SUMS)
+      - name: Publish the reviewed version and all verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name')" = "v0.1.22"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release tag already exists. Refusing to change it." >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" dist/bg3-video-hud.zip dist/module.json dist/deploy_linux.py dist/SHA256SUMS \
+            --target "$RELEASE_COMMIT" --title "BG3 Video HUD $RELEASE_TAG" \
+            --notes-file "docs/releases/$RELEASE_TAG.md" --draft
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+      - name: Verify public manifest and release ZIP
+        run: |
+          mkdir public-release
+          for attempt in 1 2 3 4; do
+            if curl -fLsS --max-time 25 "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/module.json" \
+              --output public-release/module.json --write-out 'Latest manifest HTTP %{http_code}\n' \
+              && cmp -s dist/module.json public-release/module.json; then
+              break
+            fi
+            test "$attempt" != 4
+            sleep 5
+          done
+          for asset in bg3-video-hud.zip deploy_linux.py SHA256SUMS; do
+            curl -fLsS --retry 2 --max-time 30 "https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$asset" \
+              --output "public-release/$asset"
+          done
+          cmp dist/SHA256SUMS public-release/SHA256SUMS
+          (cd public-release && sha256sum --check SHA256SUMS && unzip -tq bg3-video-hud.zip)
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZipFile
+          public = json.loads(Path("public-release/module.json").read_bytes())
+          assert public["version"] == "0.1.23"
+          with ZipFile("public-release/bg3-video-hud.zip") as archive:
+              assert json.loads(archive.read("module.json")) == public
+          print("The public update manifest and ZIP match v0.1.23.")
+          PY

@@ -4,33 +4,44 @@ import { values } from './model.js';
 // Native temporaryEffects already accounts for transferred/active effects.
 export function portraitConditions(actor, token, registry = globalThis.CONFIG?.statusEffects ?? [], localize = key => globalThis.game?.i18n?.localize?.(key) ?? key) {
   if (!actor) return [];
-  const definitions = new Map(values(registry).map(s => [s.id, s]));
+  const definitions = new Map();
+  const entries = registry instanceof Map ? registry : Object.entries(registry ?? {});
+  for (const [key, definition] of entries) {
+    const id = definition?.id ?? (Array.isArray(registry) ? undefined : key);
+    if (id && definition && (definition.name || definition.label || definition.img || definition.icon)) {
+      definitions.set(id, definition);
+    }
+  }
   const result = [], seen = new Set(), images = new Set();
   const label = (name, fallback) => String(localize(name || fallback) || name || fallback);
   const add = entry => { result.push(entry); if (entry.img) images.add(entry.img); };
   const effects = actor.temporaryEffects ?? actor.appliedEffects ?? actor.effects;
   for (const effect of values(effects)) {
-    if (!effect || effect.disabled || effect.isSuppressed || effect.suppressed) continue;
+    if (!effect || effect.active === false || effect.disabled || effect.isSuppressed || effect.suppressed) continue;
     const statuses = [...(effect.statuses ?? [])].filter(id => typeof id === 'string');
     if (statuses.length && statuses.every(id => seen.has(id))) continue;
-    // Fallback collections can contain permanent passive enchantments.
-    if (actor.temporaryEffects == null && effect.isTemporary === false && !statuses.length) continue;
-    const definition = definitions.get(statuses[0]);
+    const registeredId = statuses.find(id => definitions.has(id));
+    const definition = definitions.get(registeredId);
+    // Passive effects may carry internal IDs that are unrelated to visible conditions.
+    if (effect.isTemporary === false && !definition) continue;
     const img = effect.img || effect.icon || definition?.img || definition?.icon || '';
-    if (!img && !statuses.length && !effect.name && !effect.label) continue;
+    const name = effect.name || effect.label || definition?.name || definition?.label;
+    if (!img && !name) continue;
     const key = effect.uuid || `${effect.parent?.uuid ?? 'actor'}.${effect.id ?? effect._id ?? result.length}`;
-    add({ key, name: label(effect.name || effect.label || definition?.name || definition?.label, statuses[0] || '状态'), img });
+    add({ key, name: label(name, registeredId || '状态'), img });
     statuses.forEach(id => seen.add(id));
   }
+  // D&D5e also uses this aggregate for internal effect evaluation.
   for (const id of actor.statuses ?? []) {
     if (seen.has(id)) continue;
     const definition = definitions.get(id);
+    if (!definition) continue;
     add({ key: `status.${id}`, name: label(definition?.name || definition?.label, id), img: definition?.img || definition?.icon || '' });
     seen.add(id);
   }
   const overlay = token?.document?.overlayEffect ?? token?.overlayEffect;
   if (typeof overlay === 'string' && overlay && !images.has(overlay)) {
-    const definition = values(registry).find(s => (s.img || s.icon) === overlay);
+    const definition = [...definitions.values()].find(s => (s.img || s.icon) === overlay);
     add({ key: 'token.overlay', name: label(definition?.name || definition?.label, 'Token 叠加状态'), img: overlay });
   }
   return result;

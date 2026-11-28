@@ -12,6 +12,7 @@ test('portrait combines active native temporary effects and conditions once, exc
     { id: 'buff', name: '祝福', img: 'bless.svg' },
     { id: 'no-icon', name: '无图标状态' },
     { id: 'off', name: '停用', img: 'off.svg', disabled: true },
+    { id: 'inactive', name: '未生效', img: 'off.svg', active: false },
     { id: 'suppressed', name: '抑制', img: 'off.svg', isSuppressed: true }
   ], statuses: new Set(['poisoned', 'prone']) };
   const before = structuredClone(actor);
@@ -27,13 +28,29 @@ test('native temporary collection is authoritative; fallback excludes passive ef
   assert.deepEqual(portraitConditions(actor).map(e => e.name), ['效果A', '效果B']);
 });
 
-test('token overlay belongs to the current token, with registry and unknown-status name fallbacks', () => {
-  const actor = { statuses: new Set(['unknown']) };
+test('shows registered statuses and the current token overlay while ignoring two unresolved status IDs', () => {
+  const actor = { statuses: new Set(['poisoned', 'unknown-a', 'unknown-b']) };
   const a = portraitConditions(actor, { document: { overlayEffect: 'prone.svg' } }, registry, localize);
   const b = portraitConditions(actor, { document: { overlayEffect: 'other.svg' } }, registry, localize);
-  assert.deepEqual(a.map(e => e.name), ['unknown', '倒地']);
+  assert.deepEqual(a.map(e => e.name), ['中毒', '倒地']);
+  assert.deepEqual(b.map(e => e.name), ['中毒', 'Token 叠加状态']);
   assert.equal(b[1].img, 'other.svg');
   assert.deepEqual(portraitConditions(null), []);
+});
+
+test('passive and unidentifiable effects do not create portrait badges', () => {
+  const passive = { id: 'passive', name: '被动防御', isTemporary: false, statuses: new Set(['defense-internal']) };
+  const blank = { id: 'blank', isTemporary: true, statuses: new Set(['initiative-internal']) };
+  const statuses = new Set(['defense-internal', 'initiative-internal', 'placeholder']);
+  const definitions = { ...Object.fromEntries(registry.map(({ id, ...status }) => [id, status])), placeholder: {} };
+  assert.deepEqual(portraitConditions({ temporaryEffects: [blank], appliedEffects: [passive, blank], statuses }, null, definitions), []);
+  assert.deepEqual(portraitConditions({ appliedEffects: [passive, blank], statuses }, null, definitions), []);
+
+  const custom = { id: 'custom', name: '自定义祝福', isTemporary: true, statuses: new Set(['custom-internal']) };
+  const actor = { temporaryEffects: [blank, custom], statuses: new Set([...statuses, 'poisoned']) };
+  assert.deepEqual(portraitConditions(actor, null, definitions, localize).map(({ name, img }) => [name, img]), [
+    ['自定义祝福', ''], ['中毒', 'poison.svg']
+  ]);
 });
 
 test('ring overflow retains all names in a reachable badge and circular slots never overlap or leave the portrait bounds', () => {

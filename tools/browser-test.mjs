@@ -367,6 +367,48 @@ try {
         }
       });
     }
+    await test('spell slot card contents stay inside their borders and actions stay below the grid with theme button sizing', async () => {
+      await evaluate(`(() => {
+        const style = document.createElement('style');
+        style.id = 'bg3-test-button-theme';
+        style.textContent = 'dialog button { height: 24px; max-height: 40px; width: 100%; box-sizing: content-box; }';
+        document.head.append(style);
+      })()`);
+      try {
+        for (const [width, height] of [[1920, 1080], [640, 360], [390, 844]]) {
+          await setViewport({ width, height });
+          await evaluate('window.bg3ChoiceTest.start("casting")');
+          const layout = await evaluate(`(() => {
+            const dialog = document.querySelector('.bg3-video-hud-choice-dialog');
+            const grid = dialog.querySelector('.bg3-video-hud-cast-options');
+            const cards = [...grid.children];
+            const actions = dialog.querySelector('.bg3-video-hud-cast-actions');
+            const inside = (outer, inner) => inner.width > 0 && inner.height > 0 && inner.left >= outer.left - 1
+              && inner.top >= outer.top - 1 && inner.right <= outer.right + 1 && inner.bottom <= outer.bottom + 1;
+            return {
+              slots: grid.querySelectorAll('[data-slot]').length,
+              sources: grid.querySelectorAll('[data-source-id]').length,
+              disabled: grid.querySelector('[data-slot=spell1]').disabled,
+              pips: grid.querySelectorAll('[data-slot=spell4] .bg3-video-hud-level-pips i').length,
+              contained: cards.every(card => {
+                const frame = card.getBoundingClientRect();
+                return [...card.querySelectorAll('span, small, img, i')].every(child => inside(frame, child.getBoundingClientRect()));
+              }),
+              separate: actions.children.length === 2 && actions.contains(dialog.querySelector('[data-action=source-manager]'))
+                && actions.contains(dialog.querySelector('[data-native-only=true]'))
+                && actions.getBoundingClientRect().top >= grid.getBoundingClientRect().bottom - 1,
+              overflow: dialog.querySelector('.bg3-video-hud-choice-body').scrollWidth
+                - dialog.querySelector('.bg3-video-hud-choice-body').clientWidth
+            };
+          })()`);
+          assert.deepEqual({ ...layout, overflow: layout.overflow <= 1 },
+            { slots: 9, sources: 50, disabled: true, pips: 12, contained: true, separate: true, overflow: true },
+            `Casting cards at ${width} × ${height} CSS pixels`);
+        }
+      } finally {
+        await evaluate('document.getElementById("bg3-test-button-theme").remove(); window.bg3ChoiceTest.dispose()');
+      }
+    });
     await test('focused popup option remains visible after 4K to 200% 720P resize', async () => {
       await setViewport({ width: 3840, height: 2160 });
       await evaluate('window.bg3ChoiceTest.start("casting"); document.querySelector(".bg3-video-hud-choice-dialog [data-action=source-manager]").focus()');

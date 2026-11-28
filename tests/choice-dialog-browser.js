@@ -6,11 +6,12 @@ import { actor, item, userWithFlags } from './fixtures.js';
 export function createChoiceDialogFixture() {
   const user = userWithFlags();
   const spell = item('dialog-spell', 'spell', { level: 1, activities: new Map() }, {
-    uuid: 'Actor.dialog-fixture.Item.dialog-spell', name: '弹窗模拟法术 Long spell name'
+    uuid: 'Actor.dialog-fixture.Item.dialog-spell', name: '弹窗模拟法术 Long spell name',
+    img: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"><rect width="36" height="36" fill="#567a8f"/></svg>')
   });
   const weapon = item('dialog-weapon', 'weapon', { activities: new Map() });
   const hero = actor('dialog-fixture', [spell, weapon], { system: {
-    spells: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`spell${i + 1}`, { value: 2, max: 3, level: i + 1 }]))
+    spells: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`spell${i + 1}`, { value: i === 0 ? 0 : 2, max: i === 3 ? 12 : 3, level: i + 1 }]))
   } });
   const use = () => { throw Error('Layout fixture must not invoke a native workflow'); };
   const cast = { id: 'cast', type: 'utility', canUse: true, requiresSpellSlot: true, item: spell, actor: hero, use };
